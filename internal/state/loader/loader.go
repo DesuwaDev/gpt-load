@@ -637,18 +637,20 @@ func mapSystemAndGroups(
 			return state.CompileInput{}, fmt.Errorf("group %d: %w", row.ID, err)
 		}
 		group := state.GroupConfig{
-			PriceMultiplier:    &multiplier,
-			ID:                 row.ID,
-			Name:               row.Name,
-			ChannelID:          channel.ID(row.ChannelID),
-			ConnectionType:     string(row.ConnectionType),
-			Params:             append(json.RawMessage(nil), row.Params...),
-			ValidationProtocol: protocol.Protocol(stringValue(row.ValidationProtocol)),
-			ValidationModel:    validationModel,
-			Models:             runtimeModels,
-			Settings:           settings,
-			WeightManual:       cloneWeight(row.WeightManual),
-			Enabled:            row.Enabled,
+			PriceMultiplier:            &multiplier,
+			ID:                         row.ID,
+			Name:                       row.Name,
+			ChannelID:                  channel.ID(row.ChannelID),
+			ConnectionType:             string(row.ConnectionType),
+			Params:                     append(json.RawMessage(nil), row.Params...),
+			ValidationProtocol:         protocol.Protocol(stringValue(row.ValidationProtocol)),
+			ValidationModel:            validationModel,
+			Models:                     runtimeModels,
+			Settings:                   settings,
+			WeightManual:               cloneWeight(row.WeightManual),
+			CredentialRPMLimit:         row.CredentialRPMLimit,
+			CredentialConcurrencyLimit: row.CredentialConcurrencyLimit,
+			Enabled:                    row.Enabled,
 		}
 		if row.ProxyConfig != nil {
 			proxy, err := decodePersistedProxy(*row.ProxyConfig, encryptionService)

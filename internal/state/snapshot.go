@@ -44,8 +44,11 @@ type GroupConfig struct {
 	Models             []ModelConfig
 	Settings           config.Settings
 	WeightManual       *int
-	Enabled            bool
-	Proxy              *outboundproxy.Config
+	// 凭据限额的分组默认值；凭据自身为 0 时继承，0 表示不限。
+	CredentialRPMLimit         int64
+	CredentialConcurrencyLimit int64
+	Enabled                    bool
+	Proxy                      *outboundproxy.Config
 }
 
 // CredentialConfig contains only non-secret credential metadata required to
@@ -140,25 +143,27 @@ func (rules HeaderRules) ConfiguredNames() []string {
 }
 
 type GroupView struct {
-	PriceMultiplier           pricing.PriceMultiplier
-	ID                        uint
-	Name                      string
-	ChannelID                 channel.ID
-	ConnectionType            string
-	Params                    json.RawMessage
-	ResolvedTarget            channel.ResolvedTarget
-	ValidationProtocol        protocol.Protocol
-	ValidationModel           string
-	ClientProtocols           []protocol.Protocol
-	Models                    []ModelConfig
-	Timeouts                  TimeoutConfig
-	HeaderRules               HeaderRules
-	BlacklistThreshold        int
-	AffinityEnabled           bool
-	ResponsesWebsocketEnabled bool
-	WeightManual              *int
-	Proxy                     outboundproxy.Effective
-	ParameterOverrides        parameteroverride.Rules
+	PriceMultiplier            pricing.PriceMultiplier
+	ID                         uint
+	Name                       string
+	ChannelID                  channel.ID
+	ConnectionType             string
+	Params                     json.RawMessage
+	ResolvedTarget             channel.ResolvedTarget
+	ValidationProtocol         protocol.Protocol
+	ValidationModel            string
+	ClientProtocols            []protocol.Protocol
+	Models                     []ModelConfig
+	Timeouts                   TimeoutConfig
+	HeaderRules                HeaderRules
+	BlacklistThreshold         int
+	AffinityEnabled            bool
+	ResponsesWebsocketEnabled  bool
+	WeightManual               *int
+	CredentialRPMLimit         int64
+	CredentialConcurrencyLimit int64
+	Proxy                      outboundproxy.Effective
+	ParameterOverrides         parameteroverride.Rules
 }
 
 type GroupCatalogView struct {
@@ -245,21 +250,23 @@ func Compile(input CompileInput) (*ConfigSnapshot, error) {
 		}
 
 		view := GroupView{
-			PriceMultiplier:           resolvePriceMultiplier(group.PriceMultiplier),
-			ID:                        group.ID,
-			Name:                      group.Name,
-			ValidationProtocol:        group.ValidationProtocol,
-			ValidationModel:           strings.TrimSpace(group.ValidationModel),
-			Models:                    append([]ModelConfig(nil), group.Models...),
-			Timeouts:                  resolved.Timeouts,
-			HeaderRules:               resolved.HeaderRules,
-			BlacklistThreshold:        resolved.BlacklistThreshold,
-			AffinityEnabled:           resolved.AffinityEnabled,
-			ResponsesWebsocketEnabled: resolved.ResponsesWebsocketEnabled,
-			WeightManual:              cloneWeight(group.WeightManual),
-			ConnectionType:            connection.Normalize(group.ConnectionType),
-			Proxy:                     groupProxy,
-			ParameterOverrides:        resolved.ParameterOverrides,
+			PriceMultiplier:            resolvePriceMultiplier(group.PriceMultiplier),
+			ID:                         group.ID,
+			Name:                       group.Name,
+			ValidationProtocol:         group.ValidationProtocol,
+			ValidationModel:            strings.TrimSpace(group.ValidationModel),
+			Models:                     append([]ModelConfig(nil), group.Models...),
+			Timeouts:                   resolved.Timeouts,
+			HeaderRules:                resolved.HeaderRules,
+			BlacklistThreshold:         resolved.BlacklistThreshold,
+			AffinityEnabled:            resolved.AffinityEnabled,
+			ResponsesWebsocketEnabled:  resolved.ResponsesWebsocketEnabled,
+			WeightManual:               cloneWeight(group.WeightManual),
+			CredentialRPMLimit:         group.CredentialRPMLimit,
+			CredentialConcurrencyLimit: group.CredentialConcurrencyLimit,
+			ConnectionType:             connection.Normalize(group.ConnectionType),
+			Proxy:                      groupProxy,
+			ParameterOverrides:         resolved.ParameterOverrides,
 		}
 		params, err := input.ChannelRegistry.ValidateParams(group.ChannelID, group.Params)
 		if err != nil {
@@ -477,6 +484,9 @@ func validateCompileInput(input CompileInput) error {
 		}
 		if err := validateManualWeight(fmt.Sprintf("group %d", group.ID), group.WeightManual); err != nil {
 			return err
+		}
+		if group.CredentialRPMLimit < 0 || group.CredentialConcurrencyLimit < 0 {
+			return fmt.Errorf("group %d credential limits must not be negative", group.ID)
 		}
 		seenModels := make(map[string]struct{}, len(group.Models))
 		for _, model := range group.Models {

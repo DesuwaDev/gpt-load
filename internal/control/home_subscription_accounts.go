@@ -288,6 +288,7 @@ func (s *Service) mapHomeSubscriptionAccount(
 	}
 	credential := representative.credential
 	credentialRPMUsed, credentialConcurrencyUsed := s.credentialLiveUsage(credential.ID)
+	groupRPMLimit, groupConcurrencyLimit := s.groupCredentialLimitDefaults(credential.GroupID)
 	item, err := mapCredentialRuntimeItem(
 		mask,
 		credential.ID,
@@ -295,8 +296,12 @@ func (s *Service) mapHomeSubscriptionAccount(
 		representative.bucket,
 		s.stats.Snapshot(credential.ID, observedAt),
 		observedAt,
-		credentialRPMUsed,
-		credentialConcurrencyUsed,
+		credentialLimitContext{
+			groupRPMLimit:         groupRPMLimit,
+			groupConcurrencyLimit: groupConcurrencyLimit,
+			rpmUsed:               credentialRPMUsed,
+			concurrencyUsed:       credentialConcurrencyUsed,
+		},
 	)
 	if err != nil {
 		return HomeSubscriptionAccountResponse{}, err

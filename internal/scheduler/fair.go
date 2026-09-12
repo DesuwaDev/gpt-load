@@ -21,7 +21,11 @@ func (iterator *Iterator) ChargeReplay(selection Selection, ref state.Credential
 				continue
 			}
 			// 同凭据重放同样受本地限额约束，否则刷新重试可以绕开 RPM/并发上限。
-			if iterator.limiter != nil && !iterator.limiter.Available(meta.ID, meta.RPMLimit, meta.ConcurrencyLimit) {
+			rpmLimit := state.EffectiveCredentialLimit(selection.Group.CredentialRPMLimit, meta.RPMLimit)
+			concurrencyLimit := state.EffectiveCredentialLimit(
+				selection.Group.CredentialConcurrencyLimit, meta.ConcurrencyLimit,
+			)
+			if iterator.limiter != nil && !iterator.limiter.Available(meta.ID, rpmLimit, concurrencyLimit) {
 				iterator.limitedSeen = true
 				continue
 			}

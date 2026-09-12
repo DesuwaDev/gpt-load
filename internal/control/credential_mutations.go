@@ -501,7 +501,14 @@ func (s *Service) mapCredentialItem(
 	bucket := classifyHealthKey(state.GroupCatalogView{ID: group.ID, Name: group.Name, Enabled: group.Enabled,
 		WeightManual: cloneInt(group.WeightManual)}, view, observedAt)
 	rpmUsed, concurrencyUsed := s.credentialLiveUsage(row.ID)
-	item, err := mapCredentialRuntimeItem(mask, row.ID, view, bucket, stats, observedAt, rpmUsed, concurrencyUsed)
+	item, err := mapCredentialRuntimeItem(mask, row.ID, view, bucket, stats, observedAt,
+		credentialLimitContext{
+			groupRPMLimit:         group.CredentialRPMLimit,
+			groupConcurrencyLimit: group.CredentialConcurrencyLimit,
+			rpmUsed:               rpmUsed,
+			concurrencyUsed:       concurrencyUsed,
+		},
+	)
 	if err != nil {
 		return CredentialItemResponse{}, err
 	}

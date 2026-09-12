@@ -23,6 +23,8 @@ export interface GroupSettingsDraft {
   validation_protocol: GroupSettingsDto['validation_protocol']
   enabled: boolean
   weight_manual: number | null
+  credential_rpm_limit: number
+  credential_concurrency_limit: number
   price_multiplier: string
   overrides: GroupRuntimeConfigDto
 }
@@ -190,6 +192,12 @@ export function buildGroupSettingsPatch(
   const priceMultiplier = normalizePriceMultiplier(draft.price_multiplier)
   if (priceMultiplier !== base.price_multiplier) patch.price_multiplier = priceMultiplier
   if (draft.weight_manual !== base.weight_manual) patch.weight_manual = draft.weight_manual
+  if (draft.credential_rpm_limit !== base.credential_rpm_limit) {
+    patch.credential_rpm_limit = draft.credential_rpm_limit
+  }
+  if (draft.credential_concurrency_limit !== base.credential_concurrency_limit) {
+    patch.credential_concurrency_limit = draft.credential_concurrency_limit
+  }
   if (JSON.stringify(overrides) !== JSON.stringify(normalizeOverrides(base.overrides))) {
     patch.overrides = overrides
   }

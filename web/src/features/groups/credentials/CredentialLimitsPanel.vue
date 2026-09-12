@@ -7,11 +7,15 @@ import AppButton from '@/components/ui/AppButton.vue'
 import IconButton from '@/components/ui/IconButton.vue'
 
 // 凭据本地限额面板：RPM 与并发各一格，与权重面板同款 setting-panel 外壳。
-// 0 表示不限，输入框留空即为 0。
+// 凭据侧 0 表示继承分组默认值（分组也是 0 才是不限），输入框留空即为 0。
 const props = defineProps<{
   credentialId: number
   rpmLimit: number
   concurrencyLimit: number
+  groupRpmLimit: number
+  groupConcurrencyLimit: number
+  effectiveRpmLimit: number
+  effectiveConcurrencyLimit: number
   busy: boolean
   disabled: boolean
 }>()
@@ -31,17 +35,27 @@ function valid(value: string): boolean {
   return Number.isSafeInteger(parsed) && parsed >= 0
 }
 const draftValid = computed(() => valid(draftRpm.value) && valid(draftConcurrency.value))
-const summary = computed(() => {
-  const rpm =
-    props.rpmLimit === 0
-      ? t('group.credentials.limits.unlimited')
-      : t('group.credentials.limits.rpmValue', { count: n(props.rpmLimit) })
-  const concurrency =
-    props.concurrencyLimit === 0
-      ? t('group.credentials.limits.unlimited')
-      : t('group.credentials.limits.concurrencyValue', { count: n(props.concurrencyLimit) })
-  return `${rpm} · ${concurrency}`
-})
+
+// 摘要展示实际生效值，并标出它来自分组默认还是本凭据自己的设置。
+function describe(own: number, effective: number): string {
+  if (effective <= 0) return t('group.credentials.limits.unlimited')
+  const value = n(effective)
+  return own > 0 ? value : t('group.credentials.limits.inheritedValue', { value })
+}
+const summary = computed(
+  () =>
+    `${t('group.credentials.limits.rpmShort')} ${describe(props.rpmLimit, props.effectiveRpmLimit)}` +
+    ` · ${t('group.credentials.limits.concurrencyShort')} ${describe(
+      props.concurrencyLimit,
+      props.effectiveConcurrencyLimit,
+    )}`,
+)
+// 编辑态提示留空会落回哪个值，避免“留空 = 不限”的误解。
+function placeholderFor(groupLimit: number): string {
+  return groupLimit > 0
+    ? t('group.credentials.limits.inheritPlaceholder', { value: n(groupLimit) })
+    : t('group.credentials.limits.placeholder')
+}
 
 function resetDraft(): void {
   draftRpm.value = props.rpmLimit === 0 ? '' : String(props.rpmLimit)
@@ -97,7 +111,7 @@ defineExpose({ beginEdit })
           min="0"
           step="1"
           inputmode="numeric"
-          :placeholder="t('group.credentials.limits.placeholder')"
+          :placeholder="placeholderFor(groupRpmLimit)"
           :disabled="busy"
           :aria-invalid="!valid(draftRpm) || undefined"
         />
@@ -109,7 +123,7 @@ defineExpose({ beginEdit })
           min="0"
           step="1"
           inputmode="numeric"
-          :placeholder="t('group.credentials.limits.placeholder')"
+          :placeholder="placeholderFor(groupConcurrencyLimit)"
           :disabled="busy"
           :aria-invalid="!valid(draftConcurrency) || undefined"
         />

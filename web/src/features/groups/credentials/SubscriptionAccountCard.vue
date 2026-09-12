@@ -660,7 +660,13 @@ function runMenuAction(
             <SkeletonBlock width="32px" height="32px" />
           </div>
         </div>
-        <SkeletonBlock width="62%" height="20px" aria-hidden="true" />
+        <div class="subscription-account__refresh-skeleton-top" aria-hidden="true">
+          <SkeletonBlock width="46%" height="20px" />
+          <div>
+            <SkeletonBlock width="96px" height="19px" />
+            <SkeletonBlock width="96px" height="19px" />
+          </div>
+        </div>
       </div>
       <div
         v-if="supportsQuotaObservation && quotaWindows.length"
@@ -789,21 +795,6 @@ function runMenuAction(
               @activate="editProxy"
             />
           </div>
-          <!-- 限额用量与状态徽章同排展示，折叠态即可见。 -->
-          <div class="subscription-account__usage">
-            <LimitUsageMeter
-              :label="t('group.credentials.limits.rpmShort')"
-              :used="item.rpm_used"
-              :limit="item.rpm_limit"
-              compact
-            />
-            <LimitUsageMeter
-              :label="t('group.credentials.limits.concurrencyShort')"
-              :used="item.concurrency_used"
-              :limit="item.concurrency_limit"
-              compact
-            />
-          </div>
           <div class="subscription-account__actions">
             <span
               v-if="supportsQuotaObservation && observation?.observed_at_ms != null"
@@ -905,6 +896,21 @@ function runMenuAction(
           <OverflowTooltip class="subscription-account__mail" :content="accountName">
             {{ accountName }}
           </OverflowTooltip>
+          <!-- 实时限额贴着账号名右侧：折叠态即可见，又不额外占一整行。 -->
+          <div class="subscription-account__usage">
+            <LimitUsageMeter
+              :label="t('group.credentials.limits.rpmShort')"
+              :used="item.rpm_used"
+              :limit="item.effective_rpm_limit"
+              compact
+            />
+            <LimitUsageMeter
+              :label="t('group.credentials.limits.concurrencyShort')"
+              :used="item.concurrency_used"
+              :limit="item.effective_concurrency_limit"
+              compact
+            />
+          </div>
         </div>
       </header>
 
@@ -1385,6 +1391,10 @@ function runMenuAction(
           :credential-id="item.credential_id"
           :rpm-limit="item.rpm_limit"
           :concurrency-limit="item.concurrency_limit"
+          :group-rpm-limit="item.group_rpm_limit"
+          :group-concurrency-limit="item.group_concurrency_limit"
+          :effective-rpm-limit="item.effective_rpm_limit"
+          :effective-concurrency-limit="item.effective_concurrency_limit"
           :busy="busy"
           :disabled="displayDisabled"
           @save="emit('limits', { item, ...$event })"
@@ -1997,16 +2007,19 @@ function runMenuAction(
   gap: 13px;
   margin-top: 13px;
 }
-/* 两条限额用量并排；窄屏回落成单列，避免进度条被压到不可读。 */
+/* 两条限额用量与账号名同排右对齐；容器变窄时收窄轨道而不是换行，保持卡片高度稳定。 */
 .subscription-account__usage {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 148px));
-  gap: 4px 16px;
-  margin-top: 8px;
+  flex: 0 1 auto;
+  grid-template-columns: repeat(2, minmax(0, 96px));
+  /* 有条/无条的两格不能互相拉伸，否则 “0/∞” 会被垂直居中而与相邻的 “0/5” 错位。 */
+  align-items: start;
+  gap: 1px 12px;
 }
-@media (max-width: 560px) {
+@container (max-width: 480px) {
   .subscription-account__usage {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 74px));
+    column-gap: 8px;
   }
 }
 .subscription-account__weight-chip {

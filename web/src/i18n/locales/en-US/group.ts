@@ -215,6 +215,13 @@ export default {
         description: 'Adjust the relative weight used for request allocation.',
         weightHelp:
           'Default: 50. Range: 1–100. Multiplied by credential weight to determine allocation shares.',
+        credentialLimits: 'Credential limit defaults',
+        credentialRpm: 'Requests per minute',
+        credentialConcurrency: 'Max concurrent',
+        credentialLimitUnlimited: 'Unlimited',
+        credentialLimitsHelp:
+          'Applied to every credential in this group. A credential with its own value keeps it; blank ones follow these. Saturated credentials are skipped in favor of another credential.',
+        credentialLimitsError: 'Enter a non-negative whole number; blank means unlimited',
       },
       headers: {
         description:
@@ -436,6 +443,8 @@ export default {
         concurrency: 'Max concurrent',
         rpmShort: 'RPM',
         concurrencyShort: 'Concurrent',
+        inheritedValue: '{value} (from group)',
+        inheritPlaceholder: 'Inherit {value}',
         placeholder: 'Unlimited',
         unlimited: 'Unlimited',
         rpmValue: '{count} RPM',

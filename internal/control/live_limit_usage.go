@@ -67,3 +67,20 @@ func (s *Service) credentialLiveUsage(credentialID uint) (rpmUsed, inFlight int6
 	}
 	return s.limitUsage.CredentialUsage(credentialID)
 }
+
+// groupCredentialLimitDefaults 从运行时快照读取分组的凭据限额默认值，供没有
+// 分组行在手的视图（如首页订阅账号）解析继承关系。
+func (s *Service) groupCredentialLimitDefaults(groupID uint) (rpmLimit, concurrencyLimit int64) {
+	if s == nil || s.manager == nil {
+		return 0, 0
+	}
+	snapshot := s.manager.Current()
+	if snapshot == nil {
+		return 0, 0
+	}
+	group, ok := snapshot.Groups[groupID]
+	if !ok {
+		return 0, 0
+	}
+	return group.CredentialRPMLimit, group.CredentialConcurrencyLimit
+}

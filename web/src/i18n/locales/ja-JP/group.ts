@@ -215,6 +215,13 @@ export default {
         description: 'リクエスト分配に使うグループの相対的な重みを設定します。',
         weightHelp:
           '既定値は 50、範囲は 1–100 です。認証情報の重みと掛け合わせて分配比率を決定します。',
+        credentialLimits: '認証情報の上限既定値',
+        credentialRpm: '1 分あたりのリクエスト数',
+        credentialConcurrency: '最大同時実行数',
+        credentialLimitUnlimited: '無制限',
+        credentialLimitsHelp:
+          'このグループの認証情報に一括で適用します。個別に設定された認証情報はその値を維持し、空欄のものはここに従います。上限に達した認証情報はスキップされ、別の認証情報が使われます。',
+        credentialLimitsError: '0 以上の整数を入力してください。空欄は無制限です',
       },
       headers: {
         description:
@@ -437,6 +444,8 @@ export default {
         concurrency: '最大同時実行数',
         rpmShort: 'RPM',
         concurrencyShort: '同時',
+        inheritedValue: '{value}（グループ継承）',
+        inheritPlaceholder: '{value} を継承',
         placeholder: '無制限',
         unlimited: '無制限',
         rpmValue: '{count} RPM',

@@ -128,6 +128,15 @@ func maskCanonicalCredential(canonical json.RawMessage) (string, error) {
 	return "", fmt.Errorf("credential identity is unavailable: %w", app_errors.ErrInternalServer)
 }
 
+// credentialLimitContext 汇总一条凭据的限额上下文：分组默认值用于解析继承，
+// used 是限流器的实时计数。
+type credentialLimitContext struct {
+	groupRPMLimit         int64
+	groupConcurrencyLimit int64
+	rpmUsed               int64
+	concurrencyUsed       int64
+}
+
 func mapCredentialRuntimeItem(
 	mask string,
 	credentialID uint,
@@ -135,19 +144,24 @@ func mapCredentialRuntimeItem(
 	bucket healthBucket,
 	stats health.CredentialStats,
 	observedAt time.Time,
-	rpmUsed int64,
-	concurrencyUsed int64,
+	limitContext credentialLimitContext,
 ) (CredentialItemResponse, error) {
 	item := CredentialItemResponse{
-		CredentialID:            credentialID,
-		Mask:                    mask,
-		ConfiguredStatus:        string(view.Status),
-		EffectiveStatus:         string(bucket),
-		Weight:                  state.ConfiguredWeight(view.WeightManual),
-		RPMLimit:                view.RPMLimit,
-		ConcurrencyLimit:        view.ConcurrencyLimit,
-		RPMUsed:                 rpmUsed,
-		ConcurrencyUsed:         concurrencyUsed,
+		CredentialID:      credentialID,
+		Mask:              mask,
+		ConfiguredStatus:  string(view.Status),
+		EffectiveStatus:   string(bucket),
+		Weight:            state.ConfiguredWeight(view.WeightManual),
+		RPMLimit:          view.RPMLimit,
+		ConcurrencyLimit:  view.ConcurrencyLimit,
+		EffectiveRPMLimit: state.EffectiveCredentialLimit(limitContext.groupRPMLimit, view.RPMLimit),
+		EffectiveConcurrencyLimit: state.EffectiveCredentialLimit(
+			limitContext.groupConcurrencyLimit, view.ConcurrencyLimit,
+		),
+		GroupRPMLimit:           limitContext.groupRPMLimit,
+		GroupConcurrencyLimit:   limitContext.groupConcurrencyLimit,
+		RPMUsed:                 limitContext.rpmUsed,
+		ConcurrencyUsed:         limitContext.concurrencyUsed,
 		RecentSuccessCount:      stats.Success,
 		RecentFailureCount:      stats.Failure,
 		ConsecutiveFailureCount: stats.ConsecutiveFailure,

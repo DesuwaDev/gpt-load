@@ -264,7 +264,12 @@ func (iterator *Iterator) withWeightedPool(candidates *candidatePool, modes []ch
 				continue
 			}
 			// 凭据本地限额与模型冷却并列过滤：满额凭据不进候选池，调度器自然换号。
-			if iterator.limiter != nil && !iterator.limiter.Available(credential.ID, credential.RPMLimit, credential.ConcurrencyLimit) {
+			// 限额按“凭据自身值优先、否则继承分组默认值”解析。
+			rpmLimit := state.EffectiveCredentialLimit(target.group.CredentialRPMLimit, credential.RPMLimit)
+			concurrencyLimit := state.EffectiveCredentialLimit(
+				target.group.CredentialConcurrencyLimit, credential.ConcurrencyLimit,
+			)
+			if iterator.limiter != nil && !iterator.limiter.Available(credential.ID, rpmLimit, concurrencyLimit) {
 				iterator.limitedSeen = true
 				continue
 			}
@@ -380,16 +385,20 @@ func newSelection(credential state.CredentialMeta, target candidateTarget) Selec
 	resolvedTarget := target.target.ResolvedTarget
 	resolvedTarget.TargetConfig = append([]byte(nil), resolvedTarget.TargetConfig...)
 	return Selection{
-		CredentialID:               credential.ID,
-		GroupID:                    credential.GroupID,
-		ChannelID:                  resolvedTarget.ChannelID,
-		ResolvedTarget:             resolvedTarget,
-		RouteMode:                  target.target.Mode,
-		UpstreamModelID:            upstreamModelID,
-		Group:                      cloneGroupView(target.group),
-		ResponsesStoreDowngraded:   target.responsesStoreDowngraded,
-		CredentialRPMLimit:         credential.RPMLimit,
-		CredentialConcurrencyLimit: credential.ConcurrencyLimit,
+		CredentialID:             credential.ID,
+		GroupID:                  credential.GroupID,
+		ChannelID:                resolvedTarget.ChannelID,
+		ResolvedTarget:           resolvedTarget,
+		RouteMode:                target.target.Mode,
+		UpstreamModelID:          upstreamModelID,
+		Group:                    cloneGroupView(target.group),
+		ResponsesStoreDowngraded: target.responsesStoreDowngraded,
+		CredentialRPMLimit: state.EffectiveCredentialLimit(
+			target.group.CredentialRPMLimit, credential.RPMLimit,
+		),
+		CredentialConcurrencyLimit: state.EffectiveCredentialLimit(
+			target.group.CredentialConcurrencyLimit, credential.ConcurrencyLimit,
+		),
 	}
 }
 

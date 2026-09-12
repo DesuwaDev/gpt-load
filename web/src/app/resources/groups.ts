@@ -69,6 +69,8 @@ const groupSettingsFields = [
   'validation_protocols',
   'enabled',
   'weight_manual',
+  'credential_rpm_limit',
+  'credential_concurrency_limit',
   'overrides',
   'effective',
   'proxy',
@@ -167,6 +169,8 @@ export type GroupSettingsUpdateRequest = Partial<{
   validation_protocol: AccessProtocol | null
   enabled: boolean
   weight_manual: number | null
+  credential_rpm_limit: number
+  credential_concurrency_limit: number
   overrides: GroupRuntimeConfigDto
   proxy: ProxyMutation
 }>
@@ -435,6 +439,10 @@ export function projectGroupSettings(value: unknown): GroupSettingsDto {
       record.weight_manual === null
         ? null
         : projectSafeInteger(record.weight_manual, { minimum: 1, maximum: 100 }),
+    credential_rpm_limit: projectSafeInteger(record.credential_rpm_limit, { minimum: 0 }),
+    credential_concurrency_limit: projectSafeInteger(record.credential_concurrency_limit, {
+      minimum: 0,
+    }),
     overrides: projectRuntimeConfig(record.overrides, false),
     effective: projectRuntimeConfig(record.effective, true),
     proxy: projectProxyView(record.proxy),

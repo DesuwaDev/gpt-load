@@ -27,6 +27,8 @@ const props = defineProps<{
   validationProtocols: AccessProtocol[]
   models: GroupModelItemDto[]
   weightManual: number | null
+  credentialRpmLimit: number
+  credentialConcurrencyLimit: number
   priceMultiplier: string
   enabled: boolean
   pending: boolean
@@ -40,6 +42,8 @@ const emit = defineEmits<{
   'update:validationProtocol': [value: AccessProtocol]
   'update:validationModel': [value: string | null]
   'update:weightManual': [value: number | null]
+  'update:credentialRpmLimit': [value: number]
+  'update:credentialConcurrencyLimit': [value: number]
   'update:priceMultiplier': [value: string]
   'update:enabled': [value: boolean]
 }>()
@@ -57,6 +61,17 @@ const weightValid = computed(
     (Number.isInteger(props.weightManual) && props.weightManual >= 1 && props.weightManual <= 100),
 )
 const baseUrlOverrideEnabled = computed(() => props.params.base_url !== undefined)
+const credentialRpmInputId = 'group-settings-credential-rpm'
+const credentialConcurrencyInputId = 'group-settings-credential-concurrency'
+// 留空即 0（不限）；负数与小数一律判为无效。
+function numericLimit(value: string): number {
+  return value === '' ? 0 : Number(value)
+}
+const credentialLimitsValid = computed(() =>
+  [props.credentialRpmLimit, props.credentialConcurrencyLimit].every(
+    (value) => Number.isSafeInteger(value) && value >= 0,
+  ),
+)
 const defaultBaseUrls = computed(() =>
   props.defaultBaseUrls.length
     ? props.defaultBaseUrls
@@ -228,6 +243,57 @@ function parameterPlaceholder(field: ChannelFieldDto): string | undefined {
       <small>{{ t('group.settings.routing.weightHelp') }}</small>
       <small v-if="!weightValid" role="alert">{{ t('group.settings.base.weightError') }}</small>
     </div>
+
+    <!-- 凭据限额默认值：与权重同属路由分配，统一下发给本组未单独设置的凭据。 -->
+    <div class="group-settings__field group-settings__wide">
+      <span>{{ t('group.settings.routing.credentialLimits') }}</span>
+      <div class="group-settings__credential-limits">
+        <label :for="credentialRpmInputId">{{ t('group.settings.routing.credentialRpm') }}</label>
+        <input
+          :id="credentialRpmInputId"
+          class="group-settings__mono"
+          type="number"
+          min="0"
+          step="1"
+          inputmode="numeric"
+          :value="credentialRpmLimit === 0 ? '' : credentialRpmLimit"
+          :placeholder="t('group.settings.routing.credentialLimitUnlimited')"
+          :disabled="pending"
+          :aria-invalid="!credentialLimitsValid || undefined"
+          @input="
+            emit(
+              'update:credentialRpmLimit',
+              numericLimit(($event.target as HTMLInputElement).value),
+            )
+          "
+        />
+        <label :for="credentialConcurrencyInputId">{{
+          t('group.settings.routing.credentialConcurrency')
+        }}</label>
+        <input
+          :id="credentialConcurrencyInputId"
+          class="group-settings__mono"
+          type="number"
+          min="0"
+          step="1"
+          inputmode="numeric"
+          :value="credentialConcurrencyLimit === 0 ? '' : credentialConcurrencyLimit"
+          :placeholder="t('group.settings.routing.credentialLimitUnlimited')"
+          :disabled="pending"
+          :aria-invalid="!credentialLimitsValid || undefined"
+          @input="
+            emit(
+              'update:credentialConcurrencyLimit',
+              numericLimit(($event.target as HTMLInputElement).value),
+            )
+          "
+        />
+      </div>
+      <small>{{ t('group.settings.routing.credentialLimitsHelp') }}</small>
+      <small v-if="!credentialLimitsValid" role="alert">{{
+        t('group.settings.routing.credentialLimitsError')
+      }}</small>
+    </div>
   </section>
 </template>
 
@@ -357,6 +423,32 @@ fieldset {
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+/* 两个限额输入并排，标签在左，与权重编辑器同一视觉节奏。 */
+.group-settings__credential-limits {
+  display: grid;
+  grid-template-columns: auto 110px auto 110px;
+  align-items: center;
+  gap: 8px 10px;
+}
+.group-settings__credential-limits > label {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+.group-settings__field .group-settings__credential-limits > input {
+  width: 110px !important;
+  min-height: var(--control-compact);
+  flex: 0 0 110px;
+}
+@media (max-width: 720px) {
+  .group-settings__credential-limits {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .group-settings__field .group-settings__credential-limits > input {
+    width: 100% !important;
+    flex: 1 1 auto;
+  }
 }
 
 .group-settings__field .group-settings__weight-editor > input {

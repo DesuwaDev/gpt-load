@@ -22,47 +22,53 @@ import (
 )
 
 type GroupSettingsResponse struct {
-	PriceMultiplier     string                       `json:"price_multiplier"`
-	ChannelID           channel.ID                   `json:"channel_id"`
-	ConnectionType      models.ConnectionType        `json:"connection_type"`
-	Params              json.RawMessage              `json:"params"`
-	Name                string                       `json:"name"`
-	ValidationProtocol  *protocol.Protocol           `json:"validation_protocol"`
-	ValidationProtocols []protocol.Protocol          `json:"validation_protocols"`
-	ValidationModel     *string                      `json:"validation_model"`
-	Enabled             bool                         `json:"enabled"`
-	WeightManual        *int                         `json:"weight_manual"`
-	Overrides           config.Settings              `json:"overrides"`
-	Effective           GroupEffectiveConfigResponse `json:"effective"`
-	Proxy               outboundproxy.View           `json:"proxy"`
+	PriceMultiplier            string                       `json:"price_multiplier"`
+	ChannelID                  channel.ID                   `json:"channel_id"`
+	ConnectionType             models.ConnectionType        `json:"connection_type"`
+	Params                     json.RawMessage              `json:"params"`
+	Name                       string                       `json:"name"`
+	ValidationProtocol         *protocol.Protocol           `json:"validation_protocol"`
+	ValidationProtocols        []protocol.Protocol          `json:"validation_protocols"`
+	ValidationModel            *string                      `json:"validation_model"`
+	Enabled                    bool                         `json:"enabled"`
+	WeightManual               *int                         `json:"weight_manual"`
+	CredentialRPMLimit         int64                        `json:"credential_rpm_limit"`
+	CredentialConcurrencyLimit int64                        `json:"credential_concurrency_limit"`
+	Overrides                  config.Settings              `json:"overrides"`
+	Effective                  GroupEffectiveConfigResponse `json:"effective"`
+	Proxy                      outboundproxy.View           `json:"proxy"`
 }
 
 type GroupSettingsUpdateRequest struct {
-	PriceMultiplier    optionalField[string]               `json:"price_multiplier"`
-	Name               optionalField[string]               `json:"name"`
-	Params             optionalField[json.RawMessage]      `json:"params"`
-	ValidationProtocol optionalField[protocol.Protocol]    `json:"validation_protocol"`
-	ValidationModel    optionalField[string]               `json:"validation_model"`
-	Enabled            optionalField[bool]                 `json:"enabled"`
-	WeightManual       optionalField[int]                  `json:"weight_manual"`
-	Overrides          optionalField[config.Settings]      `json:"overrides"`
-	Proxy              optionalField[outboundproxy.Config] `json:"proxy"`
+	PriceMultiplier            optionalField[string]               `json:"price_multiplier"`
+	Name                       optionalField[string]               `json:"name"`
+	Params                     optionalField[json.RawMessage]      `json:"params"`
+	ValidationProtocol         optionalField[protocol.Protocol]    `json:"validation_protocol"`
+	ValidationModel            optionalField[string]               `json:"validation_model"`
+	Enabled                    optionalField[bool]                 `json:"enabled"`
+	WeightManual               optionalField[int]                  `json:"weight_manual"`
+	CredentialRPMLimit         optionalField[int64]                `json:"credential_rpm_limit"`
+	CredentialConcurrencyLimit optionalField[int64]                `json:"credential_concurrency_limit"`
+	Overrides                  optionalField[config.Settings]      `json:"overrides"`
+	Proxy                      optionalField[outboundproxy.Config] `json:"proxy"`
 }
 
 type normalizedGroupSettingsUpdate struct {
-	priceMultiplierMicros *int64
-	name                  *string
-	params                json.RawMessage
-	paramsSet             bool
-	validationModel       *string
-	validationModelSet    bool
-	enabled               *bool
-	weightManual          *int
-	weightManualSet       bool
-	encodedOverrides      models.JSON
-	overridesSet          bool
-	proxyConfig           *string
-	proxySet              bool
+	priceMultiplierMicros      *int64
+	name                       *string
+	params                     json.RawMessage
+	paramsSet                  bool
+	validationModel            *string
+	validationModelSet         bool
+	enabled                    *bool
+	weightManual               *int
+	weightManualSet            bool
+	credentialRPMLimit         *int64
+	credentialConcurrencyLimit *int64
+	encodedOverrides           models.JSON
+	overridesSet               bool
+	proxyConfig                *string
+	proxySet                   bool
 }
 
 func (s *Service) GetGroupSettings(ctx context.Context, groupID uint) (GroupSettingsResponse, error) {
@@ -143,16 +149,18 @@ func groupSettingsResponse(
 	}
 	return GroupSettingsResponse{
 		ValidationProtocol: optionalValidationProtocol(selected), ValidationProtocols: protocols,
-		PriceMultiplier: priceMultiplierResponse(group.PriceMultiplierMicros),
-		ChannelID:       channelID,
-		ConnectionType:  normalizeGroupConnectionType(group.ConnectionType),
-		Params:          validated.CanonicalJSON(),
-		Name:            group.Name,
-		ValidationModel: cloneString(group.ValidationModel),
-		Enabled:         group.Enabled,
-		WeightManual:    cloneInt(group.WeightManual),
-		Overrides:       overrides,
-		Effective:       effective,
+		PriceMultiplier:            priceMultiplierResponse(group.PriceMultiplierMicros),
+		ChannelID:                  channelID,
+		ConnectionType:             normalizeGroupConnectionType(group.ConnectionType),
+		Params:                     validated.CanonicalJSON(),
+		Name:                       group.Name,
+		ValidationModel:            cloneString(group.ValidationModel),
+		Enabled:                    group.Enabled,
+		WeightManual:               cloneInt(group.WeightManual),
+		CredentialRPMLimit:         group.CredentialRPMLimit,
+		CredentialConcurrencyLimit: group.CredentialConcurrencyLimit,
+		Overrides:                  overrides,
+		Effective:                  effective,
 	}, nil
 }
 
@@ -179,7 +187,8 @@ func normalizeGroupSettingsUpdate(
 		}
 	}
 	if !request.ValidationProtocol.Set && !request.Name.Set && !request.Params.Set && !request.ValidationModel.Set &&
-		!request.Enabled.Set && !request.WeightManual.Set && !request.Overrides.Set && !request.Proxy.Set && !request.PriceMultiplier.Set {
+		!request.Enabled.Set && !request.WeightManual.Set && !request.Overrides.Set && !request.Proxy.Set &&
+		!request.PriceMultiplier.Set && !request.CredentialRPMLimit.Set && !request.CredentialConcurrencyLimit.Set {
 		return normalizedGroupSettingsUpdate{}, app_errors.ErrBadRequest
 	}
 
@@ -228,6 +237,23 @@ func normalizeGroupSettingsUpdate(
 			value := request.WeightManual.Value
 			result.weightManual = &value
 		}
+	}
+	// 限额字段不接受 null：0 即不限，凭据侧同样以 0 表示继承本组默认值。
+	for _, limit := range []struct {
+		field  optionalField[int64]
+		target **int64
+	}{
+		{request.CredentialRPMLimit, &result.credentialRPMLimit},
+		{request.CredentialConcurrencyLimit, &result.credentialConcurrencyLimit},
+	} {
+		if !limit.field.Set {
+			continue
+		}
+		if limit.field.Null || limit.field.Value < 0 {
+			return normalizedGroupSettingsUpdate{}, app_errors.ErrValidation
+		}
+		value := limit.field.Value
+		*limit.target = &value
 	}
 	if request.Overrides.Set {
 		_, encoded, err := normalizeGroupSettings(request.Overrides.Value)
@@ -321,6 +347,14 @@ func (s *Service) UpdateGroupSettings(
 		if normalized.weightManualSet {
 			group.WeightManual = normalized.weightManual
 			updates["weight_manual"] = normalized.weightManual
+		}
+		if normalized.credentialRPMLimit != nil {
+			group.CredentialRPMLimit = *normalized.credentialRPMLimit
+			updates["credential_rpm_limit"] = group.CredentialRPMLimit
+		}
+		if normalized.credentialConcurrencyLimit != nil {
+			group.CredentialConcurrencyLimit = *normalized.credentialConcurrencyLimit
+			updates["credential_concurrency_limit"] = group.CredentialConcurrencyLimit
 		}
 		if normalized.overridesSet {
 			group.Overrides = normalized.encodedOverrides

@@ -212,6 +212,13 @@ export default {
       routing: {
         description: '调整分组参与请求分配的相对权重。',
         weightHelp: '默认 50，范围 1–100；与凭据权重相乘，决定分配比例。',
+        credentialLimits: '凭据限额默认值',
+        credentialRpm: '每分钟请求数',
+        credentialConcurrency: '最大并发',
+        credentialLimitUnlimited: '不限',
+        credentialLimitsHelp:
+          '统一下发给本组凭据；凭据自己设了值就用自己的，留空的跟随这里。满额的凭据会被跳过换用其它凭据。',
+        credentialLimitsError: '请输入非负整数；留空表示不限',
       },
       headers: {
         description: '发往上游前设置、覆盖或移除的请求头规则；覆盖后将完整替换全局规则，不做合并。',
@@ -421,6 +428,8 @@ export default {
         concurrency: '最大并发',
         rpmShort: 'RPM',
         concurrencyShort: '并发',
+        inheritedValue: '{value}（继承分组）',
+        inheritPlaceholder: '继承 {value}',
         placeholder: '不限',
         unlimited: '不限',
         rpmValue: '{count} RPM',

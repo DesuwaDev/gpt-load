@@ -195,13 +195,13 @@ function runMenuAction(action: 'test' | 'toggle' | 'restore' | 'remove'): void {
           <LimitUsageMeter
             :label="t('group.credentials.limits.rpmShort')"
             :used="item.rpm_used"
-            :limit="item.rpm_limit"
+            :limit="item.effective_rpm_limit"
             compact
           />
           <LimitUsageMeter
             :label="t('group.credentials.limits.concurrencyShort')"
             :used="item.concurrency_used"
-            :limit="item.concurrency_limit"
+            :limit="item.effective_concurrency_limit"
             compact
           />
         </div>
@@ -360,6 +360,10 @@ function runMenuAction(action: 'test' | 'toggle' | 'restore' | 'remove'): void {
               :credential-id="item.credential_id"
               :rpm-limit="item.rpm_limit"
               :concurrency-limit="item.concurrency_limit"
+              :group-rpm-limit="item.group_rpm_limit"
+              :group-concurrency-limit="item.group_concurrency_limit"
+              :effective-rpm-limit="item.effective_rpm_limit"
+              :effective-concurrency-limit="item.effective_concurrency_limit"
               :busy="busy"
               :disabled="item.configured_status === 'disabled'"
               @save="emit('limits', { item, ...$event })"
