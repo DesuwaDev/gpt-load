@@ -280,6 +280,7 @@ export default {
           'This is an access key read-only view. All data is scoped to this key, and system configuration cannot be changed.',
         rpm: 'RPM limit',
         rpmValue: '{count} RPM',
+        concurrency: 'Concurrency limit',
         unlimited: 'Unlimited',
         protocols: 'Protocols',
         allProtocols: 'All protocols',

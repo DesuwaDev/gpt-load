@@ -137,25 +137,27 @@ func (value *OptionalRPMLimit) UnmarshalJSON(data []byte) error {
 }
 
 type AccessKeyCreateRequest struct {
-	Key             string                          `json:"key"`
-	PriceMultiplier optionalField[string]           `json:"price_multiplier"`
-	Name            string                          `json:"name"`
-	Status          *state.AccessKeyStatus          `json:"status"`
-	Filters         *AccessKeyFilters               `json:"filters"`
-	RPMLimit        OptionalRPMLimit                `json:"rpm_limit"`
-	CostLimitRules  OptionalAccessKeyCostLimitRules `json:"cost_limit_rules"`
-	ExpiresAtMS     *int64                          `json:"expires_at_ms"`
+	Key              string                          `json:"key"`
+	PriceMultiplier  optionalField[string]           `json:"price_multiplier"`
+	Name             string                          `json:"name"`
+	Status           *state.AccessKeyStatus          `json:"status"`
+	Filters          *AccessKeyFilters               `json:"filters"`
+	RPMLimit         OptionalRPMLimit                `json:"rpm_limit"`
+	ConcurrencyLimit OptionalRPMLimit                `json:"concurrency_limit"`
+	CostLimitRules   OptionalAccessKeyCostLimitRules `json:"cost_limit_rules"`
+	ExpiresAtMS      *int64                          `json:"expires_at_ms"`
 }
 
 type AccessKeyUpdateRequest struct {
-	Key             string                          `json:"key"`
-	PriceMultiplier optionalField[string]           `json:"price_multiplier"`
-	Name            *string                         `json:"name"`
-	Status          *state.AccessKeyStatus          `json:"status"`
-	Filters         *AccessKeyFilters               `json:"filters"`
-	RPMLimit        OptionalRPMLimit                `json:"rpm_limit"`
-	CostLimitRules  OptionalAccessKeyCostLimitRules `json:"cost_limit_rules"`
-	ExpiresAtMS     OptionalNullableEpochMS         `json:"expires_at_ms"`
+	Key              string                          `json:"key"`
+	PriceMultiplier  optionalField[string]           `json:"price_multiplier"`
+	Name             *string                         `json:"name"`
+	Status           *state.AccessKeyStatus          `json:"status"`
+	Filters          *AccessKeyFilters               `json:"filters"`
+	RPMLimit         OptionalRPMLimit                `json:"rpm_limit"`
+	ConcurrencyLimit OptionalRPMLimit                `json:"concurrency_limit"`
+	CostLimitRules   OptionalAccessKeyCostLimitRules `json:"cost_limit_rules"`
+	ExpiresAtMS      OptionalNullableEpochMS         `json:"expires_at_ms"`
 }
 
 type AccessKeyCostLimitResetRequest struct {
@@ -163,18 +165,19 @@ type AccessKeyCostLimitResetRequest struct {
 }
 
 type AccessKeyMetadata struct {
-	PriceMultiplier string                    `json:"price_multiplier"`
-	ID              uint                      `json:"id"`
-	Name            string                    `json:"name"`
-	MaskedKey       string                    `json:"masked_key"`
-	Status          state.AccessKeyStatus     `json:"status"`
-	Filters         AccessKeyFilters          `json:"filters"`
-	RPMLimit        int64                     `json:"rpm_limit"`
-	CostLimitRules  []AccessKeyCostLimitRule  `json:"cost_limit_rules"`
-	CostLimitStatus *AccessKeyCostLimitStatus `json:"cost_limit_status,omitempty"`
-	ExpiresAtMS     *int64                    `json:"expires_at_ms"`
-	CreatedAtMS     int64                     `json:"created_at_ms"`
-	UpdatedAtMS     int64                     `json:"updated_at_ms"`
+	PriceMultiplier  string                    `json:"price_multiplier"`
+	ID               uint                      `json:"id"`
+	Name             string                    `json:"name"`
+	MaskedKey        string                    `json:"masked_key"`
+	Status           state.AccessKeyStatus     `json:"status"`
+	Filters          AccessKeyFilters          `json:"filters"`
+	RPMLimit         int64                     `json:"rpm_limit"`
+	ConcurrencyLimit int64                     `json:"concurrency_limit"`
+	CostLimitRules   []AccessKeyCostLimitRule  `json:"cost_limit_rules"`
+	CostLimitStatus  *AccessKeyCostLimitStatus `json:"cost_limit_status,omitempty"`
+	ExpiresAtMS      *int64                    `json:"expires_at_ms"`
+	CreatedAtMS      int64                     `json:"created_at_ms"`
+	UpdatedAtMS      int64                     `json:"updated_at_ms"`
 }
 
 type AccessKeyCreateResult struct {
@@ -205,6 +208,7 @@ type accessKeyMetadataRow struct {
 	Status                string
 	Filters               models.JSON
 	RPMLimit              int64
+	ConcurrencyLimit      int64
 	ExpiresAtMS           *int64
 	CreatedAtMS           int64
 	UpdatedAtMS           int64
@@ -224,6 +228,7 @@ func (s *Service) newAccessKeyRow(
 	name string,
 	filters AccessKeyFilters,
 	rpmLimit int64,
+	concurrencyLimit int64,
 	customKey string,
 ) (models.AccessKey, string, error) {
 	encodedFilters, err := encodeStoredAccessKeyFilters(filters)
@@ -235,14 +240,15 @@ func (s *Service) newAccessKeyRow(
 		return models.AccessKey{}, "", err
 	}
 	return models.AccessKey{
-		Name:      name,
-		KeyValue:  credential.KeyValue,
-		KeyHash:   credential.KeyHash,
-		KeyPrefix: &credential.KeyPrefix,
-		KeySuffix: credential.KeySuffix,
-		Status:    string(state.AccessKeyStatusActive),
-		Filters:   models.JSON(encodedFilters),
-		RPMLimit:  rpmLimit,
+		Name:             name,
+		KeyValue:         credential.KeyValue,
+		KeyHash:          credential.KeyHash,
+		KeyPrefix:        &credential.KeyPrefix,
+		KeySuffix:        credential.KeySuffix,
+		Status:           string(state.AccessKeyStatusActive),
+		Filters:          models.JSON(encodedFilters),
+		RPMLimit:         rpmLimit,
+		ConcurrencyLimit: concurrencyLimit,
 	}, credential.Plaintext, nil
 }
 
@@ -299,6 +305,10 @@ func (s *Service) CreateAccessKey(
 	if err != nil {
 		return AccessKeyCreateResult{}, err
 	}
+	concurrencyLimit, err := normalizeRPMLimit(request.ConcurrencyLimit, 0)
+	if err != nil {
+		return AccessKeyCreateResult{}, err
+	}
 	costLimitRules, err := normalizeAccessKeyCostLimitRules(request.CostLimitRules, false)
 	if err != nil {
 		return AccessKeyCreateResult{}, err
@@ -326,7 +336,7 @@ func (s *Service) CreateAccessKey(
 		if err := validateFilterGroupReferences(tx, filters.Groups); err != nil {
 			return err
 		}
-		row, plaintext, err := s.newAccessKeyRow(name, filters, rpmLimit, request.Key)
+		row, plaintext, err := s.newAccessKeyRow(name, filters, rpmLimit, concurrencyLimit, request.Key)
 		if err != nil {
 			return err
 		}
@@ -344,8 +354,9 @@ func (s *Service) CreateAccessKey(
 			ID: row.ID, Name: row.Name, KeyPrefix: *row.KeyPrefix, KeySuffix: row.KeySuffix,
 			PriceMultiplierMicros: row.PriceMultiplierMicros,
 			Status:                row.Status, Filters: row.Filters, RPMLimit: row.RPMLimit,
-			ExpiresAtMS: row.ExpiresAtMS,
-			CreatedAtMS: row.CreatedAtMS, UpdatedAtMS: row.UpdatedAtMS,
+			ConcurrencyLimit: row.ConcurrencyLimit,
+			ExpiresAtMS:      row.ExpiresAtMS,
+			CreatedAtMS:      row.CreatedAtMS, UpdatedAtMS: row.UpdatedAtMS,
 		})
 		if err != nil {
 			return err
@@ -389,10 +400,13 @@ func (s *Service) accessKeyUpdateMutation(
 	request AccessKeyUpdateRequest,
 ) (func(*gorm.DB) (AccessKeyMetadata, error), error) {
 	if id == 0 || (request.Key == "" && request.Name == nil && request.Status == nil && request.Filters == nil &&
-		!request.RPMLimit.Set && !request.CostLimitRules.Set && !request.ExpiresAtMS.Set && !request.PriceMultiplier.Set) {
+		!request.RPMLimit.Set && !request.ConcurrencyLimit.Set && !request.CostLimitRules.Set && !request.ExpiresAtMS.Set && !request.PriceMultiplier.Set) {
 		return nil, app_errors.ErrBadRequest
 	}
 	if _, err := normalizeRPMLimit(request.RPMLimit, 0); err != nil {
+		return nil, err
+	}
+	if _, err := normalizeRPMLimit(request.ConcurrencyLimit, 0); err != nil {
 		return nil, err
 	}
 	if request.ExpiresAtMS.Set {
@@ -455,7 +469,7 @@ func (s *Service) accessKeyUpdateMutation(
 		var row accessKeyMetadataRow
 		if err := tx.Model(&models.AccessKey{}).
 			Select(
-				"id", "name", "key_prefix", "key_suffix", "status", "filters", "rpm_limit", "expires_at_ms", "price_multiplier_micros",
+				"id", "name", "key_prefix", "key_suffix", "status", "filters", "rpm_limit", "concurrency_limit", "expires_at_ms", "price_multiplier_micros",
 				"created_at_ms", "updated_at_ms",
 			).
 			Where("id = ?", id).
@@ -518,6 +532,10 @@ func (s *Service) accessKeyUpdateMutation(
 			row.RPMLimit = request.RPMLimit.Value
 			updates["rpm_limit"] = row.RPMLimit
 		}
+		if request.ConcurrencyLimit.Set {
+			row.ConcurrencyLimit = request.ConcurrencyLimit.Value
+			updates["concurrency_limit"] = row.ConcurrencyLimit
+		}
 		if request.ExpiresAtMS.Set {
 			row.ExpiresAtMS = cloneOptionalInt64(request.ExpiresAtMS.Value)
 			updates["expires_at_ms"] = row.ExpiresAtMS
@@ -540,7 +558,7 @@ func (s *Service) accessKeyUpdateMutation(
 		}
 		if err := tx.Model(&models.AccessKey{}).
 			Select(
-				"id", "name", "key_prefix", "key_suffix", "status", "filters", "rpm_limit", "expires_at_ms", "price_multiplier_micros",
+				"id", "name", "key_prefix", "key_suffix", "status", "filters", "rpm_limit", "concurrency_limit", "expires_at_ms", "price_multiplier_micros",
 				"created_at_ms", "updated_at_ms",
 			).
 			Where("id = ?", row.ID).
@@ -664,9 +682,10 @@ func mapAccessKeyMetadataRow(row accessKeyMetadataRow) (AccessKeyMetadata, error
 		ID:              row.ID, Name: row.Name,
 		MaskedKey: maskedAccessKey(row.KeyPrefix, row.KeySuffix),
 		Status:    status, Filters: filters, RPMLimit: row.RPMLimit,
-		ExpiresAtMS:    cloneOptionalInt64(row.ExpiresAtMS),
-		CostLimitRules: []AccessKeyCostLimitRule{},
-		CreatedAtMS:    row.CreatedAtMS, UpdatedAtMS: row.UpdatedAtMS,
+		ConcurrencyLimit: row.ConcurrencyLimit,
+		ExpiresAtMS:      cloneOptionalInt64(row.ExpiresAtMS),
+		CostLimitRules:   []AccessKeyCostLimitRule{},
+		CreatedAtMS:      row.CreatedAtMS, UpdatedAtMS: row.UpdatedAtMS,
 	}, nil
 }
 

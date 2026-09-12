@@ -61,6 +61,7 @@ type accessKeyCollectionRow struct {
 	Status                string
 	Filters               models.JSON
 	RPMLimit              int64
+	ConcurrencyLimit      int64
 	ExpiresAtMS           *int64
 	CreatedAtMS           int64
 	UpdatedAtMS           int64
@@ -124,7 +125,7 @@ func (s *Service) captureAccessKeyCollectionRecords(
 		if err := tx.Model(&models.AccessKey{}).
 			Select(
 				"access_keys.id", "access_keys.name", "access_keys.key_prefix", "access_keys.key_suffix",
-				"access_keys.status", "access_keys.filters", "access_keys.rpm_limit",
+				"access_keys.status", "access_keys.filters", "access_keys.rpm_limit", "access_keys.concurrency_limit",
 				"access_keys.expires_at_ms", "access_keys.price_multiplier_micros",
 				"access_keys.created_at_ms", "access_keys.updated_at_ms",
 				"(SELECT MAX(request_logs.completed_at_ms) FROM request_logs WHERE request_logs.access_key_id = access_keys.id) AS last_request_at_ms",
@@ -166,6 +167,7 @@ func (s *Service) captureAccessKeyCollectionRecords(
 			Status:                row.Status,
 			Filters:               row.Filters,
 			RPMLimit:              row.RPMLimit,
+			ConcurrencyLimit:      row.ConcurrencyLimit,
 			ExpiresAtMS:           row.ExpiresAtMS,
 			CreatedAtMS:           row.CreatedAtMS,
 			UpdatedAtMS:           row.UpdatedAtMS,

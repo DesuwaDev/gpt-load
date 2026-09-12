@@ -258,6 +258,9 @@ const saveBlockerKey = computed(() => {
   if (!Number.isSafeInteger(draft.value.rpm_limit) || draft.value.rpm_limit < 0) {
     return 'accessKeys.drawer.saveBlockedRPM'
   }
+  if (!Number.isSafeInteger(draft.value.concurrency_limit) || draft.value.concurrency_limit < 0) {
+    return 'accessKeys.drawer.saveBlockedConcurrency'
+  }
   if (!isValidPriceMultiplier(draft.value.price_multiplier)) {
     return 'common.priceMultiplier.invalid'
   }
@@ -816,11 +819,13 @@ onBeforeUnmount(clearLocalState)
           :name="draft.name"
           :status="draft.status"
           :rpm-limit="draft.rpm_limit"
+          :concurrency-limit="draft.concurrency_limit"
           :price-multiplier="draft.price_multiplier"
           :disabled="formLocked"
           @update:name="draft.name = $event"
           @update:status="draft.status = $event"
           @update:rpm-limit="draft.rpm_limit = $event"
+          @update:concurrency-limit="draft.concurrency_limit = $event"
           @update:price-multiplier="draft.price_multiplier = $event"
         >
           <template #credential>

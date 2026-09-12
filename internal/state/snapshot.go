@@ -84,6 +84,7 @@ type AccessKeyConfig struct {
 	ExpiresAtMS      *int64
 	AllowedPeerCIDRs []netip.Prefix
 	RPMLimit         int64
+	ConcurrencyLimit int64
 	CostLimitRules   []accessquota.Rule
 }
 
@@ -180,6 +181,7 @@ type AccessKeyView struct {
 	ExpiresAtMS      *int64
 	AllowedPeerCIDRs []netip.Prefix
 	RPMLimit         int64
+	ConcurrencyLimit int64
 	CostLimitRules   []accessquota.Rule
 }
 
@@ -310,6 +312,7 @@ func newAccessKeyView(input AccessKeyConfig) AccessKeyView {
 		ExpiresAtMS:      cloneAccessKeyExpiry(input.ExpiresAtMS),
 		AllowedPeerCIDRs: cloneAllowedPeerCIDRs(input.AllowedPeerCIDRs),
 		RPMLimit:         input.RPMLimit,
+		ConcurrencyLimit: input.ConcurrencyLimit,
 		CostLimitRules:   rules,
 	}
 }
@@ -538,6 +541,9 @@ func validateCompileInput(input CompileInput) error {
 		}
 		if accessKey.RPMLimit < 0 {
 			return fmt.Errorf("access key %d rpm limit must not be negative", accessKey.ID)
+		}
+		if accessKey.ConcurrencyLimit < 0 {
+			return fmt.Errorf("access key %d concurrency limit must not be negative", accessKey.ID)
 		}
 		if accessKey.ExpiresAtMS != nil &&
 			(*accessKey.ExpiresAtMS < 0 || *accessKey.ExpiresAtMS > maxSafeAccessKeyEpochMS) {

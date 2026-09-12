@@ -544,6 +544,7 @@ export interface AccessKeyDto {
   filters: AccessKeyFiltersDto
   expires_at_ms: number | null
   rpm_limit: number
+  concurrency_limit: number
   cost_limit_rules: AccessKeyCostLimitRuleDto[]
   cost_limit_status: AccessKeyCostLimitStatusDto | null
   created_at_ms: number

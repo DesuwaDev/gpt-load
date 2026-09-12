@@ -95,6 +95,7 @@ export default {
     allProtocols: '全部协议',
     allModels: '全部模型',
     unlimited: '不限',
+    concurrencyValue: '{count} 并发',
     costLimits: {
       ruleCount: '{count} 条费用规则',
       exhausted: '额度已用尽',
@@ -246,6 +247,8 @@ export default {
       rpm: '每分钟请求数',
       rpmPlaceholder: '留空表示不限制',
       rpmDescription: '请输入非负整数；0 表示不限。',
+      concurrency: '最大并发数',
+      concurrencyDescription: '同时处理中的请求数上限，超出即返回 429；0 表示不限。',
       costLimits: {
         enableTotal: '启用总额度',
         enablePeriodic: '启用周期额度',
@@ -271,6 +274,7 @@ export default {
       saveBlockedPending: '正在保存…',
       saveBlockedName: '请填写名称',
       saveBlockedRPM: 'RPM 必须为非负整数',
+      saveBlockedConcurrency: '并发数必须为非负整数',
       saveBlockedCostLimits: '请检查额度金额或周期',
       saveBlockedGroupProtocol: '分组与协议不可路由',
       saveBlockedGroupUnavailable: '分组目录暂不可用',

@@ -25,6 +25,11 @@ const rpm = computed(() =>
         count: formatInteger(props.accessKey.rpm_limit, locale.value),
       }),
 )
+const concurrency = computed(() =>
+  props.accessKey.concurrency_limit === 0
+    ? t('home.ledger.currentAccessKey.unlimited')
+    : formatInteger(props.accessKey.concurrency_limit, locale.value),
+)
 const protocols = computed(() =>
   props.accessKey.filters.protocols.length === 0
     ? t('home.ledger.currentAccessKey.allProtocols')
@@ -121,6 +126,10 @@ function ruleTone(rule: AccessKeyCostLimitRuleStatusDto): 'success' | 'warning' 
       <div>
         <dt>{{ t('home.ledger.currentAccessKey.rpm') }}</dt>
         <dd>{{ rpm }}</dd>
+      </div>
+      <div>
+        <dt>{{ t('home.ledger.currentAccessKey.concurrency') }}</dt>
+        <dd>{{ concurrency }}</dd>
       </div>
       <div>
         <dt>{{ t('common.priceMultiplier.label') }}</dt>

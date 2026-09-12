@@ -156,6 +156,12 @@ func (s *websocketConnection) executeTurn(turn websocketTurn) {
 		reject(reasonAccessKeyRateLimited)
 		return
 	}
+	releaseConcurrency, concurrencyAllowed := h.concurrency.Acquire(key.ID, key.ConcurrencyLimit)
+	if !concurrencyAllowed {
+		reject(reasonAccessKeyConcurrencyLimited)
+		return
+	}
+	defer releaseConcurrency()
 	original, err := inspectWebsocketRequest(turn.body)
 	if err != nil {
 		reject(reasonInvalidProtocolRequest)

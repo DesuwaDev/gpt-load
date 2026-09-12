@@ -99,7 +99,7 @@ func TestExternalDatabaseLifecycle(t *testing.T) {
 	for table, columns := range map[string][]string{
 		"groups":      {"connection_type", "proxy_config", "price_multiplier_micros"},
 		"credentials": {"identity_fingerprint", "secret_version", "auth_state", "auth_error_code", "proxy_config"},
-		"access_keys": {"expires_at_ms", "price_multiplier_micros"},
+		"access_keys": {"expires_at_ms", "price_multiplier_micros", "concurrency_limit"},
 		"request_log_attempts": {
 			"upstream_protocol", "failure_origin", "failure_scope",
 			"retry_directive", "effect", "rule_id",
@@ -131,8 +131,8 @@ func TestExternalDatabaseLifecycle(t *testing.T) {
 		migrationIDs[5] != "0006_error_decision" ||
 		migrationIDs[6] != "0007_access_key_lifecycle" ||
 		migrationIDs[7] != "0008_remove_inject_usage_options" ||
-		migrationIDs[8] != "0009_price_multipliers" || migrationIDs[9] != "0010_model_cooldown" || migrationIDs[10] != "0011_custom_access_keys" || migrationIDs[11] != "0012_access_key_mask_prefix" || migrationIDs[12] != "0013_validation_protocol" {
-		t.Fatalf("migration ledger = %v, want complete 0001-0013 chain", migrationIDs)
+		migrationIDs[8] != "0009_price_multipliers" || migrationIDs[9] != "0010_model_cooldown" || migrationIDs[10] != "0011_custom_access_keys" || migrationIDs[11] != "0012_access_key_mask_prefix" || migrationIDs[12] != "0013_validation_protocol" || migrationIDs[13] != "0014_access_key_concurrency_limit" {
+		t.Fatalf("migration ledger = %v, want complete 0001-0014 chain", migrationIDs)
 	}
 	if !db.Migrator().HasIndex("usage_stats", "idx_usage_stats_group_bucket") {
 		t.Fatal("usage_stats group activity index is missing")

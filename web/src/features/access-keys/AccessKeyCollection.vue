@@ -85,6 +85,7 @@ const presentations = computed(() =>
       allModels: t('accessKeys.allModels'),
       unlimited: t('accessKeys.unlimited'),
       costRules: (count) => t('accessKeys.costLimits.ruleCount', { count }),
+      concurrency: (count) => t('accessKeys.concurrencyValue', { count }),
       priceMultiplier: (value) => t('common.priceMultiplier.value', { value }),
     },
     protocolLabel: (protocol) => protocol,

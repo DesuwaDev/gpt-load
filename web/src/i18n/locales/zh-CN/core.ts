@@ -264,6 +264,7 @@ export default {
         readOnly: '当前为访问密钥只读视图；所有数据均限定为此密钥，不能修改系统配置。',
         rpm: 'RPM 限制',
         rpmValue: '{count} RPM',
+        concurrency: '并发限制',
         unlimited: '不限',
         protocols: '可用协议',
         allProtocols: '全部协议',

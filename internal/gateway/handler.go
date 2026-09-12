@@ -63,6 +63,12 @@ type AccessKeyRPMLimiter interface {
 	Allow(accessKeyID uint, limit int64) ratelimit.LimitDecision
 }
 
+// AccessKeyConcurrencyLimiter 按访问密钥限制在途请求数。Acquire 成功后返回的
+// release 必须在请求结束时调用；limit <= 0 表示不限。
+type AccessKeyConcurrencyLimiter interface {
+	Acquire(accessKeyID uint, limit int64) (release func(), allowed bool)
+}
+
 // PriceTableProvider exposes the currently published immutable price table.
 type PriceTableProvider interface {
 	Load() *pricing.Table
@@ -96,6 +102,7 @@ type Handler struct {
 	stats               *health.StatsStore
 	mutations           credentialMutationCoordinator
 	limiter             AccessKeyRPMLimiter
+	concurrency         AccessKeyConcurrencyLimiter
 	requestLogSink      telemetry.RequestLogSink
 	priceTables         PriceTableProvider
 	accessQuota         *accessquota.Runtime
@@ -165,7 +172,7 @@ func NewHandler(
 	handler := &Handler{
 		manager: manager, channels: channels, subscriptions: subscriptions, registry: registry, encryption: encryptionService,
 		forwarder: forwarder, dialects: dialects, stats: stats, mutations: mutations,
-		limiter: limiter, requestLogSink: requestLogSink, priceTables: priceTables,
+		limiter: limiter, concurrency: unlimitedAccessKeyConcurrencyLimiter{}, requestLogSink: requestLogSink, priceTables: priceTables,
 		affinityCache:    affinity.NewCache(),
 		responseBindings: state.NewResponseBindings(),
 		websocketLimits:  defaultWebsocketLimits(),
@@ -207,6 +214,7 @@ func NewHandlerWithLifecycle(
 	stats *health.StatsStore,
 	mutations *health.MutationCoordinator,
 	limiter AccessKeyRPMLimiter,
+	concurrency AccessKeyConcurrencyLimiter,
 	requestLogSink telemetry.RequestLogSink,
 	priceTables PriceTableProvider,
 	accessQuota *accessquota.Runtime,
@@ -232,6 +240,9 @@ func NewHandlerWithLifecycle(
 	if subscriptions != nil {
 		handler.subscriptions = subscriptions
 	}
+	if concurrency != nil {
+		handler.concurrency = concurrency
+	}
 	handler.lifecycle = lifecycle
 	handler.responseBindings = responseBindings
 	return handler
@@ -241,6 +252,12 @@ type unlimitedAccessKeyRPMLimiter struct{}
 
 func (unlimitedAccessKeyRPMLimiter) Allow(uint, int64) ratelimit.LimitDecision {
 	return ratelimit.LimitDecision{Allowed: true}
+}
+
+type unlimitedAccessKeyConcurrencyLimiter struct{}
+
+func (unlimitedAccessKeyConcurrencyLimiter) Acquire(uint, int64) (func(), bool) {
+	return func() {}, true
 }
 
 type requestAccessQuotaAdmission struct {
@@ -493,6 +510,14 @@ func (handler *Handler) Handle(ginContext *gin.Context) {
 		handler.completeReason(ginContext, recorder, reasonAccessKeyRateLimited)
 		return
 	}
+	// 并发名额在 RPM 之后占用：RPM 拒绝不该消耗在途名额，而已计入 RPM 窗口的
+	// 请求被并发拒绝也不回滚，与上游 429 的计费口径一致。
+	releaseConcurrency, concurrencyAllowed := handler.concurrency.Acquire(accessKey.ID, accessKey.ConcurrencyLimit)
+	if !concurrencyAllowed {
+		handler.completeReason(ginContext, recorder, reasonAccessKeyConcurrencyLimited)
+		return
+	}
+	defer releaseConcurrency()
 	if selectedRoute.Kind == endpointModels {
 		if !contentcoding.IdentityAcceptable(
 			headerFieldValues(ginContext.Request.Header, "Accept-Encoding"),

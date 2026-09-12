@@ -28,6 +28,7 @@ export interface AccessKeyPresenterLabels {
   allModels: string
   unlimited: string
   costRules(count: number): string
+  concurrency(count: number): string
   priceMultiplier(value: string): string
 }
 
@@ -75,6 +76,9 @@ function presentAccessKeyWithGroupNames(
       accessKey.rpm_limit === 0
         ? options.labels.unlimited
         : `${new Intl.NumberFormat(options.locale).format(accessKey.rpm_limit)} RPM`,
+      ...(accessKey.concurrency_limit > 0
+        ? [options.labels.concurrency(accessKey.concurrency_limit)]
+        : []),
       ...(accessKey.cost_limit_rules.length > 0
         ? [options.labels.costRules(accessKey.cost_limit_rules.length)]
         : []),

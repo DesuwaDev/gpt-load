@@ -77,6 +77,10 @@ func BuildContainer() (*dig.Container, error) {
 		func(limiter *ratelimit.AccessKeyRPM) gateway.AccessKeyRPMLimiter {
 			return limiter
 		},
+		ratelimit.NewAccessKeyConcurrency,
+		func(limiter *ratelimit.AccessKeyConcurrency) gateway.AccessKeyConcurrencyLimiter {
+			return limiter
+		},
 		func(manager *state.Manager) requestlog.RetentionPolicyProvider {
 			return retentionSnapshotProvider{manager: manager}
 		},

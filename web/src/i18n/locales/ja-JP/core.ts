@@ -278,6 +278,7 @@ export default {
           'アクセスキーの読み取り専用ビューです。すべてのデータはこのキーに限定され、システム設定は変更できません。',
         rpm: 'RPM 制限',
         rpmValue: '{count} RPM',
+        concurrency: '同時実行制限',
         unlimited: '無制限',
         protocols: '利用可能なプロトコル',
         allProtocols: 'すべてのプロトコル',

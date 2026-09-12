@@ -57,6 +57,7 @@ export interface CreateAccessKeyRequest {
   filters: AccessKeyFiltersDto
   expires_at_ms: number | null
   rpm_limit: number
+  concurrency_limit: number
   price_multiplier: string
   cost_limit_rules: AccessKeyCostLimitRuleInput[]
 }
@@ -75,6 +76,7 @@ export type UpdateAccessKeyRequest = Partial<{
   filters: AccessKeyFiltersDto
   expires_at_ms: number | null
   rpm_limit: number
+  concurrency_limit: number
   price_multiplier: string
   cost_limit_rules: AccessKeyCostLimitRuleInput[]
 }>
@@ -87,6 +89,7 @@ const metadataFields = [
   'filters',
   'expires_at_ms',
   'rpm_limit',
+  'concurrency_limit',
   'price_multiplier',
   'cost_limit_rules',
   'cost_limit_status',
@@ -286,6 +289,7 @@ export function projectAccessKeyMetadata(value: unknown): AccessKeyDto {
     filters: projectFilters(record.filters),
     expires_at_ms: projectNullableEpochMilliseconds(record.expires_at_ms),
     rpm_limit: projectSafeInteger(record.rpm_limit, { minimum: 0 }),
+    concurrency_limit: projectSafeInteger(record.concurrency_limit, { minimum: 0 }),
     price_multiplier: projectPriceMultiplier(record.price_multiplier),
     cost_limit_rules: costLimitRules,
     cost_limit_status: costLimitStatus,

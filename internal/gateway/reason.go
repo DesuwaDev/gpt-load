@@ -63,6 +63,11 @@ var (
 		Code:    "access_key_rate_limited",
 		Message: "Access key rate limit exceeded.",
 	}
+	reasonAccessKeyConcurrencyLimited = reason{
+		Status:  http.StatusTooManyRequests,
+		Code:    "access_key_concurrency_limited",
+		Message: "Access key concurrency limit exceeded.",
+	}
 	reasonAccessKeyCostLimitExceeded = reason{
 		Status:  http.StatusTooManyRequests,
 		Code:    "access_key_cost_limit_exceeded",
