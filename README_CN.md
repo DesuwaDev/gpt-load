@@ -10,8 +10,8 @@
 
 [English](README.md) · 中文 · [日本語](README_JP.md) | [官方网站](https://www.gpt-load.com)
 
-[![Release](https://img.shields.io/github/v/tag/tbphp/gpt-load?filter=v2.*)](https://github.com/tbphp/gpt-load/releases)
-[![Docker](https://img.shields.io/badge/Docker-ghcr.io%2Ftbphp%2Fgpt--load%3A2-2496ED?logo=docker&logoColor=white)](https://github.com/tbphp/gpt-load/pkgs/container/gpt-load)
+[![Last commit](https://img.shields.io/github/last-commit/DesuwaDev/gpt-load/main)](https://github.com/DesuwaDev/gpt-load/commits/main)
+[![Docker](https://img.shields.io/badge/Docker-ghcr.io%2Fdesuwadev%2Fgpt--load%3Alatest-2496ED?logo=docker&logoColor=white)](https://github.com/DesuwaDev/gpt-load/pkgs/container/gpt-load)
 [![Go](https://img.shields.io/badge/Go-1.27-00ADD8?logo=go&logoColor=white)](go.mod)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
@@ -69,7 +69,7 @@
 需要 Docker 与 Docker Compose。
 
 ```bash
-git clone --depth 1 https://github.com/tbphp/gpt-load.git
+git clone --depth 1 https://github.com/DesuwaDev/gpt-load.git
 cd gpt-load
 
 cp .env.example .env
@@ -181,12 +181,14 @@ docker compose pull && docker compose up -d   # 更新到最新 2.x 镜像
 docker compose stop         # 停止服务
 ```
 
-官方 Compose 使用 `ghcr.io/tbphp/gpt-load:2`。GA 前，`2` 跟随已验证的 2.0 Beta 和 RC；GA 后只跟随稳定的 2.x。镜像精确标签会去掉 Git tag 的 `v` 前缀（例如 `2.0.0-beta.25`），`2.0-beta` 则保留为 2.0 Beta 通道；`latest` 继续留在 1.x。
+本仓库的 Compose 使用 `ghcr.io/desuwadev/gpt-load:latest`。镜像由 [`docker-image.yml`](.github/workflows/docker-image.yml) 在每次推送 `main` 时构建：`latest` 与 `2` 都指向 `main` 的最新提交，每次构建还会另发一个 `sha-<短 sha>` 标签供固定版本使用。镜像为多平台（`linux/amd64`、`linux/arm64`）。上游把 `latest` 留在 1.x，本仓库不沿用该约定。
 
 <details>
 <summary>使用原生二进制</summary>
 
-从 [GitHub Releases](https://github.com/tbphp/gpt-load/releases) 下载对应平台的文件，建议先用随附的 `SHA256SUMS` 校验：
+本仓库只发布容器镜像，Releases 页面暂无资产——请自行从源码构建，或先发布自己的 release 资产。
+
+从 [GitHub Releases](https://github.com/DesuwaDev/gpt-load/releases) 下载对应平台的文件，建议先用随附的 `SHA256SUMS` 校验：
 
 ```bash
 chmod +x ./gpt-load-linux-amd64

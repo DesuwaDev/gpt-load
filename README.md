@@ -10,8 +10,8 @@ API keys, subscription accounts, traffic scheduling, failure handling, request l
 
 English · [中文](README_CN.md) · [日本語](README_JP.md) | [Official Website](https://www.gpt-load.com)
 
-[![Release](https://img.shields.io/github/v/tag/tbphp/gpt-load?filter=v2.*)](https://github.com/tbphp/gpt-load/releases)
-[![Docker](https://img.shields.io/badge/Docker-ghcr.io%2Ftbphp%2Fgpt--load%3A2-2496ED?logo=docker&logoColor=white)](https://github.com/tbphp/gpt-load/pkgs/container/gpt-load)
+[![Last commit](https://img.shields.io/github/last-commit/DesuwaDev/gpt-load/main)](https://github.com/DesuwaDev/gpt-load/commits/main)
+[![Docker](https://img.shields.io/badge/Docker-ghcr.io%2Fdesuwadev%2Fgpt--load%3Alatest-2496ED?logo=docker&logoColor=white)](https://github.com/DesuwaDev/gpt-load/pkgs/container/gpt-load)
 [![Go](https://img.shields.io/badge/Go-1.27-00ADD8?logo=go&logoColor=white)](go.mod)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
@@ -69,7 +69,7 @@ Your application only needs one base URL and one AccessKey. Providers, accounts,
 Requires Docker and Docker Compose.
 
 ```bash
-git clone --depth 1 https://github.com/tbphp/gpt-load.git
+git clone --depth 1 https://github.com/DesuwaDev/gpt-load.git
 cd gpt-load
 
 cp .env.example .env
@@ -181,12 +181,14 @@ docker compose pull && docker compose up -d   # update to the latest 2.x image
 docker compose stop         # stop the service
 ```
 
-The official Compose file uses `ghcr.io/tbphp/gpt-load:2`. Before GA, `2` tracks verified 2.0 Beta and RC releases; after GA, it tracks stable 2.x releases only. Exact image tags omit the Git tag's `v` prefix (for example, `2.0.0-beta.25`), while `2.0-beta` remains the 2.0 Beta channel. `latest` remains on 1.x.
+This Compose file uses `ghcr.io/desuwadev/gpt-load:latest`. Images are built by [`docker-image.yml`](.github/workflows/docker-image.yml) on every push to `main`: `latest` and `2` both point at the newest `main` commit, and every build also publishes a `sha-<short-sha>` tag to pin against. Images are multi-platform (`linux/amd64`, `linux/arm64`). Upstream keeps its `latest` on 1.x; this fork does not follow that convention.
 
 <details>
 <summary>Using a native binary</summary>
 
-Download the build for your platform from [GitHub Releases](https://github.com/tbphp/gpt-load/releases), and verify it against the bundled `SHA256SUMS` first:
+This fork publishes container images only, so its Releases page carries no assets yet — build from source, or publish your own release assets first.
+
+Download the build for your platform from [GitHub Releases](https://github.com/DesuwaDev/gpt-load/releases), and verify it against the bundled `SHA256SUMS` first:
 
 ```bash
 chmod +x ./gpt-load-linux-amd64
