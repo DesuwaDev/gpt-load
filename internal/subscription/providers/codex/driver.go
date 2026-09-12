@@ -2,6 +2,7 @@ package codex
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -266,7 +267,49 @@ func codexRuntimeCredential(value Credential, canonical []byte) subscriptionrunt
 	if refreshed, err := time.Parse(time.RFC3339, strings.TrimSpace(value.LastRefresh)); err == nil {
 		account.LastRefresh, account.LastRefreshKnown = refreshed, true
 	}
-	return subscriptionruntime.NewCredential(canonical, strings.TrimSpace(value.AccountID), account, expiresAt, expires, value.SecretValues())
+	return subscriptionruntime.NewCredential(canonical, codexIdentity(value), account, expiresAt, expires, value.SecretValues())
+}
+
+// codexIdentity 把凭据身份定为 chatgpt_account_id 与 chatgpt_user_id 的组合。
+// account id 只标识 ChatGPT 工作区，同一 Team 下的多个成员共享同一个值，仅凭它
+// 去重会把不同成员判成同一个账号。user id 从凭据自带的 JWT 中解析，token 响应
+// 省略身份声明时桥接层会沿用原 token，因此该身份在刷新前后保持稳定。解析不出
+// user id 时退回 account id，与历史行为一致。
+func codexIdentity(value Credential) string {
+	accountID := strings.TrimSpace(value.AccountID)
+	userID := codexClaimUserID(value)
+	if accountID == "" || userID == "" {
+		return accountID
+	}
+	return accountID + "|" + userID
+}
+
+// JWT claims 仅用于取回身份元数据，不作为认证或签名验证。
+func codexClaimUserID(value Credential) string {
+	for _, token := range []string{value.IDToken, value.AccessToken} {
+		parts := strings.Split(token, ".")
+		if len(parts) != 3 {
+			continue
+		}
+		payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+		if err != nil {
+			continue
+		}
+		var claims struct {
+			Auth struct {
+				UserID string `json:"user_id"`
+			} `json:"https://api.openai.com/auth"`
+		}
+		err = json.Unmarshal(payload, &claims)
+		clear(payload)
+		if err != nil {
+			continue
+		}
+		if userID := strings.TrimSpace(claims.Auth.UserID); userID != "" {
+			return userID
+		}
+	}
+	return ""
 }
 
 var _ subscriptionruntime.BrowserAuthorizationDriver = (*codexDriver)(nil)
