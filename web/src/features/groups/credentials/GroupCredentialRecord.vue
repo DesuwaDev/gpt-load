@@ -20,11 +20,13 @@ import AppPopover from '@/components/ui/AppPopover.vue'
 import AppTooltip from '@/components/ui/AppTooltip.vue'
 import CopyChip from '@/components/ui/CopyChip.vue'
 import IconButton from '@/components/ui/IconButton.vue'
+import LimitUsageMeter from '@/components/ui/LimitUsageMeter.vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import ModelCooldownDetails from '@/components/ui/ModelCooldownDetails.vue'
 import { formatLocalInstant } from '@/lib/format'
 
 import { presentCredentialFailureCategory } from './credential-failure-presenter'
+import CredentialLimitsPanel from './CredentialLimitsPanel.vue'
 
 const props = defineProps<{
   item: CredentialItemDto
@@ -43,6 +45,7 @@ const emit = defineEmits<{
   'update:weightEditorOpen': [open: boolean]
   'open-weight': [item: CredentialItemDto]
   weight: [payload: { item: CredentialItemDto; value: string }]
+  limits: [payload: { item: CredentialItemDto; rpm_limit: number; concurrency_limit: number }]
   toggle: [item: CredentialItemDto]
   test: [item: CredentialItemDto]
   restore: [item: CredentialItemDto]
@@ -187,6 +190,21 @@ function runMenuAction(action: 'test' | 'toggle' | 'restore' | 'remove'): void {
             {{ weightLabel }}
           </button>
         </AppTooltip>
+        <!-- 限额与权重同属调度信息，折叠态直接可见，不必展开。 -->
+        <div class="group-credential-record__usage">
+          <LimitUsageMeter
+            :label="t('group.credentials.limits.rpmShort')"
+            :used="item.rpm_used"
+            :limit="item.rpm_limit"
+            compact
+          />
+          <LimitUsageMeter
+            :label="t('group.credentials.limits.concurrencyShort')"
+            :used="item.concurrency_used"
+            :limit="item.concurrency_limit"
+            compact
+          />
+        </div>
       </div>
 
       <div class="ledger-record-list__cell group-credential-record__recent" role="cell">
@@ -337,6 +355,15 @@ function runMenuAction(action: 'test' | 'toggle' | 'restore' | 'remove'): void {
               :supported="proxySupported"
               :disabled="busy"
             />
+
+            <CredentialLimitsPanel
+              :credential-id="item.credential_id"
+              :rpm-limit="item.rpm_limit"
+              :concurrency-limit="item.concurrency_limit"
+              :busy="busy"
+              :disabled="item.configured_status === 'disabled'"
+              @save="emit('limits', { item, ...$event })"
+            />
           </div>
 
           <ModelCooldownDetails :cooldowns="item.model_cooldowns" />
@@ -425,6 +452,14 @@ function runMenuAction(action: 'test' | 'toggle' | 'restore' | 'remove'): void {
   color: var(--color-text-faint);
   text-decoration: underline dotted;
   text-underline-offset: 3px;
+}
+
+/* 权重值下方紧跟两条限额用量，共用调度列的窄宽度。 */
+.group-credential-record__usage {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+  margin-top: 4px;
 }
 
 .group-credential-record__actions {

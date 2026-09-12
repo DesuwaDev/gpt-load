@@ -173,6 +173,8 @@ type AccessKeyMetadata struct {
 	Filters          AccessKeyFilters          `json:"filters"`
 	RPMLimit         int64                     `json:"rpm_limit"`
 	ConcurrencyLimit int64                     `json:"concurrency_limit"`
+	RPMUsed          int64                     `json:"rpm_used"`
+	ConcurrencyUsed  int64                     `json:"concurrency_used"`
 	CostLimitRules   []AccessKeyCostLimitRule  `json:"cost_limit_rules"`
 	CostLimitStatus  *AccessKeyCostLimitStatus `json:"cost_limit_status,omitempty"`
 	ExpiresAtMS      *int64                    `json:"expires_at_ms"`

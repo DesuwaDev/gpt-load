@@ -99,6 +99,10 @@ export default {
     allModels: 'すべてのモデル',
     unlimited: '無制限',
     concurrencyValue: '同時 {count}',
+    limits: {
+      rpmShort: 'RPM',
+      concurrencyShort: '同時',
+    },
     costLimits: {
       ruleCount: '費用ルール {count} 件',
       exhausted: '上限到達',

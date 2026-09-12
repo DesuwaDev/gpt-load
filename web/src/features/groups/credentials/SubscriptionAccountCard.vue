@@ -31,6 +31,7 @@ import AppPopover from '@/components/ui/AppPopover.vue'
 import AppRelativeTime from '@/components/ui/AppRelativeTime.vue'
 import AppTooltip from '@/components/ui/AppTooltip.vue'
 import IconButton from '@/components/ui/IconButton.vue'
+import LimitUsageMeter from '@/components/ui/LimitUsageMeter.vue'
 import OverflowTooltip from '@/components/ui/OverflowTooltip.vue'
 import SkeletonBlock from '@/components/ui/SkeletonBlock.vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
@@ -39,6 +40,7 @@ import { formatEstimatedCost, formatLocalInstant, formatTokens } from '@/lib/for
 import { quotaProgressTone } from '@/lib/quota-progress'
 
 import { presentCredentialFailureCategory } from './credential-failure-presenter'
+import CredentialLimitsPanel from './CredentialLimitsPanel.vue'
 
 const props = withDefaults(
   defineProps<{
@@ -71,6 +73,7 @@ const emit = defineEmits<{
   'refresh-credential': [item: CredentialItemDto]
   remove: [item: CredentialItemDto]
   weight: [payload: { item: CredentialItemDto; value: string }]
+  limits: [payload: { item: CredentialItemDto; rpm_limit: number; concurrency_limit: number }]
 }>()
 const { locale, n, t, te } = useI18n()
 const menuOpen = ref(false)
@@ -786,6 +789,21 @@ function runMenuAction(
               @activate="editProxy"
             />
           </div>
+          <!-- 限额用量与状态徽章同排展示，折叠态即可见。 -->
+          <div class="subscription-account__usage">
+            <LimitUsageMeter
+              :label="t('group.credentials.limits.rpmShort')"
+              :used="item.rpm_used"
+              :limit="item.rpm_limit"
+              compact
+            />
+            <LimitUsageMeter
+              :label="t('group.credentials.limits.concurrencyShort')"
+              :used="item.concurrency_used"
+              :limit="item.concurrency_limit"
+              compact
+            />
+          </div>
           <div class="subscription-account__actions">
             <span
               v-if="supportsQuotaObservation && observation?.observed_at_ms != null"
@@ -1361,6 +1379,15 @@ function runMenuAction(
           :save-proxy="saveProxy"
           :supported="capabilities.outbound_proxy"
           :disabled="busy"
+        />
+
+        <CredentialLimitsPanel
+          :credential-id="item.credential_id"
+          :rpm-limit="item.rpm_limit"
+          :concurrency-limit="item.concurrency_limit"
+          :busy="busy"
+          :disabled="displayDisabled"
+          @save="emit('limits', { item, ...$event })"
         />
       </div>
     </section>
@@ -1969,6 +1996,18 @@ function runMenuAction(
   display: grid;
   gap: 13px;
   margin-top: 13px;
+}
+/* 两条限额用量并排；窄屏回落成单列，避免进度条被压到不可读。 */
+.subscription-account__usage {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 148px));
+  gap: 4px 16px;
+  margin-top: 8px;
+}
+@media (max-width: 560px) {
+  .subscription-account__usage {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 .subscription-account__weight-chip {
   display: inline-flex;

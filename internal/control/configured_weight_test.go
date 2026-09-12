@@ -32,7 +32,7 @@ func TestCredentialItemReportsConfiguredWeightInEveryState(t *testing.T) {
 
 				CooldownUntil: now.Add(time.Minute),
 			}
-			item, err := mapCredentialRuntimeItem("masked", 1, view, test.bucket, health.CredentialStats{}, now)
+			item, err := mapCredentialRuntimeItem("masked", 1, view, test.bucket, health.CredentialStats{}, now, 0, 0)
 			if err != nil {
 				t.Fatal(err)
 			}

@@ -1255,8 +1255,8 @@ function clearDeletedRouteState(ids: readonly number[]): void {
 
 async function mutateItem(
   item: CredentialItemDto,
-  action: 'weight' | 'toggle' | 'restore',
-  value?: string,
+  action: 'weight' | 'toggle' | 'restore' | 'limits',
+  value?: string | { rpm_limit: number; concurrency_limit: number },
 ): Promise<void> {
   if (batchBusy.value || pending(item.credential_id)) return
   feedback.value = ''
@@ -1272,7 +1272,9 @@ async function mutateItem(
             item.credential_id,
             action === 'weight'
               ? { weight_manual: Number(value) }
-              : { status: item.configured_status === 'active' ? 'disabled' : 'active' },
+              : action === 'limits' && typeof value === 'object'
+                ? value
+                : { status: item.configured_status === 'active' ? 'disabled' : 'active' },
           )
   } catch {
     feedback.value = t(
@@ -1282,7 +1284,7 @@ async function mutateItem(
     return
   }
   try {
-    await reconcileItem(result, action !== 'weight')
+    await reconcileItem(result, action !== 'weight' && action !== 'limits')
   } finally {
     setPending(item.credential_id, action, false)
   }
@@ -1838,6 +1840,12 @@ async function runBatch(
               @toggle="mutateItem($event, 'toggle')"
               @restore="mutateItem($event, 'restore')"
               @weight="mutateItem($event.item, 'weight', $event.value)"
+              @limits="
+                mutateItem($event.item, 'limits', {
+                  rpm_limit: $event.rpm_limit,
+                  concurrency_limit: $event.concurrency_limit,
+                })
+              "
               @refresh="refreshObservation"
               @load-details="loadCredentialUsage"
               @reset="openResetCreditDialog"
@@ -1886,6 +1894,12 @@ async function runBatch(
             @update:weight-editor-open="setWeightEditor(item.credential_id, $event)"
             @open-weight="openWeightEditor($event.credential_id)"
             @weight="mutateItem($event.item, 'weight', $event.value)"
+            @limits="
+              mutateItem($event.item, 'limits', {
+                rpm_limit: $event.rpm_limit,
+                concurrency_limit: $event.concurrency_limit,
+              })
+            "
             @test="openCredentialTest"
             @toggle="mutateItem($event, 'toggle')"
             @restore="mutateItem($event, 'restore')"

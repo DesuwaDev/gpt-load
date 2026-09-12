@@ -21,6 +21,7 @@ import type {
 import { knownAccessProtocols } from '@/api/control/protocols'
 import { InvalidResponseError } from '@/api/errors'
 import { controlQueryKeys, normalizeAccessKeyCollectionFilters } from '@/app/query-keys'
+import { liveLimitUsageRefetchIntervalMs } from '@/app/resources/live-limit-usage'
 
 import {
   assertNoSecretLikeFields,
@@ -90,6 +91,8 @@ const metadataFields = [
   'expires_at_ms',
   'rpm_limit',
   'concurrency_limit',
+  'rpm_used',
+  'concurrency_used',
   'price_multiplier',
   'cost_limit_rules',
   'cost_limit_status',
@@ -290,6 +293,8 @@ export function projectAccessKeyMetadata(value: unknown): AccessKeyDto {
     expires_at_ms: projectNullableEpochMilliseconds(record.expires_at_ms),
     rpm_limit: projectSafeInteger(record.rpm_limit, { minimum: 0 }),
     concurrency_limit: projectSafeInteger(record.concurrency_limit, { minimum: 0 }),
+    rpm_used: projectSafeInteger(record.rpm_used, { minimum: 0 }),
+    concurrency_used: projectSafeInteger(record.concurrency_used, { minimum: 0 }),
     price_multiplier: projectPriceMultiplier(record.price_multiplier),
     cost_limit_rules: costLimitRules,
     cost_limit_status: costLimitStatus,
@@ -434,6 +439,9 @@ export function accessKeyCollectionQueryOptions(
     placeholderData: keepPreviousData,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
+    // 限额用量是进程内实时计数，只能轮询刷新；页面不在前台时停掉。
+    refetchInterval: liveLimitUsageRefetchIntervalMs,
+    refetchIntervalInBackground: false,
   })
 }
 

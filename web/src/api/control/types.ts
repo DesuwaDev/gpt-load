@@ -285,6 +285,10 @@ export interface CredentialItemDto {
   configured_status: CredentialConfiguredStatus
   effective_status: CredentialStatus
   weight: number
+  rpm_limit: number
+  concurrency_limit: number
+  rpm_used: number
+  concurrency_used: number
   recent_success_count: number
   recent_failure_count: number
   consecutive_failure_count: number
@@ -545,6 +549,8 @@ export interface AccessKeyDto {
   expires_at_ms: number | null
   rpm_limit: number
   concurrency_limit: number
+  rpm_used: number
+  concurrency_used: number
   cost_limit_rules: AccessKeyCostLimitRuleDto[]
   cost_limit_status: AccessKeyCostLimitStatusDto | null
   created_at_ms: number

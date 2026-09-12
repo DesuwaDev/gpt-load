@@ -193,6 +193,7 @@ func (s *Service) readHomeBase(
 		if err != nil {
 			return HomeBase{}, err
 		}
+		current.RPMUsed, current.ConcurrencyUsed = s.accessKeyLiveUsage(*accessKeyID)
 		if s.accessQuota != nil {
 			status := mapAccessKeyCostLimitStatus(s.accessQuota.Snapshot(*accessKeyID, now))
 			if len(status.Rules) > 0 {

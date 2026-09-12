@@ -175,6 +175,7 @@ func (s *Service) captureAccessKeyCollectionRecords(
 		if err != nil {
 			return nil, err
 		}
+		metadata.RPMUsed, metadata.ConcurrencyUsed = s.accessKeyLiveUsage(row.ID)
 		metadata.CostLimitRules = mapAccessKeyCostLimitRules(rulesByAccessKey[row.ID])
 		if s.accessQuota != nil {
 			status := mapAccessKeyCostLimitStatus(s.accessQuota.Snapshot(row.ID, observedAt))

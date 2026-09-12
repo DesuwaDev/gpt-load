@@ -82,6 +82,19 @@ func (limiter *AccessKeyRPM) Allow(accessKeyID uint, limit int64) LimitDecision 
 	return LimitDecision{Allowed: true}
 }
 
+// Used 返回当前 60 秒窗口内已计入的请求数，供管理面实时展示，不影响窗口状态。
+func (limiter *AccessKeyRPM) Used(accessKeyID uint) int64 {
+	if limiter == nil {
+		return 0
+	}
+	limiter.mu.Lock()
+	defer limiter.mu.Unlock()
+	window := limiter.windows[accessKeyID]
+	window.dropThrough(limiter.now().Add(-time.Minute))
+	limiter.windows[accessKeyID] = window
+	return int64(window.len())
+}
+
 func (limiter *AccessKeyRPM) cleanup(now time.Time) {
 	if !limiter.lastCleanup.IsZero() && now.Sub(limiter.lastCleanup) < time.Minute {
 		return

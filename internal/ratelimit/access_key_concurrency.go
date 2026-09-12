@@ -39,8 +39,11 @@ func (limiter *AccessKeyConcurrency) Acquire(accessKeyID uint, limit int64) (rel
 	}, true
 }
 
-// InFlight 返回当前在途数，仅供测试与观测使用。
+// InFlight 返回当前在途数，供管理面实时展示与测试断言。
 func (limiter *AccessKeyConcurrency) InFlight(accessKeyID uint) int64 {
+	if limiter == nil {
+		return 0
+	}
 	limiter.mu.Lock()
 	defer limiter.mu.Unlock()
 	return limiter.inFlight[accessKeyID]

@@ -287,6 +287,7 @@ func (s *Service) mapHomeSubscriptionAccount(
 		return HomeSubscriptionAccountResponse{}, err
 	}
 	credential := representative.credential
+	credentialRPMUsed, credentialConcurrencyUsed := s.credentialLiveUsage(credential.ID)
 	item, err := mapCredentialRuntimeItem(
 		mask,
 		credential.ID,
@@ -294,6 +295,8 @@ func (s *Service) mapHomeSubscriptionAccount(
 		representative.bucket,
 		s.stats.Snapshot(credential.ID, observedAt),
 		observedAt,
+		credentialRPMUsed,
+		credentialConcurrencyUsed,
 	)
 	if err != nil {
 		return HomeSubscriptionAccountResponse{}, err

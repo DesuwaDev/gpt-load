@@ -60,6 +60,7 @@ type Service struct {
 	mutations                         credentialMutationCoordinator
 	requestLogStats                   RequestLogStatsReader
 	accessQuota                       *accessquota.Runtime
+	limitUsage                        LiveLimitUsage
 	modelDiscoveryTimeout             time.Duration
 	random                            io.Reader
 	operationRandom                   io.Reader
@@ -161,6 +162,7 @@ func NewService(
 	mutations *health.MutationCoordinator,
 	requestLogStats RequestLogStatsReader,
 	accessQuota *accessquota.Runtime,
+	limitUsage LiveLimitUsage,
 	channelRegistries ...*channel.Registry,
 ) *Service {
 	channelRegistry := channel.NewRegistry()
@@ -182,6 +184,7 @@ func NewService(
 		encryption:      encryptionService, executor: executor, subscriptions: subscriptions, requestLogs: requestLogs,
 		usageStats: usageStats, homeStatistics: homeStatistics,
 		stats: stats, mutations: mutations, requestLogStats: requestLogStats, accessQuota: accessQuota,
+		limitUsage:            limitUsage,
 		modelDiscoveryTimeout: defaultModelDiscoveryTimeout,
 		random:                rand.Reader,
 		operationRandom:       rand.Reader,

@@ -33,6 +33,7 @@ import type {
 } from '@/api/control/types'
 import { InvalidResponseError } from '@/api/errors'
 import { controlQueryKeys, normalizeCredentialCollectionFilters } from '@/app/query-keys'
+import { liveLimitUsageRefetchIntervalMs } from '@/app/resources/live-limit-usage'
 
 import {
   assertNoSecretLikeFields,
@@ -71,6 +72,8 @@ export type {
 export interface CredentialPatch {
   status?: CredentialConfiguredStatus
   weight_manual?: number | null
+  rpm_limit?: number
+  concurrency_limit?: number
   proxy?: ProxyMutation
 }
 
@@ -107,6 +110,10 @@ const credentialItemFields = [
   'configured_status',
   'effective_status',
   'weight',
+  'rpm_limit',
+  'concurrency_limit',
+  'rpm_used',
+  'concurrency_used',
   'recent_success_count',
   'recent_failure_count',
   'consecutive_failure_count',
@@ -581,6 +588,10 @@ export function projectCredentialItem(value: unknown): CredentialItemDto {
     configured_status: configuredStatus,
     effective_status: effectiveStatus,
     weight,
+    rpm_limit: projectSafeInteger(record.rpm_limit, { minimum: 0 }),
+    concurrency_limit: projectSafeInteger(record.concurrency_limit, { minimum: 0 }),
+    rpm_used: projectSafeInteger(record.rpm_used, { minimum: 0 }),
+    concurrency_used: projectSafeInteger(record.concurrency_used, { minimum: 0 }),
     recent_success_count: projectSafeInteger(record.recent_success_count, { minimum: 0 }),
     recent_failure_count: projectSafeInteger(record.recent_failure_count, { minimum: 0 }),
     consecutive_failure_count: projectSafeInteger(record.consecutive_failure_count, { minimum: 0 }),
@@ -670,10 +681,8 @@ export function projectCredentialCollection(value: unknown): CredentialCollectio
 
 function normalizePatch(patch: CredentialPatch): CredentialPatch {
   const keys = Object.keys(patch)
-  if (
-    keys.length === 0 ||
-    keys.some((key) => key !== 'status' && key !== 'weight_manual' && key !== 'proxy')
-  ) {
+  const allowed = new Set(['status', 'weight_manual', 'rpm_limit', 'concurrency_limit', 'proxy'])
+  if (keys.length === 0 || keys.some((key) => !allowed.has(key))) {
     throw new Error('INVALID_CREDENTIAL_PATCH')
   }
   const body: CredentialPatch = {}
@@ -689,6 +698,14 @@ function normalizePatch(patch: CredentialPatch): CredentialPatch {
       throw new Error('INVALID_CREDENTIAL_WEIGHT')
     }
     body.weight_manual = weight
+  }
+  for (const key of ['rpm_limit', 'concurrency_limit'] as const) {
+    if (!Object.prototype.hasOwnProperty.call(patch, key)) continue
+    const value = patch[key]
+    if (value === undefined || !Number.isSafeInteger(value) || value < 0) {
+      throw new Error('INVALID_CREDENTIAL_LIMIT')
+    }
+    body[key] = value
   }
   if (Object.prototype.hasOwnProperty.call(patch, 'proxy')) {
     const proxy = patch.proxy
@@ -765,6 +782,9 @@ export function credentialCollectionQueryOptions(
     queryFn: ({ queryKey, signal }) =>
       getCredentialCollection(client, queryKey[3], queryKey[5], signal),
     placeholderData: keepPreviousData,
+    // 限额用量是进程内实时计数，只能轮询刷新；页面不在前台时停掉。
+    refetchInterval: liveLimitUsageRefetchIntervalMs,
+    refetchIntervalInBackground: false,
   })
 }
 

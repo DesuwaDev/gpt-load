@@ -99,6 +99,10 @@ export default {
     allModels: 'All models',
     unlimited: 'Unlimited',
     concurrencyValue: '{count} concurrent',
+    limits: {
+      rpmShort: 'RPM',
+      concurrencyShort: 'Concurrent',
+    },
     costLimits: {
       ruleCount: '{count} cost rules',
       exhausted: 'Quota exhausted',

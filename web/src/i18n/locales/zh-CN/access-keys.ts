@@ -96,6 +96,10 @@ export default {
     allModels: '全部模型',
     unlimited: '不限',
     concurrencyValue: '{count} 并发',
+    limits: {
+      rpmShort: 'RPM',
+      concurrencyShort: '并发',
+    },
     costLimits: {
       ruleCount: '{count} 条费用规则',
       exhausted: '额度已用尽',

@@ -135,6 +135,8 @@ func mapCredentialRuntimeItem(
 	bucket healthBucket,
 	stats health.CredentialStats,
 	observedAt time.Time,
+	rpmUsed int64,
+	concurrencyUsed int64,
 ) (CredentialItemResponse, error) {
 	item := CredentialItemResponse{
 		CredentialID:            credentialID,
@@ -142,6 +144,10 @@ func mapCredentialRuntimeItem(
 		ConfiguredStatus:        string(view.Status),
 		EffectiveStatus:         string(bucket),
 		Weight:                  state.ConfiguredWeight(view.WeightManual),
+		RPMLimit:                view.RPMLimit,
+		ConcurrencyLimit:        view.ConcurrencyLimit,
+		RPMUsed:                 rpmUsed,
+		ConcurrencyUsed:         concurrencyUsed,
 		RecentSuccessCount:      stats.Success,
 		RecentFailureCount:      stats.Failure,
 		ConsecutiveFailureCount: stats.ConsecutiveFailure,

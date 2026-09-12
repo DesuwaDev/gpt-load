@@ -15,6 +15,7 @@ import QuotaProgressBar from '@/components/ui/QuotaProgressBar.vue'
 import AppRelativeTime from '@/components/ui/AppRelativeTime.vue'
 import CopyChip from '@/components/ui/CopyChip.vue'
 import IconButton from '@/components/ui/IconButton.vue'
+import LimitUsageMeter from '@/components/ui/LimitUsageMeter.vue'
 import OverflowTooltip from '@/components/ui/OverflowTooltip.vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import AppDateTime from '@/components/ui/AppDateTime.vue'
@@ -283,6 +284,21 @@ watch(
             />
           </span>
         </AppTooltip>
+        <!-- 限额实时用量与用量/额度同格：都是“这把密钥现在用了多少”。 -->
+        <div class="access-key-usage-meters">
+          <LimitUsageMeter
+            :label="t('accessKeys.limits.rpmShort')"
+            :used="source(record.id).rpm_used"
+            :limit="source(record.id).rpm_limit"
+            compact
+          />
+          <LimitUsageMeter
+            :label="t('accessKeys.limits.concurrencyShort')"
+            :used="source(record.id).concurrency_used"
+            :limit="source(record.id).concurrency_limit"
+            compact
+          />
+        </div>
       </div>
 
       <div class="ledger-record-list__cell access-key-last-request" role="cell">
@@ -381,14 +397,20 @@ watch(
 .access-key-expiry--expired {
   color: var(--color-danger);
 }
+/* 用量/额度格底部的两条实时限额，宽度跟随该格。 */
+.access-key-usage-meters {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+  margin-top: 6px;
+}
 .access-key-quota {
   display: inline-flex;
   width: fit-content;
   max-width: 100%;
   align-items: center;
   gap: 7px;
-  min-height: 24px;
-  font-family: var(--font-sans);
+  min-height: 24px;  font-family: var(--font-sans);
   font-size: var(--text-label-xs);
 }
 .access-key-quota :deep(.quota-progress) {
