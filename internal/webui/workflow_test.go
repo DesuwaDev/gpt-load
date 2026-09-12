@@ -399,15 +399,16 @@ esac
 	}
 }
 
-func TestReleaseWorkflowUsesTagOnlyTriggerAndStrictSemverGuard(t *testing.T) {
+func TestReleaseWorkflowIsManualOnlyWithStrictSemverGuard(t *testing.T) {
 	content := readRepositoryFile(t, ".github/workflows/release.yml")
 	trigger := workflowTopLevelBlock(t, content, "on")
-	for _, required := range []string{"push:", "tags:", `- "v2.*"`} {
-		if !strings.Contains(trigger, required) {
-			t.Fatalf("release trigger does not contain %q:\n%s", required, trigger)
-		}
+	// 上游发布流水线推送 tbphp 命名空间，并依赖本仓库没有的 DOCKERHUB_* 与
+	// Render 凭据。镜像改由 docker-image.yml 发布，这里只保留手动入口，
+	// 避免 v2.* tag 自动触发一条注定失败的发布。
+	if !strings.Contains(trigger, "workflow_dispatch:") {
+		t.Fatalf("release trigger is not manual:\n%s", trigger)
 	}
-	for _, forbidden := range []string{"branches:", "pull_request:", "workflow_dispatch:"} {
+	for _, forbidden := range []string{"push:", "tags:", "branches:", "pull_request:"} {
 		if strings.Contains(trigger, forbidden) {
 			t.Fatalf("release trigger contains forbidden %q:\n%s", forbidden, trigger)
 		}

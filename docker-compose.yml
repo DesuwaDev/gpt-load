@@ -1,6 +1,6 @@
 services:
   gpt-load:
-    image: ghcr.io/tbphp/gpt-load:2
+    image: ghcr.io/desuwadev/gpt-load:latest
     # build:
     #   context: .
     #   dockerfile: Dockerfile

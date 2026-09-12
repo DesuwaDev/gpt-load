@@ -561,8 +561,8 @@ func TestComposeResolvesNamedVolumeContainerPathsAndMajorChannelImage(t *testing
 	if !ok {
 		t.Fatal("resolved Compose lacks gpt-load service")
 	}
-	if service.Image != "ghcr.io/tbphp/gpt-load:2" {
-		t.Fatalf("resolved image = %q, want ghcr.io/tbphp/gpt-load:2", service.Image)
+	if service.Image != "ghcr.io/desuwadev/gpt-load:latest" {
+		t.Fatalf("resolved image = %q, want ghcr.io/desuwadev/gpt-load:latest", service.Image)
 	}
 	if service.Environment["DATA_DIR"] != "/app/data" {
 		t.Fatalf("resolved DATA_DIR = %q, want /app/data", service.Environment["DATA_DIR"])
