@@ -31,9 +31,11 @@ type CredentialImportResult struct {
 }
 
 type CredentialUpdateRequest struct {
-	Status       optionalField[state.CredentialStatus] `json:"status"`
-	WeightManual optionalField[int]                    `json:"weight_manual"`
-	Proxy        optionalField[outboundproxy.Config]   `json:"proxy"`
+	Status           optionalField[state.CredentialStatus] `json:"status"`
+	WeightManual     optionalField[int]                    `json:"weight_manual"`
+	RPMLimit         optionalField[int64]                  `json:"rpm_limit"`
+	ConcurrencyLimit optionalField[int64]                  `json:"concurrency_limit"`
+	Proxy            optionalField[outboundproxy.Config]   `json:"proxy"`
 }
 
 type CredentialRevealResult struct {
@@ -85,6 +87,10 @@ type CredentialItemResponse struct {
 	ConfiguredStatus        string                         `json:"configured_status"`
 	EffectiveStatus         string                         `json:"effective_status"`
 	Weight                  int                            `json:"weight"`
+	RPMLimit                int64                          `json:"rpm_limit"`
+	ConcurrencyLimit        int64                          `json:"concurrency_limit"`
+	RPMUsed                 int64                          `json:"rpm_used"`
+	ConcurrencyUsed         int64                          `json:"concurrency_used"`
 	RecentSuccessCount      uint64                         `json:"recent_success_count"`
 	RecentFailureCount      uint64                         `json:"recent_failure_count"`
 	ConsecutiveFailureCount uint64                         `json:"consecutive_failure_count"`
@@ -422,8 +428,10 @@ func (s *Service) mapCredentialCollection(
 		}
 		view := observation.runtime[row.ID]
 		bucket := classifyHealthKey(group, view, observation.observedAt)
+		rpmUsed, concurrencyUsed := s.credentialLiveUsage(row.ID)
 		item, err := mapCredentialRuntimeItem(
 			mask, row.ID, view, bucket, s.stats.Snapshot(row.ID, observation.observedAt), observation.observedAt,
+			rpmUsed, concurrencyUsed,
 		)
 		if err != nil {
 			return CredentialCollectionResponse{}, err

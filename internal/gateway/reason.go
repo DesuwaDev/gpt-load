@@ -68,6 +68,11 @@ var (
 		Code:    "access_key_concurrency_limited",
 		Message: "Access key concurrency limit exceeded.",
 	}
+	reasonCredentialRateLimited = reason{
+		Status:  http.StatusTooManyRequests,
+		Code:    "credential_rate_limited",
+		Message: "The bound upstream credential has reached its local rate or concurrency limit.",
+	}
 	reasonAccessKeyCostLimitExceeded = reason{
 		Status:  http.StatusTooManyRequests,
 		Code:    "access_key_cost_limit_exceeded",

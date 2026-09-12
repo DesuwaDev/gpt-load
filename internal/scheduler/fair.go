@@ -20,6 +20,11 @@ func (iterator *Iterator) ChargeReplay(selection Selection, ref state.Credential
 			if selection.UpstreamModelID != nil && modelCooldownUntil(meta.ModelCooldowns, *selection.UpstreamModelID, iterator.operation, iterator.now()).After(iterator.now()) {
 				continue
 			}
+			// 同凭据重放同样受本地限额约束，否则刷新重试可以绕开 RPM/并发上限。
+			if iterator.limiter != nil && !iterator.limiter.Available(meta.ID, meta.RPMLimit, meta.ConcurrencyLimit) {
+				iterator.limitedSeen = true
+				continue
+			}
 			weight := effectiveWeight(selection.Group.WeightManual, meta.WeightManual)
 			if weight > 0 {
 				_, charged = iterator.selectCredential([]weightedCredential{{meta: meta, weight: weight}}, ref.ID)

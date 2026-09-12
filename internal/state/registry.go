@@ -34,6 +34,8 @@ type CredentialEntry struct {
 	IdentityGeneration      uint64
 	Fingerprint             string
 	WeightManual            *int
+	RPMLimit                int64
+	ConcurrencyLimit        int64
 	Status                  CredentialStatus
 	AuthState               CredentialAuthState
 	CooldownUntil           time.Time
@@ -55,6 +57,8 @@ type CredentialMeta struct {
 	Version            uint64
 	IdentityGeneration uint64
 	WeightManual       *int
+	RPMLimit           int64
+	ConcurrencyLimit   int64
 	ModelCooldowns     map[string]time.Time
 }
 
@@ -103,6 +107,9 @@ func ValidateCredentialEntries(entries []CredentialEntry) error {
 		}
 		if err := validateManualWeight(fmt.Sprintf("credential %d", entry.ID), entry.WeightManual); err != nil {
 			return err
+		}
+		if entry.RPMLimit < 0 || entry.ConcurrencyLimit < 0 {
+			return fmt.Errorf("credential %d limits must not be negative", entry.ID)
 		}
 		if entry.EncryptedValue == "" {
 			return fmt.Errorf("credential %d encrypted value is required", entry.ID)
@@ -351,7 +358,9 @@ func samePersistedCredentialConfig(left, right CredentialEntry) bool {
 		left.Status != right.Status ||
 		left.EncryptedValue != right.EncryptedValue ||
 		left.EncryptedProxy != right.EncryptedProxy ||
-		left.ProxyFingerprint != right.ProxyFingerprint {
+		left.ProxyFingerprint != right.ProxyFingerprint ||
+		left.RPMLimit != right.RPMLimit ||
+		left.ConcurrencyLimit != right.ConcurrencyLimit {
 		return false
 	}
 	if left.WeightManual == nil || right.WeightManual == nil {
@@ -673,6 +682,17 @@ func (r *CredentialRegistry) CredentialRef(credentialID uint) (CredentialRef, bo
 	}, true
 }
 
+// CredentialLimits 返回凭据的本地 RPM 与并发上限，用于网关计算 Retry-After。
+func (r *CredentialRegistry) CredentialLimits(credentialID uint) (rpm, concurrency int64, ok bool) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	entry, found := r.entryLocked(credentialID)
+	if !found {
+		return 0, 0, false
+	}
+	return entry.RPMLimit, entry.ConcurrencyLimit, true
+}
+
 // CollectCredentialCandidates returns currently schedulable credentials.
 func (r *CredentialRegistry) CollectCredentialCandidates(groupIDs []uint, excluded func(uint) bool, now time.Time) []CredentialMeta {
 	r.mu.RLock()
@@ -712,8 +732,10 @@ func (r *CredentialRegistry) collectCredentialCandidatesLocked(groupIDs []uint, 
 			meta := CredentialMeta{
 				ID: view.ID, GroupID: view.GroupID,
 				Version: view.Version, IdentityGeneration: view.IdentityGeneration,
-				WeightManual:   cloneWeight(view.WeightManual),
-				ModelCooldowns: view.ModelCooldowns,
+				WeightManual:     cloneWeight(view.WeightManual),
+				RPMLimit:         entry.RPMLimit,
+				ConcurrencyLimit: entry.ConcurrencyLimit,
+				ModelCooldowns:   view.ModelCooldowns,
 			}
 			metas = append(metas, meta)
 		}

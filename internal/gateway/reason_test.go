@@ -27,6 +27,7 @@ func TestWriteReasonUsesStableDataPlaneEnvelope(t *testing.T) {
 		reasonModelListTooLarge,
 		reasonAccessKeyRateLimited,
 		reasonAccessKeyConcurrencyLimited,
+		reasonCredentialRateLimited,
 		reasonConfigurationChanged,
 		reasonParameterOverrideUnavailable,
 	}

@@ -19,17 +19,24 @@ import (
 	"gpt-load/internal/storage/models"
 )
 
+// credentialLimitUpdate 描述一次凭据本地限额的可选修改；nil 表示未提交该字段。
+type credentialLimitUpdate struct {
+	rpm         *int64
+	concurrency *int64
+}
+
 func normalizeCredentialUpdate(
 	request CredentialUpdateRequest,
 	encryptionService encryption.Service,
-) (status *state.CredentialStatus, weight *int, weightSet bool, proxy *string, proxySet bool, err error) {
-	if !request.Status.Set && !request.WeightManual.Set && !request.Proxy.Set {
-		return nil, nil, false, nil, false, app_errors.ErrBadRequest
+) (status *state.CredentialStatus, weight *int, weightSet bool, limits credentialLimitUpdate, proxy *string, proxySet bool, err error) {
+	if !request.Status.Set && !request.WeightManual.Set && !request.RPMLimit.Set &&
+		!request.ConcurrencyLimit.Set && !request.Proxy.Set {
+		return nil, nil, false, limits, nil, false, app_errors.ErrBadRequest
 	}
 	if request.Status.Set {
 		if request.Status.Null ||
 			(request.Status.Value != state.CredentialStatusActive && request.Status.Value != state.CredentialStatusDisabled) {
-			return nil, nil, false, nil, false, app_errors.ErrValidation
+			return nil, nil, false, limits, nil, false, app_errors.ErrValidation
 		}
 		value := request.Status.Value
 		status = &value
@@ -38,17 +45,32 @@ func normalizeCredentialUpdate(
 		weightSet = true
 		if !request.WeightManual.Null {
 			if request.WeightManual.Value < 1 || request.WeightManual.Value > state.MaxWeight {
-				return nil, nil, false, nil, false, app_errors.ErrValidation
+				return nil, nil, false, limits, nil, false, app_errors.ErrValidation
 			}
 			value := request.WeightManual.Value
 			weight = &value
 		}
 	}
+	// 限额字段不接受 null：0 即不限，与访问密钥的 rpm_limit 语义一致。
+	if request.RPMLimit.Set {
+		if request.RPMLimit.Null || request.RPMLimit.Value < 0 {
+			return nil, nil, false, limits, nil, false, app_errors.ErrValidation
+		}
+		value := request.RPMLimit.Value
+		limits.rpm = &value
+	}
+	if request.ConcurrencyLimit.Set {
+		if request.ConcurrencyLimit.Null || request.ConcurrencyLimit.Value < 0 {
+			return nil, nil, false, limits, nil, false, app_errors.ErrValidation
+		}
+		value := request.ConcurrencyLimit.Value
+		limits.concurrency = &value
+	}
 	proxy, proxySet, err = normalizeProxyOverride(request.Proxy, encryptionService)
 	if err != nil {
-		return nil, nil, false, nil, false, err
+		return nil, nil, false, limits, nil, false, err
 	}
-	return status, weight, weightSet, proxy, proxySet, nil
+	return status, weight, weightSet, limits, proxy, proxySet, nil
 }
 
 func nextCredentialUpdatedAtMS(now time.Time, previous int64) (int64, error) {
@@ -137,7 +159,7 @@ func (s *Service) UpdateGroupCredential(
 	if groupID == 0 || credentialID == 0 {
 		return CredentialItemResponse{}, app_errors.ErrBadRequest
 	}
-	status, weight, weightSet, proxy, proxySet, err := normalizeCredentialUpdate(request, s.encryption)
+	status, weight, weightSet, limits, proxy, proxySet, err := normalizeCredentialUpdate(request, s.encryption)
 	if err != nil {
 		return CredentialItemResponse{}, err
 	}
@@ -181,6 +203,14 @@ func (s *Service) UpdateGroupCredential(
 			committed.WeightManual = cloneInt(weight)
 			updates["weight_manual"] = committed.WeightManual
 		}
+		if limits.rpm != nil {
+			committed.RPMLimit = *limits.rpm
+			updates["rpm_limit"] = committed.RPMLimit
+		}
+		if limits.concurrency != nil {
+			committed.ConcurrencyLimit = *limits.concurrency
+			updates["concurrency_limit"] = committed.ConcurrencyLimit
+		}
 		if proxySet {
 			committed.ProxyConfig = proxy
 			updates["proxy_config"] = proxy
@@ -204,6 +234,8 @@ func (s *Service) UpdateGroupCredential(
 		entry := entries[0]
 		entry.Status = state.CredentialStatus(committed.Status)
 		entry.WeightManual = cloneInt(committed.WeightManual)
+		entry.RPMLimit = committed.RPMLimit
+		entry.ConcurrencyLimit = committed.ConcurrencyLimit
 		entry.Version = groupCollectionCredentialVersion(committed.SecretVersion)
 		entry.IdentityGeneration = groupCollectionCredentialIdentity(
 			committed.IdentityFingerprint,
@@ -468,7 +500,8 @@ func (s *Service) mapCredentialItem(
 	}
 	bucket := classifyHealthKey(state.GroupCatalogView{ID: group.ID, Name: group.Name, Enabled: group.Enabled,
 		WeightManual: cloneInt(group.WeightManual)}, view, observedAt)
-	item, err := mapCredentialRuntimeItem(mask, row.ID, view, bucket, stats, observedAt)
+	rpmUsed, concurrencyUsed := s.credentialLiveUsage(row.ID)
+	item, err := mapCredentialRuntimeItem(mask, row.ID, view, bucket, stats, observedAt, rpmUsed, concurrencyUsed)
 	if err != nil {
 		return CredentialItemResponse{}, err
 	}

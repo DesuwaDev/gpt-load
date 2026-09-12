@@ -18,6 +18,12 @@ type CredentialSource interface {
 	CollectCredentialCandidates(groupIDs []uint, excluded func(uint) bool, now time.Time) []state.CredentialMeta
 }
 
+// CredentialLimiter 是凭据本地 RPM/并发限额的只读探针；未注入时视为不限。
+// 名额扣减由网关在拿到 Selection 后立即完成，调度器只负责把满额凭据排除出候选池。
+type CredentialLimiter interface {
+	Available(credentialID uint, rpmLimit, concurrencyLimit int64) bool
+}
+
 type Query struct {
 	ClientProtocol           protocol.Protocol
 	Operation                execution.Operation
@@ -28,6 +34,8 @@ type Query struct {
 	AllowedCredentialIDs     map[uint]struct{}
 	PreferredCredentialID    uint
 	AllowedCredentialRefs    map[uint]state.CredentialRef
+	// Limiter 为 nil 时不做凭据本地限额过滤。
+	Limiter CredentialLimiter
 
 	// ResponsesWebsocket 非 nil 时按原生 WS 合同准入，不要求 HTTP 资源接口。
 	ResponsesWebsocket *execution.WebsocketCapabilities
@@ -42,6 +50,9 @@ type Selection struct {
 	UpstreamModelID          *string
 	Group                    state.GroupView
 	ResponsesStoreDowngraded bool
+	// 凭据本地限额，网关据此在调度后立即扣减名额。
+	CredentialRPMLimit         int64
+	CredentialConcurrencyLimit int64
 }
 
 type candidateTarget struct {
@@ -75,6 +86,8 @@ type Iterator struct {
 	skippedGroups         map[uint]struct{}
 	allowedCredentialRefs map[uint]credentialIdentity
 	staticReason          ReasonCode
+	limiter               CredentialLimiter
+	limitedSeen           bool
 	now                   func() time.Time
 }
 
@@ -133,6 +146,7 @@ func newWithClock(
 		preferredCredentialID: query.PreferredCredentialID,
 		tried:                 make(map[uint]struct{}),
 		skippedGroups:         make(map[uint]struct{}),
+		limiter:               query.Limiter,
 		now:                   now,
 	}
 
@@ -170,6 +184,13 @@ func (iterator *Iterator) StaticReason() ReasonCode {
 		return ""
 	}
 	return iterator.staticReason
+}
+
+// LimitedByCredentialQuota 报告本次迭代是否曾因凭据本地限额而排除过候选。
+// 硬绑定（previous_response_id）场景下候选池只有一个凭据，它满额时应答 429
+// 而不是 503，让客户端等待而非误判服务不可用。
+func (iterator *Iterator) LimitedByCredentialQuota() bool {
+	return iterator != nil && iterator.limitedSeen
 }
 
 func cloneAllowedCredentialIDs(query Query) map[uint]struct{} {
@@ -240,6 +261,11 @@ func (iterator *Iterator) withWeightedPool(candidates *candidatePool, modes []ch
 				continue
 			}
 			if modelCooldownUntil(credential.ModelCooldowns, target.target.UpstreamModelID, iterator.operation, now).After(now) {
+				continue
+			}
+			// 凭据本地限额与模型冷却并列过滤：满额凭据不进候选池，调度器自然换号。
+			if iterator.limiter != nil && !iterator.limiter.Available(credential.ID, credential.RPMLimit, credential.ConcurrencyLimit) {
+				iterator.limitedSeen = true
 				continue
 			}
 			weight := effectiveWeight(target.group.WeightManual, credential.WeightManual)
@@ -354,14 +380,16 @@ func newSelection(credential state.CredentialMeta, target candidateTarget) Selec
 	resolvedTarget := target.target.ResolvedTarget
 	resolvedTarget.TargetConfig = append([]byte(nil), resolvedTarget.TargetConfig...)
 	return Selection{
-		CredentialID:             credential.ID,
-		GroupID:                  credential.GroupID,
-		ChannelID:                resolvedTarget.ChannelID,
-		ResolvedTarget:           resolvedTarget,
-		RouteMode:                target.target.Mode,
-		UpstreamModelID:          upstreamModelID,
-		Group:                    cloneGroupView(target.group),
-		ResponsesStoreDowngraded: target.responsesStoreDowngraded,
+		CredentialID:               credential.ID,
+		GroupID:                    credential.GroupID,
+		ChannelID:                  resolvedTarget.ChannelID,
+		ResolvedTarget:             resolvedTarget,
+		RouteMode:                  target.target.Mode,
+		UpstreamModelID:            upstreamModelID,
+		Group:                      cloneGroupView(target.group),
+		ResponsesStoreDowngraded:   target.responsesStoreDowngraded,
+		CredentialRPMLimit:         credential.RPMLimit,
+		CredentialConcurrencyLimit: credential.ConcurrencyLimit,
 	}
 }
 

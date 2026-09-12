@@ -68,6 +68,8 @@ type Credential struct {
 	AuthErrorCode       string              `gorm:"type:varchar(64);not null;default:''"`
 	Status              CredentialStatus    `gorm:"type:varchar(32);not null;default:'active';check:chk_credential_status,status IN ('active','disabled')"`
 	WeightManual        *int
+	RPMLimit            int64   `gorm:"column:rpm_limit;not null;default:0"`
+	ConcurrencyLimit    int64   `gorm:"column:concurrency_limit;not null;default:0"`
 	ProxyConfig         *string `gorm:"column:proxy_config;type:text"`
 	Group               *Group  `gorm:"foreignKey:GroupID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
 	CreatedAtMS         int64   `gorm:"column:created_at_ms;not null;autoCreateTime:milli;check:chk_credential_created_at,created_at_ms >= 0"`

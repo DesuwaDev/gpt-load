@@ -245,11 +245,20 @@ func (s *websocketConnection) executeTurn(turn websocketTurn) {
 	if requiredRef == nil {
 		query.PreferredCredentialID = affinity.preferredCredentialID
 	}
+	query.Limiter = h.credentialLimiter
 	iterator := scheduler.New(snapshot, h.registry, query)
 	limit := retryAttemptLimit(snapshot.Settings.RetryCount)
 	var refreshSelection *scheduler.Selection
 	var refreshRef state.CredentialRef
 	authRefreshUsed := false
+	var currentSlotRelease func()
+	releaseCurrentSlot := func() {
+		if currentSlotRelease != nil {
+			currentSlotRelease()
+			currentSlotRelease = nil
+		}
+	}
+	defer releaseCurrentSlot()
 	for sequence := 1; sequence <= limit; sequence++ {
 		if s.ctx.Err() != nil {
 			recorder.completeCanceled(s.ctx, 0, -1)
@@ -277,11 +286,22 @@ func (s *websocketConnection) executeTurn(turn websocketTurn) {
 		} else {
 			selection, err = iterator.Next()
 			if err != nil {
-				reject(reasonNoCandidate)
+				if iterator.LimitedByCredentialQuota() {
+					reject(reasonCredentialRateLimited)
+				} else {
+					reject(reasonNoCandidate)
+				}
 				return
 			}
 			ref = query.AllowedCredentialRefs[selection.CredentialID]
 		}
+		releaseCredentialSlot, slotAcquired := h.acquireCredentialSlot(selection)
+		if !slotAcquired {
+			reject(reasonCredentialRateLimited)
+			return
+		}
+		releaseCurrentSlot()
+		currentSlotRelease = releaseCredentialSlot
 		payload, effective, err := prepareWebsocketPayload(turn.body, original, selection)
 		if err != nil {
 			reject(reasonParameterOverrideUnavailable)

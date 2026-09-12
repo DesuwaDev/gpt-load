@@ -69,6 +69,15 @@ type AccessKeyConcurrencyLimiter interface {
 	Acquire(accessKeyID uint, limit int64) (release func(), allowed bool)
 }
 
+// CredentialLimiter 按凭据限制本地 RPM 与在途请求数。调度器用 Available 过滤
+// 候选，网关在拿到 Selection 后立即 Acquire 扣减；两者共用同一实例才能保证
+// 候选过滤与实际扣减看到的是同一份计数。
+type CredentialLimiter interface {
+	scheduler.CredentialLimiter
+	Acquire(credentialID uint, rpmLimit, concurrencyLimit int64) (release func(), allowed bool)
+	RetryAfter(credentialID uint, rpmLimit int64) time.Time
+}
+
 // PriceTableProvider exposes the currently published immutable price table.
 type PriceTableProvider interface {
 	Load() *pricing.Table
@@ -103,6 +112,7 @@ type Handler struct {
 	mutations           credentialMutationCoordinator
 	limiter             AccessKeyRPMLimiter
 	concurrency         AccessKeyConcurrencyLimiter
+	credentialLimiter   CredentialLimiter
 	requestLogSink      telemetry.RequestLogSink
 	priceTables         PriceTableProvider
 	accessQuota         *accessquota.Runtime
@@ -173,15 +183,16 @@ func NewHandler(
 		manager: manager, channels: channels, subscriptions: subscriptions, registry: registry, encryption: encryptionService,
 		forwarder: forwarder, dialects: dialects, stats: stats, mutations: mutations,
 		limiter: limiter, concurrency: unlimitedAccessKeyConcurrencyLimiter{}, requestLogSink: requestLogSink, priceTables: priceTables,
-		affinityCache:    affinity.NewCache(),
-		responseBindings: state.NewResponseBindings(),
-		websocketLimits:  defaultWebsocketLimits(),
-		newRequestID:     newRequestID,
-		requestNow:       time.Now,
-		now:              time.Now,
-		writeTimeout:     downstreamWriteTimeout,
-		modelListLimit:   maxNonStreamingResponseBodyBytes,
-		logger:           logrus.StandardLogger(),
+		credentialLimiter: unlimitedCredentialLimiter{},
+		affinityCache:     affinity.NewCache(),
+		responseBindings:  state.NewResponseBindings(),
+		websocketLimits:   defaultWebsocketLimits(),
+		newRequestID:      newRequestID,
+		requestNow:        time.Now,
+		now:               time.Now,
+		writeTimeout:      downstreamWriteTimeout,
+		modelListLimit:    maxNonStreamingResponseBodyBytes,
+		logger:            logrus.StandardLogger(),
 		authFailureEvents: utils.NewRateLimitedEventCounter(
 			time.Minute,
 			time.Now,
@@ -215,6 +226,7 @@ func NewHandlerWithLifecycle(
 	mutations *health.MutationCoordinator,
 	limiter AccessKeyRPMLimiter,
 	concurrency AccessKeyConcurrencyLimiter,
+	credentialLimiter CredentialLimiter,
 	requestLogSink telemetry.RequestLogSink,
 	priceTables PriceTableProvider,
 	accessQuota *accessquota.Runtime,
@@ -243,6 +255,9 @@ func NewHandlerWithLifecycle(
 	if concurrency != nil {
 		handler.concurrency = concurrency
 	}
+	if credentialLimiter != nil {
+		handler.credentialLimiter = credentialLimiter
+	}
 	handler.lifecycle = lifecycle
 	handler.responseBindings = responseBindings
 	return handler
@@ -258,6 +273,22 @@ type unlimitedAccessKeyConcurrencyLimiter struct{}
 
 func (unlimitedAccessKeyConcurrencyLimiter) Acquire(uint, int64) (func(), bool) {
 	return func() {}, true
+}
+
+type unlimitedCredentialLimiter struct{}
+
+func (unlimitedCredentialLimiter) Available(uint, int64, int64) bool { return true }
+func (unlimitedCredentialLimiter) Acquire(uint, int64, int64) (func(), bool) {
+	return func() {}, true
+}
+func (unlimitedCredentialLimiter) RetryAfter(uint, int64) time.Time { return time.Time{} }
+
+// acquireCredentialSlot 在调度后立即扣减凭据本地名额。调度器已用同一限流器
+// 过滤过候选，这里仍可能因并发竞争失败；失败视同该候选不可用，交给调用方换号。
+func (handler *Handler) acquireCredentialSlot(selection scheduler.Selection) (func(), bool) {
+	return handler.credentialLimiter.Acquire(
+		selection.CredentialID, selection.CredentialRPMLimit, selection.CredentialConcurrencyLimit,
+	)
 }
 
 type requestAccessQuotaAdmission struct {
@@ -640,6 +671,7 @@ func (handler *Handler) Handle(ginContext *gin.Context) {
 	}
 	query.AllowedCredentialIDs = allowedCredentialIDs
 	query.AllowedCredentialRefs = allowedCredentialRefs
+	query.Limiter = handler.credentialLimiter
 	var requestAffinity requestAffinity
 	if metadata.PreviousResponseID != "" {
 		binding, found := handler.responseBindings.Lookup(accessKey.ID, metadata.PreviousResponseID)
@@ -867,6 +899,15 @@ func (handler *Handler) executeAttempts(
 	}
 	var refreshRetry *credentialRefreshRetry
 	authRefreshReplayUsed := false
+	// 当前尝试持有的凭据并发名额；每轮切换候选前释放上一轮的，函数返回时兜底释放。
+	var currentSlotRelease func()
+	releaseCurrentSlot := func() {
+		if currentSlotRelease != nil {
+			currentSlotRelease()
+			currentSlotRelease = nil
+		}
+	}
+	defer releaseCurrentSlot()
 	type preparedRequest struct {
 		request               *dialect.ParsedRequest
 		observations          dialect.RequestMetadata
@@ -1053,6 +1094,14 @@ func (handler *Handler) executeAttempts(
 		if !active {
 			continue
 		}
+		// 名额在解密前扣减，覆盖本次尝试的全部生命周期。并发名额在下一轮循环
+		// 开始或函数返回时释放，任何 continue/return 出口都不会泄漏。
+		releaseCredentialSlot, slotAcquired := handler.acquireCredentialSlot(selection)
+		if !slotAcquired {
+			continue
+		}
+		releaseCurrentSlot()
+		currentSlotRelease = releaseCredentialSlot
 		prepared := prepareRequest(selection)
 		if prepared.err != nil {
 			if errors.Is(prepared.err, errRequestTooLarge) {
@@ -1470,7 +1519,50 @@ func (handler *Handler) executeAttempts(
 		handler.completeReason(ginContext, recorder, reasonUpstreamRateLimited)
 		return
 	}
+	// 硬绑定（previous_response_id）下唯一允许的凭据被本地限额排除：换号在语义上
+	// 不可能，答 429 + Retry-After 让客户端等待，而不是 503 误报服务不可用。
+	if iterator.LimitedByCredentialQuota() && lastAttemptIndex < 0 {
+		handler.setCredentialLimitRetryAfter(ginContext, allowedCredentialRefs)
+		handler.completeReason(ginContext, recorder, reasonCredentialRateLimited)
+		return
+	}
 	handler.completeReason(ginContext, recorder, reasonNoCandidate)
+}
+
+// setCredentialLimitRetryAfter 取所有允许凭据中最早的 RPM 恢复时刻作为 Retry-After；
+// 只有并发满额时没有确定恢复时刻，此时不设头，客户端按默认退避。
+func (handler *Handler) setCredentialLimitRetryAfter(ginContext *gin.Context, refs map[uint]state.CredentialRef) {
+	var earliest time.Time
+	for credentialID := range refs {
+		limit := handler.credentialRPMLimit(credentialID)
+		if limit <= 0 {
+			continue
+		}
+		until := handler.credentialLimiter.RetryAfter(credentialID, limit)
+		if until.IsZero() {
+			continue
+		}
+		if earliest.IsZero() || until.Before(earliest) {
+			earliest = until
+		}
+	}
+	if !earliest.IsZero() {
+		setCooldownRetryAfter(ginContext, earliest, handler.now())
+	}
+}
+
+func (handler *Handler) credentialRPMLimit(credentialID uint) int64 {
+	source, ok := handler.registry.(interface {
+		CredentialLimits(credentialID uint) (rpm, concurrency int64, ok bool)
+	})
+	if !ok {
+		return 0
+	}
+	rpm, _, found := source.CredentialLimits(credentialID)
+	if !found {
+		return 0
+	}
+	return rpm
 }
 
 func setCooldownRetryAfter(ctx *gin.Context, until, now time.Time) {
