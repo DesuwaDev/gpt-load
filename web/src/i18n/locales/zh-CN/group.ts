@@ -436,6 +436,17 @@ export default {
         concurrencyValue: '{count} 并发',
         invalid: '请输入非负整数；留空表示不限',
       },
+      mark: {
+        title: '模型状态',
+        apply: '保存',
+        notePlaceholder: '自定义标签',
+        options: {
+          none: '正常',
+          degraded: '降智',
+          abnormal: '异常',
+          custom: '自定义',
+        },
+      },
       recent: '成功 {success} · 失败 {failure}',
       recentSuccessOnly: '成功 {success}',
       detailsFailure: '最近失败',

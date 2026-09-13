@@ -12,7 +12,7 @@ import {
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
-import type { CredentialItemDto, ProxyMutation } from '@/api/control/types'
+import type { CredentialItemDto, CredentialMark, ProxyMutation } from '@/api/control/types'
 import ProxyConfigEditor from '@/components/config/ProxyConfigEditor.vue'
 import ProxyScopeIndicator from '@/components/config/ProxyScopeIndicator.vue'
 import AppButton from '@/components/ui/AppButton.vue'
@@ -27,6 +27,8 @@ import { formatLocalInstant } from '@/lib/format'
 
 import { presentCredentialFailureCategory } from './credential-failure-presenter'
 import CredentialLimitsPanel from './CredentialLimitsPanel.vue'
+import CredentialMarkIndicator from './CredentialMarkIndicator.vue'
+import CredentialMarkPicker from './CredentialMarkPicker.vue'
 
 const props = defineProps<{
   item: CredentialItemDto
@@ -46,6 +48,7 @@ const emit = defineEmits<{
   'open-weight': [item: CredentialItemDto]
   weight: [payload: { item: CredentialItemDto; value: string }]
   limits: [payload: { item: CredentialItemDto; rpm_limit: number; concurrency_limit: number }]
+  mark: [payload: { item: CredentialItemDto; mark: CredentialMark; mark_note: string }]
   toggle: [item: CredentialItemDto]
   test: [item: CredentialItemDto]
   restore: [item: CredentialItemDto]
@@ -114,6 +117,11 @@ function openWeightFromColumn(): void {
   emit('open-weight', props.item)
 }
 
+function applyMark(payload: { mark: CredentialMark; mark_note: string }): void {
+  menuOpen.value = false
+  emit('mark', { item: props.item, ...payload })
+}
+
 function runMenuAction(action: 'test' | 'toggle' | 'restore' | 'remove'): void {
   menuOpen.value = false
   if (action === 'test') emit('test', props.item)
@@ -150,6 +158,8 @@ function runMenuAction(action: 'test' | 'toggle' | 'restore' | 'remove'): void {
           t('group.credentials.columns.credential')
         }}</span>
         <span class="group-credential-record__credential">
+          <!-- 圆点贴在掩码左侧：折叠态一眼扫到颜色，只占 8px 不挤掉复制按钮。 -->
+          <CredentialMarkIndicator :mark="item.mark" :note="item.mark_note" variant="dot" />
           <CopyChip
             :key="item.secret_version"
             :value="item.mask"
@@ -170,6 +180,7 @@ function runMenuAction(action: 'test' | 'toggle' | 'restore' | 'remove'): void {
           <StatusBadge :status="item.effective_status" size="compact">
             {{ t(`group.credentials.effective.${item.effective_status}`) }}
           </StatusBadge>
+          <CredentialMarkIndicator :mark="item.mark" :note="item.mark_note" variant="badge" />
           <StatusBadge v-if="item.model_cooldowns.length > 0" tone="warning" size="compact">{{
             t('group.credentials.modelCooldown.count', { count: n(item.model_cooldowns.length) })
           }}</StatusBadge>
@@ -231,6 +242,13 @@ function runMenuAction(action: 'test' | 'toggle' | 'restore' | 'remove'): void {
             </IconButton>
           </template>
           <div class="group-credential-record__menu">
+            <CredentialMarkPicker
+              :mark="item.mark"
+              :note="item.mark_note"
+              :disabled="busy"
+              @apply="applyMark"
+            />
+            <div class="group-credential-record__menu-divider"></div>
             <button type="button" :disabled="busy" @click="runMenuAction('test')">
               <Activity :size="15" aria-hidden="true" />{{ t('group.credentials.test.action') }}
             </button>
@@ -662,7 +680,8 @@ function runMenuAction(action: 'test' | 'toggle' | 'restore' | 'remove'): void {
 
 :global(.app-popover__content.app-popover__content--credential-menu) {
   width: auto;
-  min-width: 176px;
+  /* 菜单顶部放了 2×2 的标记选择器，min-width 要能容下两列选项和自定义输入框。 */
+  min-width: 212px;
   border-color: var(--color-border-control);
   border-radius: 10px;
   padding: 8px;

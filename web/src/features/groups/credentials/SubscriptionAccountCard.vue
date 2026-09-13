@@ -18,6 +18,7 @@ import { useI18n } from 'vue-i18n'
 
 import type {
   CredentialItemDto,
+  CredentialMark,
   ProxyMutation,
   CredentialQuotaLabelKey,
   CredentialQuotaWindowDto,
@@ -41,6 +42,8 @@ import { quotaProgressTone } from '@/lib/quota-progress'
 
 import { presentCredentialFailureCategory } from './credential-failure-presenter'
 import CredentialLimitsPanel from './CredentialLimitsPanel.vue'
+import CredentialMarkIndicator from './CredentialMarkIndicator.vue'
+import CredentialMarkPicker from './CredentialMarkPicker.vue'
 
 const props = withDefaults(
   defineProps<{
@@ -74,6 +77,7 @@ const emit = defineEmits<{
   remove: [item: CredentialItemDto]
   weight: [payload: { item: CredentialItemDto; value: string }]
   limits: [payload: { item: CredentialItemDto; rpm_limit: number; concurrency_limit: number }]
+  mark: [payload: { item: CredentialItemDto; mark: CredentialMark; mark_note: string }]
 }>()
 const { locale, n, t, te } = useI18n()
 const menuOpen = ref(false)
@@ -605,6 +609,11 @@ function retryDetails(): void {
   emit('load-details', props.item)
 }
 
+function applyMark(payload: { mark: CredentialMark; mark_note: string }): void {
+  menuOpen.value = false
+  emit('mark', { item: props.item, ...payload })
+}
+
 function runMenuAction(
   action: 'download' | 'refresh-credential' | 'toggle' | 'restore' | 'remove',
 ): void {
@@ -773,6 +782,7 @@ function runMenuAction(
             >
               {{ statusLabel }}
             </StatusBadge>
+            <CredentialMarkIndicator :mark="item.mark" :note="item.mark_note" variant="badge" />
             <StatusBadge v-if="item.model_cooldowns.length > 0" tone="warning" size="compact">{{
               t('group.credentials.modelCooldown.count', { count: n(item.model_cooldowns.length) })
             }}</StatusBadge>
@@ -844,6 +854,13 @@ function runMenuAction(
                 </IconButton>
               </template>
               <div class="subscription-account__menu">
+                <CredentialMarkPicker
+                  :mark="item.mark"
+                  :note="item.mark_note"
+                  :disabled="busy"
+                  @apply="applyMark"
+                />
+                <div class="subscription-account__menu-divider"></div>
                 <button type="button" :disabled="busy" @click="runMenuAction('download')">
                   <Download :size="15" aria-hidden="true" />{{
                     t('group.credentials.subscription.download')
@@ -893,6 +910,8 @@ function runMenuAction(
           </div>
         </div>
         <div class="subscription-account__top-row">
+          <!-- 圆点贴在账号名左侧：折叠态一眼扫到颜色，只占 8px 不影响这一行的排版。 -->
+          <CredentialMarkIndicator :mark="item.mark" :note="item.mark_note" variant="dot" />
           <OverflowTooltip class="subscription-account__mail" :content="accountName">
             {{ accountName }}
           </OverflowTooltip>
@@ -2253,7 +2272,8 @@ function runMenuAction(
 <style>
 .app-popover__content.app-popover__content--account-menu {
   width: auto;
-  min-width: 180px;
+  /* 菜单顶部放了 2×2 的标记选择器，min-width 要能容下两列选项和自定义输入框。 */
+  min-width: 212px;
   border-color: var(--color-border-control);
   border-radius: 10px;
   padding: 8px;

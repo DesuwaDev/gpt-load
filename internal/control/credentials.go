@@ -35,8 +35,22 @@ type CredentialUpdateRequest struct {
 	WeightManual     optionalField[int]                    `json:"weight_manual"`
 	RPMLimit         optionalField[int64]                  `json:"rpm_limit"`
 	ConcurrencyLimit optionalField[int64]                  `json:"concurrency_limit"`
-	Proxy            optionalField[outboundproxy.Config]   `json:"proxy"`
+	// Mark/MarkNote 必须成对提交：备注是标记的一部分，单独改会让两者语义脱节。
+	Mark     optionalField[string]               `json:"mark"`
+	MarkNote optionalField[string]               `json:"mark_note"`
+	Proxy    optionalField[outboundproxy.Config] `json:"proxy"`
 }
+
+// 凭据的人工模型状态标记。空串表示未标记；其余取值只用于呈现，不参与调度。
+const (
+	credentialMarkNone     = ""
+	credentialMarkDegraded = "degraded"
+	credentialMarkAbnormal = "abnormal"
+	credentialMarkCustom   = "custom"
+
+	// 标记要在卡片徽章里一眼读完，备注按显示宽度而不是存储上限来限长。
+	maxCredentialMarkNoteRunes = 24
+)
 
 type CredentialRevealResult struct {
 	CredentialID uint            `json:"credential_id"`
@@ -84,11 +98,14 @@ type CredentialItemResponse struct {
 	AuthState        string                         `json:"auth_state"`
 	AuthErrorCode    string                         `json:"auth_error_code,omitempty"`
 	Observation      *CredentialObservationResponse `json:"observation,omitempty"`
-	ConfiguredStatus string                         `json:"configured_status"`
-	EffectiveStatus  string                         `json:"effective_status"`
-	Weight           int                            `json:"weight"`
-	RPMLimit         int64                          `json:"rpm_limit"`
-	ConcurrencyLimit int64                          `json:"concurrency_limit"`
+	// Mark/MarkNote 是人工模型状态标记，只用于呈现；mark 为空串时 mark_note 必为空。
+	Mark             string `json:"mark"`
+	MarkNote         string `json:"mark_note"`
+	ConfiguredStatus string `json:"configured_status"`
+	EffectiveStatus  string `json:"effective_status"`
+	Weight           int    `json:"weight"`
+	RPMLimit         int64  `json:"rpm_limit"`
+	ConcurrencyLimit int64  `json:"concurrency_limit"`
 	// Effective* 是解析继承后的实际生效值，Group* 是分组默认值，便于界面区分
 	// “继承自分组”和“已单独覆盖”。
 	EffectiveRPMLimit         int64                         `json:"effective_rpm_limit"`
@@ -451,6 +468,7 @@ func (s *Service) mapCredentialCollection(
 		item.SecretVersion = row.SecretVersion
 		item.AuthState = string(row.AuthState)
 		item.AuthErrorCode = safeInternalErrorCode(row.AuthErrorCode)
+		item.Mark, item.MarkNote = presentCredentialMark(row)
 		item.Account = account
 		item.Proxy = proxyViews[row.ID]
 		if item.ConnectionType == string(models.ConnectionTypeSubscription) {

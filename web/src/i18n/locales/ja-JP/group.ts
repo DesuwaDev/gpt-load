@@ -452,6 +452,17 @@ export default {
         concurrencyValue: '同時 {count}',
         invalid: '0 以上の整数を入力してください。空欄は無制限です',
       },
+      mark: {
+        title: 'モデル状態',
+        apply: '保存',
+        notePlaceholder: 'カスタムラベル',
+        options: {
+          none: '正常',
+          degraded: '劣化',
+          abnormal: '異常',
+          custom: 'カスタム',
+        },
+      },
       recent: '成功 {success} · 失敗 {failure}',
       recentSuccessOnly: '成功 {success}',
       details: '最近の失敗と回復',

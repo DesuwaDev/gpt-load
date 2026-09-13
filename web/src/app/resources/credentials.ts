@@ -19,6 +19,7 @@ import type {
   CredentialDownloadAllDto,
   CredentialDownloadDto,
   CredentialItemDto,
+  CredentialMark,
   CredentialObservationDto,
   CredentialObservationSnapshotDto,
   CredentialObservedWindowUsageDto,
@@ -60,6 +61,7 @@ export type {
   CredentialDownloadAllDto,
   CredentialDownloadDto,
   CredentialItemDto,
+  CredentialMark,
   CredentialRecoveryDto,
   CredentialRevealDto,
   CredentialStatus,
@@ -74,6 +76,9 @@ export interface CredentialPatch {
   weight_manual?: number | null
   rpm_limit?: number
   concurrency_limit?: number
+  /** 标记与备注必须成对提交，与服务端的校验一致。 */
+  mark?: CredentialMark
+  mark_note?: string
   proxy?: ProxyMutation
 }
 
@@ -107,6 +112,8 @@ const credentialItemFields = [
   'auth_state',
   'auth_error_code',
   'observation',
+  'mark',
+  'mark_note',
   'configured_status',
   'effective_status',
   'weight',
@@ -162,6 +169,9 @@ const inconclusiveCredentialTestReasons = [
   'unknown',
 ] as const
 const configuredStatuses = ['active', 'disabled'] as const
+const credentialMarks = ['', 'degraded', 'abnormal', 'custom'] as const
+// 自定义标记的备注就是标签文字，长度上限与服务端保持一致。
+const credentialMarkNoteMaxLength = 24
 const effectiveStatuses = ['available', 'cooldown', 'blacklisted', 'disabled'] as const
 const recoveryModes = ['none', 'cooldown', 'probe', 'manual'] as const
 const failureCategories = [
@@ -566,12 +576,18 @@ export function projectCredentialItem(value: unknown): CredentialItemDto {
   const weight = projectSafeInteger(record.weight, { minimum: 0, maximum: 100 })
   const cooldownUntil = projectNullableEpochMilliseconds(record.cooldown_until_ms)
   const recovery = projectRecovery(record.recovery)
+  const mark = projectEnum(record.mark, credentialMarks)
+  const markNote = projectString(record.mark_note, { allowEmpty: true })
   if (
     // 分组停用或权重为 0 时，active 凭据的运行时状态也会是 disabled。
     (configuredStatus === 'disabled' && effectiveStatus !== 'disabled') ||
     (weight === 0 && effectiveStatus !== 'disabled') ||
     (effectiveStatus === 'cooldown') !== (cooldownUntil !== null) ||
-    (recovery.mode === 'cooldown') !== (effectiveStatus === 'cooldown')
+    (recovery.mode === 'cooldown') !== (effectiveStatus === 'cooldown') ||
+    // 未标记时没有备注可挂；自定义标记的备注就是标签本身。
+    (mark === '' && markNote !== '') ||
+    (mark === 'custom' && markNote === '') ||
+    [...markNote].length > credentialMarkNoteMaxLength
   ) {
     invalidResponse()
   }
@@ -589,6 +605,8 @@ export function projectCredentialItem(value: unknown): CredentialItemDto {
     ...(record.observation === undefined
       ? {}
       : { observation: projectObservation(record.observation) }),
+    mark,
+    mark_note: markNote,
     configured_status: configuredStatus,
     effective_status: effectiveStatus,
     weight,
@@ -691,7 +709,15 @@ export function projectCredentialCollection(value: unknown): CredentialCollectio
 
 function normalizePatch(patch: CredentialPatch): CredentialPatch {
   const keys = Object.keys(patch)
-  const allowed = new Set(['status', 'weight_manual', 'rpm_limit', 'concurrency_limit', 'proxy'])
+  const allowed = new Set([
+    'status',
+    'weight_manual',
+    'rpm_limit',
+    'concurrency_limit',
+    'mark',
+    'mark_note',
+    'proxy',
+  ])
   if (keys.length === 0 || keys.some((key) => !allowed.has(key))) {
     throw new Error('INVALID_CREDENTIAL_PATCH')
   }
@@ -716,6 +742,26 @@ function normalizePatch(patch: CredentialPatch): CredentialPatch {
       throw new Error('INVALID_CREDENTIAL_LIMIT')
     }
     body[key] = value
+  }
+  const markKeys = (['mark', 'mark_note'] as const).filter((key) =>
+    Object.prototype.hasOwnProperty.call(patch, key),
+  )
+  if (markKeys.length === 1) throw new Error('INVALID_CREDENTIAL_MARK')
+  if (markKeys.length === 2) {
+    const mark = projectEnum(patch.mark, credentialMarks)
+    const note = patch.mark_note
+    if (
+      typeof note !== 'string' ||
+      note !== note.trim() ||
+      [...note].length > credentialMarkNoteMaxLength ||
+      [...note].some((char) => char < ' ' || char === '\u007f') ||
+      (mark === '' && note !== '') ||
+      (mark === 'custom' && note === '')
+    ) {
+      throw new Error('INVALID_CREDENTIAL_MARK')
+    }
+    body.mark = mark
+    body.mark_note = note
   }
   if (Object.prototype.hasOwnProperty.call(patch, 'proxy')) {
     const proxy = patch.proxy

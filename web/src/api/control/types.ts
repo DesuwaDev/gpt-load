@@ -274,6 +274,9 @@ export interface ModelCooldownDto {
   cooldown_until_ms: number
 }
 
+/** 凭据的人工模型状态标记；'' 表示未标记，只用于呈现，不影响调度。 */
+export type CredentialMark = '' | 'degraded' | 'abnormal' | 'custom'
+
 export interface CredentialItemDto {
   model_cooldowns: ModelCooldownDto[]
   credential_id: number
@@ -284,6 +287,9 @@ export interface CredentialItemDto {
   auth_state: CredentialAuthState
   auth_error_code?: string
   observation?: CredentialObservationDto
+  /** mark 为 '' 时 mark_note 必为空；mark 为 'custom' 时 mark_note 即标签文字。 */
+  mark: CredentialMark
+  mark_note: string
   configured_status: CredentialConfiguredStatus
   effective_status: CredentialStatus
   weight: number

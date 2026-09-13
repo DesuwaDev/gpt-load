@@ -451,6 +451,17 @@ export default {
         concurrencyValue: '{count} concurrent',
         invalid: 'Enter a non-negative whole number; blank means unlimited',
       },
+      mark: {
+        title: 'Model status',
+        apply: 'Save',
+        notePlaceholder: 'Custom label',
+        options: {
+          none: 'Normal',
+          degraded: 'Degraded',
+          abnormal: 'Abnormal',
+          custom: 'Custom',
+        },
+      },
       recent: '{success} success · {failure} failure',
       recentSuccessOnly: '{success} success',
       details: 'Recent failure and recovery',

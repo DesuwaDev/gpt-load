@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"strings"
 	"time"
+	"unicode/utf8"
 
 	"gorm.io/gorm"
 
@@ -25,52 +27,133 @@ type credentialLimitUpdate struct {
 	concurrency *int64
 }
 
+// credentialMarkUpdate 描述一次凭据人工标记的可选修改；nil 表示未提交该字段。
+// 标记与备注同进同出，所以两个指针要么都为 nil，要么都非 nil。
+type credentialMarkUpdate struct {
+	mark *string
+	note *string
+}
+
+// credentialUpdatePlan 汇总一次凭据配置更新里已校验的字段，避免返回值继续膨胀。
+type credentialUpdatePlan struct {
+	status    *state.CredentialStatus
+	weight    *int
+	weightSet bool
+	limits    credentialLimitUpdate
+	mark      credentialMarkUpdate
+	proxy     *string
+	proxySet  bool
+}
+
 func normalizeCredentialUpdate(
 	request CredentialUpdateRequest,
 	encryptionService encryption.Service,
-) (status *state.CredentialStatus, weight *int, weightSet bool, limits credentialLimitUpdate, proxy *string, proxySet bool, err error) {
+) (credentialUpdatePlan, error) {
+	var plan credentialUpdatePlan
 	if !request.Status.Set && !request.WeightManual.Set && !request.RPMLimit.Set &&
-		!request.ConcurrencyLimit.Set && !request.Proxy.Set {
-		return nil, nil, false, limits, nil, false, app_errors.ErrBadRequest
+		!request.ConcurrencyLimit.Set && !request.Mark.Set && !request.MarkNote.Set && !request.Proxy.Set {
+		return plan, app_errors.ErrBadRequest
 	}
 	if request.Status.Set {
 		if request.Status.Null ||
 			(request.Status.Value != state.CredentialStatusActive && request.Status.Value != state.CredentialStatusDisabled) {
-			return nil, nil, false, limits, nil, false, app_errors.ErrValidation
+			return plan, app_errors.ErrValidation
 		}
 		value := request.Status.Value
-		status = &value
+		plan.status = &value
 	}
 	if request.WeightManual.Set {
-		weightSet = true
+		plan.weightSet = true
 		if !request.WeightManual.Null {
 			if request.WeightManual.Value < 1 || request.WeightManual.Value > state.MaxWeight {
-				return nil, nil, false, limits, nil, false, app_errors.ErrValidation
+				return plan, app_errors.ErrValidation
 			}
 			value := request.WeightManual.Value
-			weight = &value
+			plan.weight = &value
 		}
 	}
 	// 限额字段不接受 null：0 即不限，与访问密钥的 rpm_limit 语义一致。
 	if request.RPMLimit.Set {
 		if request.RPMLimit.Null || request.RPMLimit.Value < 0 {
-			return nil, nil, false, limits, nil, false, app_errors.ErrValidation
+			return plan, app_errors.ErrValidation
 		}
 		value := request.RPMLimit.Value
-		limits.rpm = &value
+		plan.limits.rpm = &value
 	}
 	if request.ConcurrencyLimit.Set {
 		if request.ConcurrencyLimit.Null || request.ConcurrencyLimit.Value < 0 {
-			return nil, nil, false, limits, nil, false, app_errors.ErrValidation
+			return plan, app_errors.ErrValidation
 		}
 		value := request.ConcurrencyLimit.Value
-		limits.concurrency = &value
+		plan.limits.concurrency = &value
 	}
-	proxy, proxySet, err = normalizeProxyOverride(request.Proxy, encryptionService)
+	mark, note, err := normalizeCredentialMark(request)
 	if err != nil {
-		return nil, nil, false, limits, nil, false, err
+		return plan, err
 	}
-	return status, weight, weightSet, limits, proxy, proxySet, nil
+	plan.mark.mark, plan.mark.note = mark, note
+	plan.proxy, plan.proxySet, err = normalizeProxyOverride(request.Proxy, encryptionService)
+	if err != nil {
+		return plan, err
+	}
+	return plan, nil
+}
+
+// normalizeCredentialMark 校验人工标记；未提交时返回两个 nil。
+func normalizeCredentialMark(request CredentialUpdateRequest) (*string, *string, error) {
+	if request.Mark.Set != request.MarkNote.Set {
+		return nil, nil, app_errors.ErrValidation
+	}
+	if !request.Mark.Set {
+		return nil, nil, nil
+	}
+	if request.Mark.Null || request.MarkNote.Null {
+		return nil, nil, app_errors.ErrValidation
+	}
+	mark := request.Mark.Value
+	switch mark {
+	case credentialMarkNone, credentialMarkDegraded, credentialMarkAbnormal, credentialMarkCustom:
+	default:
+		return nil, nil, app_errors.ErrValidation
+	}
+	note := strings.TrimSpace(request.MarkNote.Value)
+	if !validCredentialMarkNote(note) {
+		return nil, nil, app_errors.ErrValidation
+	}
+	// 未标记时没有可挂备注；自定义标记的备注就是标签本身，必须给出。
+	if (mark == credentialMarkNone && note != "") || (mark == credentialMarkCustom && note == "") {
+		return nil, nil, app_errors.ErrValidation
+	}
+	return &mark, &note, nil
+}
+
+func validCredentialMarkNote(note string) bool {
+	if utf8.RuneCountInString(note) > maxCredentialMarkNoteRunes {
+		return false
+	}
+	for _, r := range note {
+		if r < 0x20 || r == 0x7f {
+			return false
+		}
+	}
+	return true
+}
+
+// presentCredentialMark 只输出满足契约的标记，避免直接改库留下的脏值污染响应。
+func presentCredentialMark(row models.Credential) (string, string) {
+	switch row.Mark {
+	case credentialMarkDegraded, credentialMarkAbnormal, credentialMarkCustom:
+	default:
+		return credentialMarkNone, ""
+	}
+	note := strings.TrimSpace(row.MarkNote)
+	if !validCredentialMarkNote(note) {
+		note = ""
+	}
+	if row.Mark == credentialMarkCustom && note == "" {
+		return credentialMarkNone, ""
+	}
+	return row.Mark, note
 }
 
 func nextCredentialUpdatedAtMS(now time.Time, previous int64) (int64, error) {
@@ -159,7 +242,7 @@ func (s *Service) UpdateGroupCredential(
 	if groupID == 0 || credentialID == 0 {
 		return CredentialItemResponse{}, app_errors.ErrBadRequest
 	}
-	status, weight, weightSet, limits, proxy, proxySet, err := normalizeCredentialUpdate(request, s.encryption)
+	plan, err := normalizeCredentialUpdate(request, s.encryption)
 	if err != nil {
 		return CredentialItemResponse{}, err
 	}
@@ -195,25 +278,30 @@ func (s *Service) UpdateGroupCredential(
 			return app_errors.ErrInternalServer
 		}
 		updates := map[string]any{"updated_at_ms": updatedAtMS}
-		if status != nil {
-			committed.Status = models.CredentialStatus(*status)
+		if plan.status != nil {
+			committed.Status = models.CredentialStatus(*plan.status)
 			updates["status"] = committed.Status
 		}
-		if weightSet {
-			committed.WeightManual = cloneInt(weight)
+		if plan.weightSet {
+			committed.WeightManual = cloneInt(plan.weight)
 			updates["weight_manual"] = committed.WeightManual
 		}
-		if limits.rpm != nil {
-			committed.RPMLimit = *limits.rpm
+		if plan.limits.rpm != nil {
+			committed.RPMLimit = *plan.limits.rpm
 			updates["rpm_limit"] = committed.RPMLimit
 		}
-		if limits.concurrency != nil {
-			committed.ConcurrencyLimit = *limits.concurrency
+		if plan.limits.concurrency != nil {
+			committed.ConcurrencyLimit = *plan.limits.concurrency
 			updates["concurrency_limit"] = committed.ConcurrencyLimit
 		}
-		if proxySet {
-			committed.ProxyConfig = proxy
-			updates["proxy_config"] = proxy
+		// 标记只用于呈现，因此不同步到运行时注册表，也不参与 DB↔注册表一致性校验。
+		if plan.mark.mark != nil {
+			committed.Mark, committed.MarkNote = *plan.mark.mark, *plan.mark.note
+			updates["mark"], updates["mark_note"] = committed.Mark, committed.MarkNote
+		}
+		if plan.proxySet {
+			committed.ProxyConfig = plan.proxy
+			updates["proxy_config"] = plan.proxy
 		}
 		committed.UpdatedAtMS = updatedAtMS
 		committedProxy, committedProxyFingerprint, err = storedProxyIdentity(s.encryption, committed.ProxyConfig)
@@ -226,7 +314,7 @@ func (s *Service) UpdateGroupCredential(
 		}
 		return nil
 	}, func() error {
-		committedProxyUpdate = proxySet
+		committedProxyUpdate = plan.proxySet
 		entries, snapshotErr := s.registry.SnapshotGroupCredentialEntriesExact(groupID, []uint{credentialID})
 		if snapshotErr != nil {
 			return dbRegistryMismatch(mismatchMissingRegistry, groupID, credentialID)
@@ -515,6 +603,7 @@ func (s *Service) mapCredentialItem(
 	item.ConnectionType = string(normalizeGroupConnectionType(group.ConnectionType))
 	item.SecretVersion = row.SecretVersion
 	item.AuthState = string(row.AuthState)
+	item.Mark, item.MarkNote = presentCredentialMark(row)
 	item.Account = account
 	proxyViews, err := s.credentialProxyViews(ctx, s.db, group, []models.Credential{row})
 	if err != nil {

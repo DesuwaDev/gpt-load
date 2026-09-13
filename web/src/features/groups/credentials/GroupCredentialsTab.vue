@@ -22,6 +22,7 @@ import type {
   CredentialCollectionDto,
   CredentialCollectionFilters,
   CredentialItemDto,
+  CredentialMark,
   CredentialObservationDto,
   CredentialTestResultDto,
   ProxyMutation,
@@ -1255,8 +1256,11 @@ function clearDeletedRouteState(ids: readonly number[]): void {
 
 async function mutateItem(
   item: CredentialItemDto,
-  action: 'weight' | 'toggle' | 'restore' | 'limits',
-  value?: string | { rpm_limit: number; concurrency_limit: number },
+  action: 'weight' | 'toggle' | 'restore' | 'limits' | 'mark',
+  value?:
+    | string
+    | { rpm_limit: number; concurrency_limit: number }
+    | { mark: CredentialMark; mark_note: string },
 ): Promise<void> {
   if (batchBusy.value || pending(item.credential_id)) return
   feedback.value = ''
@@ -1272,7 +1276,7 @@ async function mutateItem(
             item.credential_id,
             action === 'weight'
               ? { weight_manual: Number(value) }
-              : action === 'limits' && typeof value === 'object'
+              : (action === 'limits' || action === 'mark') && typeof value === 'object'
                 ? value
                 : { status: item.configured_status === 'active' ? 'disabled' : 'active' },
           )
@@ -1284,7 +1288,8 @@ async function mutateItem(
     return
   }
   try {
-    await reconcileItem(result, action !== 'weight' && action !== 'limits')
+    // 只有启停类操作会改变可用凭据集合，才需要重拉当前页。
+    await reconcileItem(result, action === 'toggle' || action === 'restore')
   } finally {
     setPending(item.credential_id, action, false)
   }
@@ -1846,6 +1851,12 @@ async function runBatch(
                   concurrency_limit: $event.concurrency_limit,
                 })
               "
+              @mark="
+                mutateItem($event.item, 'mark', {
+                  mark: $event.mark,
+                  mark_note: $event.mark_note,
+                })
+              "
               @refresh="refreshObservation"
               @load-details="loadCredentialUsage"
               @reset="openResetCreditDialog"
@@ -1898,6 +1909,12 @@ async function runBatch(
               mutateItem($event.item, 'limits', {
                 rpm_limit: $event.rpm_limit,
                 concurrency_limit: $event.concurrency_limit,
+              })
+            "
+            @mark="
+              mutateItem($event.item, 'mark', {
+                mark: $event.mark,
+                mark_note: $event.mark_note,
               })
             "
             @test="openCredentialTest"
