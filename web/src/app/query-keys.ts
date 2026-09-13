@@ -1,4 +1,5 @@
 import type { RequestLogFilters } from '@/app/resources/request-logs'
+import type { DegradationMonitorFilters } from '@/app/resources/degradation'
 import type { HomeRange } from '@/app/resources/home'
 import type { UsageFilters } from '@/app/resources/usage'
 import type { ModelPriceFilters } from '@/app/resources/model-prices'
@@ -65,6 +66,21 @@ function normalizeUsageFilters(filters: UsageFilters): UsageFilters {
   return result
 }
 
+export function normalizeDegradationMonitorFilters(
+  filters: DegradationMonitorFilters,
+): DegradationMonitorFilters {
+  const normalized: DegradationMonitorFilters = {
+    page: filters.page,
+    page_size: filters.page_size,
+  }
+  const query = filters.query?.trim()
+  if (query) normalized.query = [...query].slice(0, 128).join('')
+  if (filters.state !== undefined) normalized.state = filters.state
+  if (filters.group_id !== undefined) normalized.group_id = filters.group_id
+  if (filters.enabled !== undefined) normalized.enabled = filters.enabled
+  return normalized
+}
+
 export const controlQueryKeys = {
   all: ['control'] as const,
   groups: {
@@ -95,6 +111,15 @@ export const controlQueryKeys = {
     list: (search: string) => ['control', 'channels', 'list', search] as const,
   },
   health: () => ['control', 'health'] as const,
+  degradation: {
+    all: ['control', 'degradation'] as const,
+    overview: () => ['control', 'degradation', 'overview'] as const,
+    monitorsAll: ['control', 'degradation', 'monitors'] as const,
+    monitors: (filters: DegradationMonitorFilters) =>
+      ['control', 'degradation', 'monitors', normalizeDegradationMonitorFilters(filters)] as const,
+    runsAll: ['control', 'degradation', 'runs'] as const,
+    runs: (monitorID: number) => ['control', 'degradation', 'runs', monitorID] as const,
+  },
   logs: {
     all: ['control', 'logs'] as const,
     list: (filters: RequestLogFilters) =>

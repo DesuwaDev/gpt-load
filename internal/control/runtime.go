@@ -29,6 +29,10 @@ type operationRecoveryRuntime interface {
 	RunOperationRecovery(context.Context)
 }
 
+type degradationMonitorRuntime interface {
+	RunDegradationMonitors(context.Context)
+}
+
 type catalogSyncRuntime interface {
 	Run(context.Context)
 }
@@ -66,6 +70,7 @@ type Runtime struct {
 	requestLogCleaner  RequestLogCleaner
 	stageCleaner       credentialStageCleaner
 	operationRecovery  operationRecoveryRuntime
+	degradation        degradationMonitorRuntime
 	catalogSync        catalogSyncRuntime
 	oauthCallback      *OAuthCallbackManager
 	manager            *state.Manager
@@ -105,6 +110,7 @@ func NewRuntime(
 	}
 	if operationRecovery != nil {
 		runtime.oauthCallback = operationRecovery.oauthCallback
+		runtime.degradation = operationRecovery
 	}
 	runtime.validator = newValidationWorker(
 		manager,
@@ -144,6 +150,13 @@ func (runtime *Runtime) Run(ctx context.Context) {
 		go func() {
 			defer wait.Done()
 			runtime.operationRecovery.RunOperationRecovery(ctx)
+		}()
+	}
+	if runtime.degradation != nil {
+		wait.Add(1)
+		go func() {
+			defer wait.Done()
+			runtime.degradation.RunDegradationMonitors(ctx)
 		}()
 	}
 	if runtime.catalogSync != nil {

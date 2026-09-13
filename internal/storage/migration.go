@@ -111,6 +111,7 @@ var migrations = []migration{
 	// 上游的 affinity_kind 原本占 0014，与本仓库已发布的 0014 撞号。上面的
 	// 已应用校验按位置比对完整 ID，既有库的编号不能重排，只能把它挪到队尾。
 	{ID: migrationfiles.ID0018, Up: migrationfiles.Up0018, Validate: migrationfiles.Validate0018, ValidateRecoverable: migrationfiles.ValidateRecoverable0018},
+	{ID: migrationfiles.ID0019, Up: migrationfiles.Up0019, Validate: migrationfiles.Validate0019, ValidateRecoverable: migrationfiles.ValidateRecoverable0019},
 }
 
 func applyMigrations(db *gorm.DB) error {
