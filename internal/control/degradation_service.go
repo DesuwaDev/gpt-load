@@ -474,6 +474,7 @@ type degradationMonitorContext struct {
 	groups      map[uint]models.Group
 	credentials map[uint]models.Credential
 	masks       map[uint]string
+	plans       map[uint]ObservationPlanSummary
 }
 
 // ListDegradationMonitors returns the monitor table together with the global
@@ -585,6 +586,7 @@ func (s *Service) ListDegradationMonitors(
 			TotalItems: int(total),
 			TotalPages: credentialCollectionTotalPages(int(total), query.PageSize),
 		},
+		ActiveRuns: s.degradationRuns.active(),
 	}, nil
 }
 
@@ -656,6 +658,7 @@ func (s *Service) buildDegradationMonitorContext(
 		groups:      make(map[uint]models.Group, len(groups)),
 		credentials: make(map[uint]models.Credential, len(credentials)),
 		masks:       make(map[uint]string, len(credentials)),
+		plans:       s.loadDegradationPlans(credentials),
 	}
 	for _, group := range groups {
 		result.groups[group.ID] = group
@@ -670,6 +673,43 @@ func (s *Service) buildDegradationMonitorContext(
 		result.masks[credential.ID] = s.degradationCredentialMask(group, credential)
 	}
 	return result
+}
+
+// loadDegradationPlans reads the plan label of every monitored credential from
+// its observation snapshot, which is the same source the group page renders.
+// 标记只是附加信息：观测表还没建、读失败或快照解不出来时返回已取到的部分，
+// 监控表照常显示，不会因为少一个徽标就整页报错。
+func (s *Service) loadDegradationPlans(
+	credentials []models.Credential,
+) map[uint]ObservationPlanSummary {
+	plans := make(map[uint]ObservationPlanSummary, len(credentials))
+	if s == nil || s.db == nil || len(credentials) == 0 {
+		return plans
+	}
+	if !s.db.Migrator().HasTable(&models.CredentialObservation{}) {
+		return plans
+	}
+	credentialIDs := make([]uint, 0, len(credentials))
+	for _, credential := range credentials {
+		credentialIDs = append(credentialIDs, credential.ID)
+	}
+	var observations []models.CredentialObservation
+	if err := s.db.Select("credential_id", "snapshot_json").
+		Where("credential_id IN ?", credentialIDs).
+		Find(&observations).Error; err != nil {
+		return plans
+	}
+	for _, observation := range observations {
+		var snapshot CredentialObservationSnapshot
+		if err := json.Unmarshal(observation.SnapshotJSON, &snapshot); err != nil {
+			continue
+		}
+		if strings.TrimSpace(snapshot.Plan.Name) == "" {
+			continue
+		}
+		plans[observation.CredentialID] = snapshot.Plan
+	}
+	return plans
 }
 
 // degradationCredentialMask never fails the listing: an undecryptable row still
@@ -743,6 +783,10 @@ func projectDegradationMonitor(
 	}
 	if row.LastDetectedModel != "" {
 		response.LastDetectedModelName = degradationModelName(row.LastDetectedModel)
+	}
+	if plan, ok := monitorContext.plans[row.CredentialID]; ok {
+		response.PlanName = plan.Name
+		response.PlanLevel = plan.Level
 	}
 	return response
 }
@@ -1157,6 +1201,9 @@ func (s *Service) BatchDegradationMonitors(
 	if len(ids) == 0 || len(ids) > degradationMaxBatchMonitors {
 		return DegradationBatchResult{}, app_errors.ErrValidation
 	}
+	if request.Action == DegradationBatchRun {
+		return s.queueDegradationManualRuns(ctx, ids)
+	}
 	settings, err := s.loadDegradationSettings(ctx)
 	if err != nil {
 		return DegradationBatchResult{}, err
@@ -1216,6 +1263,37 @@ func (s *Service) BatchDegradationMonitors(
 	return result, nil
 }
 
+// queueDegradationManualRuns registers an immediate probe for every selected
+// monitor that still exists, and reports how many entries were queued.
+//
+// 批量检测每条都要打一次真实上游，同步执行会把 HTTP 请求挂到超时，所以这里只
+// 登记意向后立即返回，由调度器按全局并发上限逐条消化，结果照常写进运行历史。
+func (s *Service) queueDegradationManualRuns(
+	ctx context.Context,
+	ids []uint,
+) (DegradationBatchResult, error) {
+	var existing []uint
+	err := s.withReadSnapshot(ctx, func(tx *gorm.DB) error {
+		return tx.Model(&models.DegradationMonitor{}).
+			Where("id IN ?", ids).Order("id ASC").Pluck("id", &existing).Error
+	})
+	if parentErr := ctx.Err(); parentErr != nil {
+		return DegradationBatchResult{}, parentErr
+	}
+	if err != nil {
+		return DegradationBatchResult{}, fmt.Errorf(
+			"queue degradation runs: %w", app_errors.ErrDatabase,
+		)
+	}
+	if len(existing) == 0 {
+		return DegradationBatchResult{}, app_errors.ErrResourceNotFound
+	}
+	return DegradationBatchResult{
+		Action:   DegradationBatchRun,
+		Affected: s.degradationRuns.enqueueManual(existing),
+	}, nil
+}
+
 func normalizeDegradationIDs(values []uint) []uint {
 	seen := make(map[uint]struct{}, len(values))
 	result := make([]uint, 0, len(values))
@@ -1250,7 +1328,14 @@ func (s *Service) ListDegradationRuns(
 		limit = degradationRunHistoryLimit
 	}
 	var rows []models.DegradationRun
+	var statRows []degradationRunStatRow
 	err := s.withReadSnapshot(ctx, func(tx *gorm.DB) error {
+		if err := tx.Model(&models.DegradationRun{}).
+			Select("outcome", "trigger").
+			Where("monitor_id = ?", monitorID).
+			Find(&statRows).Error; err != nil {
+			return err
+		}
 		return tx.Where("monitor_id = ?", monitorID).
 			Order("id DESC").Limit(limit).Find(&rows).Error
 	})
@@ -1266,7 +1351,45 @@ func (s *Service) ListDegradationRuns(
 	for _, row := range rows {
 		items = append(items, projectDegradationRun(row))
 	}
-	return DegradationRunCollectionResponse{MonitorID: monitorID, Items: items}, nil
+	return DegradationRunCollectionResponse{
+		MonitorID: monitorID, Items: items, Stats: summarizeDegradationRuns(statRows),
+	}, nil
+}
+
+// degradationRunStatRow is the two columns the history totals need. 历史条数本身
+// 受 degradationRunHistoryLimit 约束，所以整段历史扫一遍也只是几十行。
+type degradationRunStatRow struct {
+	Outcome string
+	Trigger string
+}
+
+func summarizeDegradationRuns(rows []degradationRunStatRow) DegradationRunStatsResponse {
+	stats := DegradationRunStatsResponse{Total: len(rows)}
+	for _, row := range rows {
+		switch models.DegradationState(row.Outcome) {
+		case models.DegradationStateHealthy:
+			stats.Healthy++
+		case models.DegradationStateDegraded:
+			stats.Degraded++
+		case models.DegradationStateInconclusive:
+			stats.Inconclusive++
+		case models.DegradationStateError:
+			stats.Error++
+		case models.DegradationStateQuotaExhausted:
+			stats.QuotaExhausted++
+		default:
+			stats.Unknown++
+		}
+		switch models.DegradationTrigger(row.Trigger) {
+		case models.DegradationTriggerSchedule:
+			stats.Schedule++
+		case models.DegradationTriggerManual:
+			stats.Manual++
+		case models.DegradationTriggerOverload:
+			stats.Overload++
+		}
+	}
+	return stats
 }
 
 func projectDegradationRun(row models.DegradationRun) DegradationRunResponse {
@@ -1287,6 +1410,7 @@ func projectDegradationRun(row models.DegradationRun) DegradationRunResponse {
 		ErrorSummary:              row.ErrorSummary,
 		Ranking:                   make([]DegradationRankingEntry, 0),
 		Diagnostics:               make([]DegradationSampleDiagRes, 0),
+		Samples:                   make([]DegradationSampleTextRes, 0),
 	}
 	if row.DetectedModel != "" {
 		response.DetectedModelName = degradationModelName(row.DetectedModel)
@@ -1299,6 +1423,9 @@ func projectDegradationRun(row models.DegradationRun) DegradationRunResponse {
 			}
 			if detail.Diagnostics != nil {
 				response.Diagnostics = detail.Diagnostics
+			}
+			if detail.Samples != nil {
+				response.Samples = detail.Samples
 			}
 		}
 	}

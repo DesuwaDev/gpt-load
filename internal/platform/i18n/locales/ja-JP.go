@@ -35,4 +35,5 @@ var MessagesJaJP = map[string]string{
 	"group.model_name_conflict":                  "グループ内のクライアントモデル名は一意である必要があります",
 	"group.no_active_credential":                 "このグループには利用可能な認証情報がありません",
 	"credential.not_found":                       "認証情報が存在しません",
+	"degradation.run_in_flight":                  "この監視はすでに検査中です。現在の検査が終わるまでお待ちください",
 }

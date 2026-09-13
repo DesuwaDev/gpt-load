@@ -82,6 +82,8 @@ const settings = computed(() => collection.value?.settings ?? overview.value?.se
 const catalog = computed(() => overview.value?.catalog)
 const summary = computed(() => collection.value?.summary)
 const items = computed(() => collection.value?.items ?? [])
+// 批量立即检测是异步消化的，进度只能靠这个计数暴露给页面。
+const activeRuns = computed(() => collection.value?.active_runs ?? 0)
 
 const collectionLoading = useCollectionLoading({
   pending: () => collectionQuery.isPending.value || overviewQuery.isPending.value,
@@ -306,10 +308,15 @@ async function runBatch(
   feedback.value = ''
   try {
     const result = await batchDegradationMonitors(client, { action, monitor_ids: ids })
-    toast.show({
-      message: t(`monitor.degradation.toast.batch.${action}`, { count: n(result.affected) }),
-      tone: 'success',
-    })
+    // 批量检测只是排队，重复点击时会被去重，此时报“0 条”反而像是失败了。
+    if (action === 'run' && result.affected === 0) {
+      toast.show({ message: t('monitor.degradation.toast.runAlreadyQueued'), tone: 'info' })
+    } else {
+      toast.show({
+        message: t(`monitor.degradation.toast.batch.${action}`, { count: n(result.affected) }),
+        tone: 'success',
+      })
+    }
     if (action === 'delete') selectedIds.value = new Set()
     await invalidateMonitors()
     return true
@@ -438,6 +445,10 @@ async function onSettingsSaved(): Promise<void> {
       />
       <p v-if="feedback" class="degradation-tab__feedback" role="alert">{{ feedback }}</p>
 
+      <InlineFeedback v-if="activeRuns > 0" tone="info" appearance="ledger">
+        {{ t('monitor.degradation.activeRuns', { count: n(activeRuns) }) }}
+      </InlineFeedback>
+
       <CollectionStatusSummary
         v-if="summary.total > 0"
         :total="summary.total"
@@ -495,6 +506,7 @@ async function onSettingsSaved(): Promise<void> {
           :can-select-all="items.length > 0"
           :pending="batchBusy"
           @toggle-select="toggleAllVisible"
+          @run="runBatch('run')"
           @enable="runBatch('enable')"
           @disable="runBatch('disable')"
           @clear="runBatch('clear')"
@@ -709,8 +721,9 @@ async function onSettingsSaved(): Promise<void> {
 }
 
 .degradation-grid {
-  --ledger-record-list-grid: 32px minmax(160px, 1.25fr) minmax(150px, 1.15fr) minmax(118px, 0.95fr)
-    minmax(104px, 0.8fr) minmax(126px, 0.95fr) 128px;
+  /* 状态列要放下「归因概率低于阈值 · 归因到 X」这类两段式原因，给得比其它列宽。 */
+  --ledger-record-list-grid: 32px minmax(150px, 1.1fr) minmax(140px, 1fr) minmax(168px, 1.35fr)
+    minmax(104px, 0.8fr) minmax(120px, 0.9fr) 128px;
   --ledger-record-list-column-gap: 10px;
 }
 

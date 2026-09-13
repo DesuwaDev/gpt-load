@@ -34,6 +34,14 @@ const { durationLabel, effortLabel, probabilityLabel, reasonLabels, stateLabel }
 const targetLabel = computed(() =>
   props.item.credential_id > 0 ? props.item.credential_mask : props.item.group_name,
 )
+const planLabel = computed(() => props.item.plan_name.trim())
+// 套餐等级直接来自观测快照，未知等级回落到中性色，不会渲染出没定义的类名。
+const planTone = computed(() => {
+  const level = props.item.plan_level
+  return level === 'free' || level === 'standard' || level === 'premium' || level === 'elite'
+    ? level
+    : 'unknown'
+})
 const targetMeta = computed(() => {
   const parts = [
     props.item.credential_id > 0
@@ -96,14 +104,23 @@ const scheduleMeta = computed(() => {
     </div>
 
     <div class="ledger-record-list__cell degradation-record__target" role="cell">
-      <OverflowTooltip
-        :as="RouterLink"
-        class="degradation-record__identity"
-        :content="targetLabel"
-        :to="groupDetailLocation(item.group_id, { tab: 'credentials' })"
-      >
-        {{ targetLabel }}
-      </OverflowTooltip>
+      <div class="degradation-record__identity-line">
+        <OverflowTooltip
+          :as="RouterLink"
+          class="degradation-record__identity"
+          :content="targetLabel"
+          :to="groupDetailLocation(item.group_id, { tab: 'credentials' })"
+        >
+          {{ targetLabel }}
+        </OverflowTooltip>
+        <span
+          v-if="planLabel"
+          class="degradation-record__plan"
+          :class="`degradation-record__plan--${planTone}`"
+        >
+          {{ planLabel }}
+        </span>
+      </div>
       <OverflowTooltip as="small" :content="targetMeta">{{ targetMeta }}</OverflowTooltip>
     </div>
 
@@ -250,6 +267,14 @@ const scheduleMeta = computed(() => {
   gap: var(--space-1);
 }
 
+.degradation-record__identity-line {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+}
+
 .degradation-record__identity,
 .degradation-record__model {
   max-width: 100%;
@@ -260,6 +285,41 @@ const scheduleMeta = computed(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.degradation-record__identity-line .degradation-record__identity {
+  min-width: 0;
+}
+
+/* 套餐标记与分组页同一套色阶，等级未知时保持中性色。 */
+.degradation-record__plan {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  border-radius: var(--radius-tag);
+  background: var(--color-neutral-bg);
+  color: var(--color-neutral);
+  padding: 2px 6px;
+  font-family: var(--font-mono);
+  font-size: var(--text-label-xs);
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.degradation-record__plan--standard {
+  background: var(--color-success-bg);
+  color: var(--color-success);
+}
+
+.degradation-record__plan--premium {
+  background: var(--color-action-soft);
+  color: var(--color-action);
+}
+
+.degradation-record__plan--elite {
+  background: var(--color-warning-bg);
+  color: var(--color-warning);
 }
 
 .degradation-record__identity:hover {
@@ -274,6 +334,17 @@ const scheduleMeta = computed(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* 归因原因常常是「归因概率低于阈值 · 归因到 X」这样两段拼起来的，一行放不下。
+   这里允许折到两行，超出两行仍由 OverflowTooltip 兜住完整文案。 */
+.degradation-record__state small {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .degradation-record__probability > span:first-child {

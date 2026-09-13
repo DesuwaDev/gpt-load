@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { CircleCheck, CircleOff, ListChecks, RotateCcw, Trash2 } from '@lucide/vue'
+import { CircleCheck, CircleOff, ListChecks, Radar, RotateCcw, Trash2 } from '@lucide/vue'
 import { useI18n } from 'vue-i18n'
 
 import AppButton from '@/components/ui/AppButton.vue'
@@ -12,6 +12,7 @@ defineProps<{
 }>()
 const emit = defineEmits<{
   'toggle-select': []
+  run: []
   enable: []
   disable: []
   clear: []
@@ -38,6 +39,17 @@ const { n, t } = useI18n()
             : t('monitor.degradation.batch.selectAll')
         }}
         <span v-if="selectedCount > 0" class="degradation-batch__count">{{ n(selectedCount) }}</span>
+      </AppButton>
+      <AppButton
+        variant="secondary"
+        tone="action"
+        size="compact"
+        :busy="pending"
+        :disabled="selectedCount === 0"
+        @click="emit('run')"
+      >
+        <Radar :size="15" aria-hidden="true" />
+        {{ t('monitor.degradation.batch.run') }}
       </AppButton>
       <AppButton
         variant="secondary"

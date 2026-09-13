@@ -35,4 +35,5 @@ var MessagesZhCN = map[string]string{
 	"group.model_name_conflict":                  "分组内客户端模型名称必须唯一",
 	"group.no_active_credential":                 "该分组没有可用凭据",
 	"credential.not_found":                       "凭据不存在",
+	"degradation.run_in_flight":                  "这条监控正在检测中，请等当前这次结束",
 }

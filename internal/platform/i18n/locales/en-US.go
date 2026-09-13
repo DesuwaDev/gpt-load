@@ -35,4 +35,5 @@ var MessagesEnUS = map[string]string{
 	"group.model_name_conflict":                  "Client model names must be unique within the group",
 	"group.no_active_credential":                 "No active credential is available for this group",
 	"credential.not_found":                       "Credential not found",
+	"degradation.run_in_flight":                  "This monitor is already being checked; wait for the current check to finish",
 }

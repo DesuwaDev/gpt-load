@@ -67,6 +67,7 @@ var (
 	ErrResetCreditUnavailable                 = &APIError{HTTPStatus: http.StatusConflict, Code: "RESET_CREDIT_UNAVAILABLE", Message: "No reset credit is currently available"}
 	ErrResetCreditRejected                    = &APIError{HTTPStatus: http.StatusBadGateway, Code: "RESET_CREDIT_REJECTED", Message: "The reset credit was rejected by the upstream"}
 	ErrResetCreditOutcomeUnknown              = &APIError{HTTPStatus: http.StatusServiceUnavailable, Code: "RESET_CREDIT_OUTCOME_UNKNOWN", Message: "The reset credit outcome is unknown; retry with the same idempotency key"}
+	ErrDegradationRunInFlight                 = &APIError{HTTPStatus: http.StatusConflict, Code: "DEGRADATION_RUN_IN_FLIGHT", Message: "This monitor is already being checked"}
 )
 
 var ErrCredentialRefreshTemporarilyUnavailable = &APIError{

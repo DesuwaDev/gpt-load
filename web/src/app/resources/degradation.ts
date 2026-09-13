@@ -33,7 +33,7 @@ export type DegradationEffortValue = (typeof degradationEfforts)[number]
 export const degradationTriggers = ['schedule', 'manual', 'overload'] as const
 export type DegradationTriggerValue = (typeof degradationTriggers)[number]
 
-export const degradationBatchActions = ['enable', 'disable', 'delete', 'clear'] as const
+export const degradationBatchActions = ['enable', 'disable', 'delete', 'clear', 'run'] as const
 export type DegradationBatchActionValue = (typeof degradationBatchActions)[number]
 
 /** 归因概率以百万分之一为单位存储，避免浮点数在前后端之间来回失真。 */
@@ -45,6 +45,8 @@ export const degradationMinIntervalSeconds = 300
 export const degradationMaxIntervalSeconds = 604_800
 export const degradationMaxNoteLength = 255
 export const degradationMaxKeywords = 16
+/** 还有检测排队或在执行时，监控页按这个节奏轮询，跑完即停。 */
+export const degradationActivePollIntervalMs = 4_000
 
 export interface DegradationSettingsDto {
   enabled: boolean
@@ -118,6 +120,9 @@ export interface DegradationMonitorDto {
   credential_id: number
   credential_mask: string
   credential_status: string
+  /** 套餐标记与分组页同源，凭据观测缺失时为空串。 */
+  plan_name: string
+  plan_level: string
   upstream_model: string
   expected_model: string
   expected_model_name: string
@@ -162,6 +167,8 @@ export interface DegradationMonitorCollectionDto {
   summary: DegradationSummaryDto
   items: DegradationMonitorDto[]
   pagination: DegradationPaginationDto
+  /** 本实例上排队或正在执行的检测条数，仅用于判断要不要继续轮询。 */
+  active_runs: number
 }
 
 export interface DegradationMonitorFilters {
@@ -243,6 +250,13 @@ export interface DegradationSampleDiagnosticDto {
   accepted: boolean
 }
 
+export interface DegradationSampleTextDto {
+  index: number
+  expected_count: number
+  text: string
+  truncated: boolean
+}
+
 export interface DegradationRunDto {
   id: number
   monitor_id: number
@@ -265,11 +279,28 @@ export interface DegradationRunDto {
   error_summary: string
   ranking: DegradationRankingEntryDto[]
   diagnostics: DegradationSampleDiagnosticDto[]
+  /** 这次检测收到的上游原文，供人工复核，界面只提供复制。 */
+  samples: DegradationSampleTextDto[]
+}
+
+export interface DegradationRunStatsDto {
+  total: number
+  healthy: number
+  degraded: number
+  inconclusive: number
+  error: number
+  quota_exhausted: number
+  unknown: number
+  schedule: number
+  manual: number
+  overload: number
 }
 
 export interface DegradationRunCollectionDto {
   monitor_id: number
   items: DegradationRunDto[]
+  /** 统计的是这条监控保留的全部历史，不随本次返回的条数变化。 */
+  stats: DegradationRunStatsDto
 }
 
 const settingsFields = [
@@ -333,6 +364,8 @@ const monitorFields = [
   'credential_id',
   'credential_mask',
   'credential_status',
+  'plan_name',
+  'plan_level',
   'upstream_model',
   'expected_model',
   'expected_model_name',
@@ -370,12 +403,26 @@ const collectionFields = [
   'summary',
   'items',
   'pagination',
+  'active_runs',
 ] as const
 const rejectedFields = ['group_id', 'credential_id', 'reason'] as const
 const enrollResultFields = ['created', 'updated', 'skipped', 'rejected', 'items'] as const
 const batchResultFields = ['action', 'affected'] as const
 const rankingFields = ['model', 'display_name', 'family', 'probability_micros'] as const
 const diagnosticFields = ['index', 'parsed_numbers', 'minimum_numbers', 'accepted'] as const
+const sampleTextFields = ['index', 'expected_count', 'text', 'truncated'] as const
+const runStatsFields = [
+  'total',
+  'healthy',
+  'degraded',
+  'inconclusive',
+  'error',
+  'quota_exhausted',
+  'unknown',
+  'schedule',
+  'manual',
+  'overload',
+] as const
 const runFields = [
   'id',
   'monitor_id',
@@ -398,8 +445,9 @@ const runFields = [
   'error_summary',
   'ranking',
   'diagnostics',
+  'samples',
 ] as const
-const runCollectionFields = ['monitor_id', 'items'] as const
+const runCollectionFields = ['monitor_id', 'items', 'stats'] as const
 const enrollFields = [
   'targets',
   'upstream_model',
@@ -584,6 +632,8 @@ export function projectDegradationMonitor(value: unknown): DegradationMonitorDto
     credential_id: projectSafeInteger(record.credential_id, { minimum: 1 }),
     credential_mask: projectString(record.credential_mask),
     credential_status: projectFreeString(record.credential_status),
+    plan_name: projectFreeString(record.plan_name),
+    plan_level: projectFreeString(record.plan_level),
     upstream_model: projectString(record.upstream_model),
     expected_model: projectString(record.expected_model),
     expected_model_name: projectString(record.expected_model_name),
@@ -682,6 +732,7 @@ export function projectDegradationMonitorCollection(
     summary: projectDegradationSummary(record.summary),
     items,
     pagination,
+    active_runs: projectSafeInteger(record.active_runs, { minimum: 0 }),
   }
 }
 
@@ -738,6 +789,45 @@ function projectSampleDiagnostic(value: unknown): DegradationSampleDiagnosticDto
   }
 }
 
+function projectSampleText(value: unknown): DegradationSampleTextDto {
+  const record = projectRecord(value)
+  assertNoSecretLikeFields(record, sampleTextFields)
+  return {
+    index: projectSafeInteger(record.index, { minimum: 0 }),
+    expected_count: projectSafeInteger(record.expected_count, { minimum: 0 }),
+    text: projectFreeString(record.text),
+    truncated: projectBoolean(record.truncated),
+  }
+}
+
+function projectDegradationRunStats(value: unknown): DegradationRunStatsDto {
+  const record = projectRecord(value)
+  assertNoSecretLikeFields(record, runStatsFields)
+  const stats: DegradationRunStatsDto = {
+    total: projectSafeInteger(record.total, { minimum: 0 }),
+    healthy: projectSafeInteger(record.healthy, { minimum: 0 }),
+    degraded: projectSafeInteger(record.degraded, { minimum: 0 }),
+    inconclusive: projectSafeInteger(record.inconclusive, { minimum: 0 }),
+    error: projectSafeInteger(record.error, { minimum: 0 }),
+    quota_exhausted: projectSafeInteger(record.quota_exhausted, { minimum: 0 }),
+    unknown: projectSafeInteger(record.unknown, { minimum: 0 }),
+    schedule: projectSafeInteger(record.schedule, { minimum: 0 }),
+    manual: projectSafeInteger(record.manual, { minimum: 0 }),
+    overload: projectSafeInteger(record.overload, { minimum: 0 }),
+  }
+  const outcomes =
+    stats.healthy +
+    stats.degraded +
+    stats.inconclusive +
+    stats.error +
+    stats.quota_exhausted +
+    stats.unknown
+  if (outcomes !== stats.total || stats.schedule + stats.manual + stats.overload > stats.total) {
+    invalidResponse()
+  }
+  return stats
+}
+
 export function projectDegradationRun(value: unknown): DegradationRunDto {
   const record = projectRecord(value)
   assertNoSecretLikeFields(record, runFields)
@@ -767,6 +857,7 @@ export function projectDegradationRun(value: unknown): DegradationRunDto {
     error_summary: projectFreeString(record.error_summary),
     ranking: projectArray(record.ranking, projectRankingEntry),
     diagnostics: projectArray(record.diagnostics, projectSampleDiagnostic),
+    samples: projectArray(record.samples, projectSampleText),
   }
 }
 
@@ -774,13 +865,15 @@ export function projectDegradationRunCollection(value: unknown): DegradationRunC
   const record = projectRecord(value)
   assertNoSecretLikeFields(record, runCollectionFields)
   const items = projectArray(record.items, projectDegradationRun)
+  const stats = projectDegradationRunStats(record.stats)
   if (
     items.length > degradationRunHistoryLimit ||
+    items.length > stats.total ||
     new Set(items.map(({ id }) => id)).size !== items.length
   ) {
     invalidResponse()
   }
-  return { monitor_id: projectSafeInteger(record.monitor_id, { minimum: 1 }), items }
+  return { monitor_id: projectSafeInteger(record.monitor_id, { minimum: 1 }), items, stats }
 }
 
 export async function getDegradationOverview(
@@ -949,6 +1042,11 @@ export function degradationMonitorCollectionQueryOptions(
     ),
     queryFn: ({ queryKey, signal }) => listDegradationMonitors(client, queryKey[3], signal),
     placeholderData: keepPreviousData,
+    // 批量立即检测由后台按并发上限消化，只要还有排队或在跑的检测就继续轮询，
+    // 全部跑完自动停下，空闲的页面不会多发一个请求。
+    refetchInterval: (query) =>
+      (query.state.data?.active_runs ?? 0) > 0 ? degradationActivePollIntervalMs : false,
+    refetchIntervalInBackground: false,
   })
 }
 

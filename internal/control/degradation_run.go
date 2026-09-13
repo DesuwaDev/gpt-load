@@ -44,6 +44,10 @@ type degradationRunOutcome struct {
 }
 
 // RunDegradationMonitor executes one detection immediately and persists it.
+//
+// 探测与落库跑在脱离请求的上下文上：一次检测要真实调上游好几次，操作员关掉页面
+// 或请求超时都不该把已经发出去的调用作废、连历史都不留。调用方仍然同步等结果，
+// 只是取消信号不再传下去。
 func (s *Service) RunDegradationMonitor(
 	ctx context.Context,
 	monitorID uint,
@@ -60,11 +64,18 @@ func (s *Service) RunDegradationMonitor(
 	if err != nil {
 		return DegradationRunResponse{}, err
 	}
-	outcome, err := s.performDegradationRun(ctx, monitor, settings, trigger)
+	// 与调度扫描、过载反应共用同一份 inflight 登记，同一条监控不会被同时探测两次。
+	if !s.degradationRuns.claim(monitorID) {
+		return DegradationRunResponse{}, app_errors.ErrDegradationRunInFlight
+	}
+	defer s.degradationRuns.release(monitorID)
+
+	runCtx := context.WithoutCancel(ctx)
+	outcome, err := s.performDegradationRun(runCtx, monitor, settings, trigger)
 	if err != nil {
 		return DegradationRunResponse{}, err
 	}
-	if err := s.commitDegradationRun(ctx, &outcome); err != nil {
+	if err := s.commitDegradationRun(runCtx, &outcome); err != nil {
 		return DegradationRunResponse{}, err
 	}
 	if outcome.skipped {
@@ -73,6 +84,7 @@ func (s *Service) RunDegradationMonitor(
 			Outcome: string(outcome.monitor.State), ErrorCode: outcome.skipReason,
 			Reasons: []string{}, Ranking: []DegradationRankingEntry{},
 			Diagnostics: []DegradationSampleDiagRes{},
+			Samples:     []DegradationSampleTextRes{},
 		}, nil
 	}
 	return projectDegradationRun(outcome.run), nil
@@ -240,6 +252,7 @@ type degradationJudgement struct {
 	minProb      float64
 	ranking      []DegradationRankingEntry
 	diagnostics  []DegradationSampleDiagRes
+	samples      []DegradationSampleTextRes
 }
 
 // judgeDegradationProbe turns collected answers into a verdict.
@@ -252,6 +265,8 @@ func judgeDegradationProbe(
 	judgement := degradationJudgement{
 		attempts: probe.attempts,
 		minProb:  minProbability,
+		// 原文在判定之前就留存：失败或无法判定的那几次最需要人工看上游到底回了什么。
+		samples: projectDegradationSamples(probe.samples),
 	}
 	if probe.errorCode != "" {
 		judgement.errorCode = probe.errorCode
@@ -317,6 +332,29 @@ func projectDegradationRanking(scores []degradation.ModelScore) []DegradationRan
 	return ranking
 }
 
+// degradationSampleTextLimit bounds how much of one upstream answer is kept on
+// the run row. The scoring only needs the numbers, so the stored text exists for
+// human review; a runaway response must not be able to bloat the history table.
+const degradationSampleTextLimit = 4000
+
+// projectDegradationSamples keeps the raw answers of a run, bounded per sample.
+func projectDegradationSamples(samples []degradation.Sample) []DegradationSampleTextRes {
+	result := make([]DegradationSampleTextRes, 0, len(samples))
+	for index, sample := range samples {
+		text := sample.Text
+		truncated := false
+		if runes := []rune(text); len(runes) > degradationSampleTextLimit {
+			text = string(runes[:degradationSampleTextLimit])
+			truncated = true
+		}
+		result = append(result, DegradationSampleTextRes{
+			Index: index, ExpectedCount: sample.ExpectedCount,
+			Text: text, Truncated: truncated,
+		})
+	}
+	return result
+}
+
 func projectDegradationDiagnostics(
 	diagnostics []degradation.SampleDiagnostic,
 ) []DegradationSampleDiagRes {
@@ -345,6 +383,7 @@ func (s *Service) finishDegradationRun(
 	}
 	detail, err := json.Marshal(degradationRunDetail{
 		Ranking: judgement.ranking, Diagnostics: judgement.diagnostics,
+		Samples: judgement.samples,
 	})
 	if err != nil {
 		detail = []byte(`{}`)

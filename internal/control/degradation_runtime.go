@@ -39,9 +39,7 @@ type degradationScheduler struct {
 
 	sweeping atomic.Bool
 	scanning atomic.Bool
-
-	inflightMu sync.Mutex
-	inflight   map[uint]struct{}
+	draining atomic.Bool
 
 	overloadMu   sync.Mutex
 	overloadSeen map[uint]int64
@@ -60,7 +58,6 @@ func (s *Service) RunDegradationMonitors(ctx context.Context) {
 	}
 	scheduler := &degradationScheduler{
 		service:      s,
-		inflight:     make(map[uint]struct{}),
 		overloadSeen: make(map[uint]int64),
 	}
 	scheduler.run(ctx)
@@ -70,10 +67,17 @@ func (scheduler *degradationScheduler) run(ctx context.Context) {
 	ticker := time.NewTicker(degradationTickInterval)
 	defer ticker.Stop()
 	defer scheduler.workers.Wait()
+	// 手动排队的检测不等心跳：点了"立即检测"就该马上开工，心跳只负责定时节律。
+	wake := scheduler.service.degradationRuns.wakeChannel()
 	for {
 		select {
 		case <-ctx.Done():
 			return
+		case <-wake:
+			if ctx.Err() != nil {
+				return
+			}
+			scheduler.tickManual(ctx)
 		case <-ticker.C:
 			if ctx.Err() != nil {
 				return
@@ -83,7 +87,10 @@ func (scheduler *degradationScheduler) run(ctx context.Context) {
 	}
 }
 
-func (scheduler *degradationScheduler) tick(ctx context.Context) {
+// settings loads the global configuration for one tick.
+func (scheduler *degradationScheduler) settings(
+	ctx context.Context,
+) (models.DegradationSettings, bool) {
 	settings, err := scheduler.service.loadDegradationSettings(ctx)
 	if err != nil {
 		if ctx.Err() == nil {
@@ -91,6 +98,24 @@ func (scheduler *degradationScheduler) tick(ctx context.Context) {
 				"event": "control.degradation_settings_unavailable",
 			}, "Degradation settings could not be loaded")
 		}
+		return models.DegradationSettings{}, false
+	}
+	return settings, true
+}
+
+// tickManual only drains the manual queue. 手动唤醒是为了尽快开工，定时扫描、
+// 过载扫描与历史清理仍然只跟着心跳走，避免频繁点击把其它节律也带快。
+func (scheduler *degradationScheduler) tickManual(ctx context.Context) {
+	settings, ok := scheduler.settings(ctx)
+	if !ok {
+		return
+	}
+	scheduler.startManualSweep(ctx, settings)
+}
+
+func (scheduler *degradationScheduler) tick(ctx context.Context) {
+	settings, ok := scheduler.settings(ctx)
+	if !ok {
 		return
 	}
 	nowMS := scheduler.service.currentTime().UnixMilli()
@@ -99,6 +124,9 @@ func (scheduler *degradationScheduler) tick(ctx context.Context) {
 		scheduler.lastRetentionMS = nowMS
 		scheduler.pruneHistory(ctx, settings, nowMS)
 	}
+	// 手动排队同样与开关无关：单条"立即检测"也不看全局开关，两者语义必须一致，
+	// 否则停用后点批量检测会静默什么都不做。
+	scheduler.startManualSweep(ctx, settings)
 	if !settings.Enabled {
 		return
 	}
@@ -111,6 +139,51 @@ func (scheduler *degradationScheduler) tick(ctx context.Context) {
 	}
 	scheduler.lastOverloadScanMS = nowMS
 	scheduler.startOverloadScan(ctx, settings)
+}
+
+// startManualSweep consumes one batch of operator-requested probes. A batch
+// that is still running skips the wake-up; finishManual re-signals afterwards,
+// so a backlog drains back-to-back instead of one batch per heartbeat.
+func (scheduler *degradationScheduler) startManualSweep(
+	ctx context.Context,
+	settings models.DegradationSettings,
+) {
+	if !scheduler.draining.CompareAndSwap(false, true) {
+		return
+	}
+	ids := scheduler.service.degradationRuns.drainManual(degradationManualDrainLimit)
+	if len(ids) == 0 {
+		scheduler.draining.Store(false)
+		return
+	}
+	scheduler.workers.Add(1)
+	go func() {
+		defer scheduler.workers.Done()
+		defer func() {
+			scheduler.draining.Store(false)
+			scheduler.service.degradationRuns.finishManual(ids)
+		}()
+		scheduler.sweepManual(ctx, ids, settings)
+	}()
+}
+
+func (scheduler *degradationScheduler) sweepManual(
+	ctx context.Context,
+	ids []uint,
+	settings models.DegradationSettings,
+) {
+	var rows []models.DegradationMonitor
+	if err := scheduler.service.withReadSnapshot(ctx, func(tx *gorm.DB) error {
+		return tx.Where("id IN ?", ids).Order("id ASC").Find(&rows).Error
+	}); err != nil {
+		if ctx.Err() == nil {
+			degradationLog(logrus.WarnLevel, logrus.Fields{
+				"event": "control.degradation_manual_query_failed",
+			}, "Degradation manual runs could not be loaded")
+		}
+		return
+	}
+	scheduler.fanOut(ctx, rows, settings, models.DegradationTriggerManual)
 }
 
 // startSweep runs one due-monitor sweep in the background. A sweep that is
@@ -204,19 +277,11 @@ func (scheduler *degradationScheduler) execute(
 }
 
 func (scheduler *degradationScheduler) claim(monitorID uint) bool {
-	scheduler.inflightMu.Lock()
-	defer scheduler.inflightMu.Unlock()
-	if _, running := scheduler.inflight[monitorID]; running {
-		return false
-	}
-	scheduler.inflight[monitorID] = struct{}{}
-	return true
+	return scheduler.service.degradationRuns.claim(monitorID)
 }
 
 func (scheduler *degradationScheduler) release(monitorID uint) {
-	scheduler.inflightMu.Lock()
-	defer scheduler.inflightMu.Unlock()
-	delete(scheduler.inflight, monitorID)
+	scheduler.service.degradationRuns.release(monitorID)
 }
 
 // ---------------------------------------------------------------------------

@@ -132,7 +132,8 @@ type DegradationRun struct {
 	Reasons                   string             `gorm:"type:varchar(160);not null;default:''"`
 	ErrorCode                 string             `gorm:"type:varchar(64);not null;default:''"`
 	ErrorSummary              string             `gorm:"type:text;not null"`
-	// Detail 只保存归因排名与采样诊断，不保存上游原文，避免把模型输出长期留存。
+	// Detail 保存归因排名、采样诊断，以及截断后的上游原文，供人工复核这次判定。
+	// 原文长度按样本上限截断，保留期跟随这张表本身的条数上限与保留天数。
 	Detail  JSON                `gorm:"type:json"`
 	Monitor *DegradationMonitor `gorm:"foreignKey:MonitorID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
 }

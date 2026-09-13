@@ -12,6 +12,7 @@ import {
 } from '@/app/resources/degradation'
 import AppDrawer from '@/components/ui/AppDrawer.vue'
 import AppRelativeTime from '@/components/ui/AppRelativeTime.vue'
+import CopyButton from '@/components/ui/CopyButton.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import QueryFeedback from '@/components/ui/QueryFeedback.vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
@@ -83,6 +84,46 @@ function isThresholdMet(run: DegradationRunDto): boolean {
 function barWidth(micros: number): string {
   return `${Math.min(100, Math.max(0, (micros / probabilityMicrosScale) * 100))}%`
 }
+
+// 统计来自后端，覆盖这条监控保留的全部历史，不随抽屉里显示的条数变化。
+const stats = computed(() => runsQuery.data.value?.stats)
+const outcomeStats = computed(() => {
+  const value = stats.value
+  if (!value) return []
+  const entries = [
+    { key: 'healthy', label: t('monitor.degradation.runs.statsHealthy'), count: value.healthy },
+    { key: 'degraded', label: t('monitor.degradation.runs.statsDegraded'), count: value.degraded },
+    {
+      key: 'inconclusive',
+      label: t('monitor.degradation.runs.statsInconclusive'),
+      count: value.inconclusive,
+    },
+    { key: 'error', label: t('monitor.degradation.runs.statsError'), count: value.error },
+    {
+      key: 'quota_exhausted',
+      label: t('monitor.degradation.runs.statsQuota'),
+      count: value.quota_exhausted,
+    },
+    { key: 'unknown', label: t('monitor.degradation.runs.statsUnknown'), count: value.unknown },
+  ]
+  // unknown 只在真的出现过时才占一格，正常情况下它恒为 0。
+  return entries.filter((entry) => entry.key !== 'unknown' || entry.count > 0)
+})
+const triggerStats = computed(() => {
+  const value = stats.value
+  if (!value) return []
+  return [
+    { key: 'schedule', label: t('monitor.degradation.runs.statsSchedule'), count: value.schedule },
+    { key: 'manual', label: t('monitor.degradation.runs.statsManual'), count: value.manual },
+    { key: 'overload', label: t('monitor.degradation.runs.statsOverload'), count: value.overload },
+  ]
+})
+
+const samples = computed(() => selected.value?.samples ?? [])
+// 复制全部时给每段加一个序号分隔，贴到别处仍能看出是第几次采样。
+const allSamplesText = computed(() =>
+  samples.value.map((sample, position) => `# ${position + 1}\n${sample.text}`).join('\n\n'),
+)
 </script>
 
 <template>
@@ -115,6 +156,26 @@ function barWidth(micros: number): string {
     />
 
     <div v-else class="degradation-runs">
+      <section v-if="stats" class="degradation-runs__stats">
+        <h3>
+          {{ t('monitor.degradation.runs.stats') }}
+          <span>{{ t('monitor.degradation.runs.statsTotal', { count: n(stats.total) }) }}</span>
+        </h3>
+        <dl class="degradation-runs__stats-row">
+          <div v-for="entry in outcomeStats" :key="entry.key">
+            <dt>{{ entry.label }}</dt>
+            <dd :class="`degradation-runs__stat--${entry.key}`">{{ n(entry.count) }}</dd>
+          </div>
+        </dl>
+        <dl class="degradation-runs__stats-row degradation-runs__stats-row--trigger">
+          <div v-for="entry in triggerStats" :key="entry.key">
+            <dt>{{ entry.label }}</dt>
+            <dd>{{ n(entry.count) }}</dd>
+          </div>
+        </dl>
+        <p class="degradation-runs__stats-hint">{{ t('monitor.degradation.runs.statsHint') }}</p>
+      </section>
+
       <ul class="degradation-runs__list" :aria-label="t('monitor.degradation.runs.listLabel')">
         <li v-for="run in runs" :key="run.id">
           <button
@@ -262,6 +323,47 @@ function barWidth(micros: number): string {
             </li>
           </ul>
         </template>
+
+        <div class="degradation-runs__output-heading">
+          <h4>{{ t('monitor.degradation.runs.output') }}</h4>
+          <CopyButton
+            v-if="samples.length > 1"
+            :value="allSamplesText"
+            :label="t('monitor.degradation.runs.copyAll')"
+            :success-label="t('monitor.degradation.runs.copySuccess')"
+            :failure-label="t('monitor.degradation.runs.copyFailure')"
+          />
+        </div>
+        <p v-if="samples.length === 0" class="degradation-runs__output-empty">
+          {{ t('monitor.degradation.runs.outputEmpty') }}
+        </p>
+        <template v-else>
+          <p class="degradation-runs__output-hint">{{ t('monitor.degradation.runs.outputHint') }}</p>
+          <ul class="degradation-runs__outputs">
+            <li v-for="sample in samples" :key="sample.index">
+              <div class="degradation-runs__output-bar">
+                <StatusBadge tone="neutral" size="compact">
+                  {{ t('monitor.degradation.runs.sampleIndex', { index: n(sample.index + 1) }) }}
+                </StatusBadge>
+                <span class="degradation-runs__output-size">
+                  {{ t('monitor.degradation.runs.outputChars', { value: n(sample.text.length) }) }}
+                </span>
+                <span v-if="sample.truncated" class="degradation-runs__output-truncated">
+                  {{ t('monitor.degradation.runs.outputTruncated') }}
+                </span>
+                <CopyButton
+                  :value="sample.text"
+                  :label="
+                    t('monitor.degradation.runs.copySample', { index: n(sample.index + 1) })
+                  "
+                  :success-label="t('monitor.degradation.runs.copySuccess')"
+                  :failure-label="t('monitor.degradation.runs.copyFailure')"
+                />
+              </div>
+              <pre class="degradation-runs__output-text">{{ sample.text }}</pre>
+            </li>
+          </ul>
+        </template>
       </section>
     </div>
   </AppDrawer>
@@ -273,6 +375,81 @@ function barWidth(micros: number): string {
   min-width: 0;
   gap: 16px;
   padding: 16px 0;
+}
+
+.degradation-runs__stats {
+  display: grid;
+  gap: 8px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-sunken);
+  padding: 10px 12px;
+}
+
+.degradation-runs__stats h3 {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.degradation-runs__stats h3 span {
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-label-xs);
+  font-weight: 600;
+}
+
+.degradation-runs__stats-row {
+  display: flex;
+  flex-wrap: wrap;
+  margin: 0;
+  gap: 6px 14px;
+}
+
+.degradation-runs__stats-row div {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+}
+
+.degradation-runs__stats-row dt {
+  color: var(--color-text-faint);
+  font-size: var(--text-label-xs);
+}
+
+.degradation-runs__stats-row dd {
+  margin: 0;
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+}
+
+.degradation-runs__stats-row--trigger dd {
+  color: var(--color-text-muted);
+  font-weight: 600;
+}
+
+.degradation-runs__stat--healthy {
+  color: var(--color-success);
+}
+
+.degradation-runs__stat--degraded {
+  color: var(--color-danger);
+}
+
+.degradation-runs__stat--inconclusive,
+.degradation-runs__stat--quota_exhausted {
+  color: var(--color-warning);
+}
+
+.degradation-runs__stats-hint {
+  margin: 0;
+  color: var(--color-text-faint);
+  font-size: var(--text-label-xs);
+  line-height: 1.5;
 }
 
 .degradation-runs__list {
@@ -473,6 +650,86 @@ function barWidth(micros: number): string {
   gap: var(--space-2);
   color: var(--color-text-muted);
   font-size: var(--text-label-xs);
+}
+
+.degradation-runs__output-heading {
+  display: flex;
+  min-height: 28px;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.degradation-runs__output-hint,
+.degradation-runs__output-empty {
+  margin: 0;
+  color: var(--color-text-faint);
+  font-size: var(--text-label-xs);
+  line-height: 1.5;
+}
+
+.degradation-runs__outputs {
+  display: grid;
+  margin: 0;
+  gap: 10px;
+  padding: 0;
+  list-style: none;
+}
+
+.degradation-runs__outputs li {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-control);
+  padding: 8px 10px;
+}
+
+.degradation-runs__output-bar {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.degradation-runs__output-bar :deep(.copy-control) {
+  margin-left: auto;
+}
+
+.degradation-runs__output-bar :deep(.copy-control button) {
+  width: 32px;
+  height: 32px;
+}
+
+.degradation-runs__output-size {
+  color: var(--color-text-faint);
+  font-family: var(--font-mono);
+  font-size: var(--text-label-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.degradation-runs__output-truncated {
+  border-radius: 999px;
+  background: var(--color-warning-bg);
+  color: var(--color-warning);
+  padding: 2px 8px;
+  font-size: var(--text-label-xs);
+}
+
+/* 输出经常上千字，这里只给一小块可滚动的预览，真正要用还是走复制。 */
+.degradation-runs__output-text {
+  max-height: 132px;
+  margin: 0;
+  border-radius: var(--radius-control);
+  background: var(--color-surface-sunken);
+  padding: 8px 10px;
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-label-xs);
+  line-height: 1.6;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 @media (max-width: 520px) {

@@ -90,6 +90,7 @@ type Service struct {
 	observationMu         sync.Mutex
 	observationFlights    map[observationFlightKey]*observationFlight
 	observationSemaphore  chan struct{}
+	degradationRuns       degradationRunCoordinator
 }
 
 type credentialRuntimeRetirer interface {

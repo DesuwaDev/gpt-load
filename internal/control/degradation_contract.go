@@ -106,15 +106,21 @@ type DegradationSummaryResponse struct {
 // Effective* fields are the values after inheritance, so the table can show what
 // will actually happen without replaying the inheritance rules in the browser.
 type DegradationMonitorResponse struct {
-	ID                    uint   `json:"id"`
-	GroupID               uint   `json:"group_id"`
-	GroupName             string `json:"group_name"`
-	GroupEnabled          bool   `json:"group_enabled"`
-	ChannelID             string `json:"channel_id"`
-	ConnectionType        string `json:"connection_type"`
-	CredentialID          uint   `json:"credential_id"`
-	CredentialMask        string `json:"credential_mask"`
-	CredentialStatus      string `json:"credential_status"`
+	ID             uint   `json:"id"`
+	GroupID        uint   `json:"group_id"`
+	GroupName      string `json:"group_name"`
+	GroupEnabled   bool   `json:"group_enabled"`
+	ChannelID      string `json:"channel_id"`
+	ConnectionType string `json:"connection_type"`
+
+	CredentialID     uint   `json:"credential_id"`
+	CredentialMask   string `json:"credential_mask"`
+	CredentialStatus string `json:"credential_status"`
+	// PlanName/PlanLevel 取自凭据观测快照，和分组页的套餐标记同源。观测缺失时为空，
+	// 表格只是不显示标记，不影响这一行的其他信息。
+	PlanName  string `json:"plan_name"`
+	PlanLevel string `json:"plan_level"`
+
 	UpstreamModel         string `json:"upstream_model"`
 	ExpectedModel         string `json:"expected_model"`
 	ExpectedModelName     string `json:"expected_model_name"`
@@ -155,6 +161,9 @@ type DegradationMonitorCollectionResponse struct {
 	Summary      DegradationSummaryResponse   `json:"summary"`
 	Items        []DegradationMonitorResponse `json:"items"`
 	Pagination   CredentialPaginationResponse `json:"pagination"`
+	// ActiveRuns 是本实例上排队或正在执行的检测条数。批量立即检测是异步消化的，
+	// 页面靠它决定要不要继续轮询，因此它既不参与分页也不受筛选影响。
+	ActiveRuns int `json:"active_runs"`
 }
 
 // DegradationMonitorQuery filters the monitor table.
@@ -232,13 +241,16 @@ const (
 	DegradationBatchDelete  DegradationBatchAction = "delete"
 	// DegradationBatchClear 把状态与错误计数复位为 unknown，并立即安排下一次检测。
 	DegradationBatchClear DegradationBatchAction = "clear"
+	// DegradationBatchRun 让选中的监控尽快各跑一次检测。与单条"立即检测"不同，
+	// 批量只登记意向后立刻返回，由调度器按全局并发上限消化。
+	DegradationBatchRun DegradationBatchAction = "run"
 )
 
 // Valid reports whether the batch action is recognized.
 func (a DegradationBatchAction) Valid() bool {
 	switch a {
 	case DegradationBatchEnable, DegradationBatchDisable,
-		DegradationBatchDelete, DegradationBatchClear:
+		DegradationBatchDelete, DegradationBatchClear, DegradationBatchRun:
 		return true
 	}
 	return false
@@ -279,6 +291,17 @@ type DegradationRunResponse struct {
 	ErrorSummary              string                     `json:"error_summary"`
 	Ranking                   []DegradationRankingEntry  `json:"ranking"`
 	Diagnostics               []DegradationSampleDiagRes `json:"diagnostics"`
+	// Samples 是这次检测收到的上游原文，只用于人工复核，界面靠复制按钮取用。
+	Samples []DegradationSampleTextRes `json:"samples"`
+}
+
+// DegradationSampleTextRes is one raw upstream answer of a run. Text is bounded
+// at write time, so Truncated tells the reader the copy is not the full answer.
+type DegradationSampleTextRes struct {
+	Index         int    `json:"index"`
+	ExpectedCount int    `json:"expected_count"`
+	Text          string `json:"text"`
+	Truncated     bool   `json:"truncated"`
 }
 
 // DegradationRankingEntry is one scored candidate model of a run.
@@ -301,13 +324,33 @@ type DegradationSampleDiagRes struct {
 type DegradationRunCollectionResponse struct {
 	MonitorID uint                     `json:"monitor_id"`
 	Items     []DegradationRunResponse `json:"items"`
+	// Stats 统计的是这条监控目前保留的全部历史，而不是本次返回的那一页，
+	// 所以调小 limit 不会让"总共降智几次"跟着变小。
+	Stats DegradationRunStatsResponse `json:"stats"`
 }
 
-// degradationRunDetail is the JSON persisted on a run row. It keeps the scoring
-// evidence and never the upstream text.
+// DegradationRunStatsResponse totals one monitor's retained history by outcome
+// and by trigger. Retention is bounded by degradationRunHistoryLimit and by the
+// configured retention window, so these are counts of what is still on record.
+type DegradationRunStatsResponse struct {
+	Total          int `json:"total"`
+	Healthy        int `json:"healthy"`
+	Degraded       int `json:"degraded"`
+	Inconclusive   int `json:"inconclusive"`
+	Error          int `json:"error"`
+	QuotaExhausted int `json:"quota_exhausted"`
+	Unknown        int `json:"unknown"`
+	Schedule       int `json:"schedule"`
+	Manual         int `json:"manual"`
+	Overload       int `json:"overload"`
+}
+
+// degradationRunDetail is the JSON persisted on a run row: the scoring evidence
+// plus the bounded upstream text the operator needs to review a verdict.
 type degradationRunDetail struct {
 	Ranking     []DegradationRankingEntry  `json:"ranking"`
 	Diagnostics []DegradationSampleDiagRes `json:"diagnostics"`
+	Samples     []DegradationSampleTextRes `json:"samples,omitempty"`
 }
 
 func projectDegradationSettings(row models.DegradationSettings) DegradationSettingsResponse {

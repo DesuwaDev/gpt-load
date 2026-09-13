@@ -1211,6 +1211,8 @@ func serviceErrorMessageID(
 		return "model_price.referenced"
 	case app_errors.ErrModelPriceAutomaticDeleteForbidden.Code:
 		return "model_price.automatic_delete_forbidden"
+	case app_errors.ErrDegradationRunInFlight.Code:
+		return "degradation.run_in_flight"
 	case app_errors.ErrRequestTooLarge.Code:
 		return "request_too_large"
 	case app_errors.ErrBadRequest.Code, app_errors.ErrInvalidJSON.Code, app_errors.ErrValidation.Code:
