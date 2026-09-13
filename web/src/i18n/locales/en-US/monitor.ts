@@ -12,6 +12,7 @@ export default {
       logs: 'Request logs',
       usage: 'Usage & cost',
       inspector: 'Route inspector',
+      degradation: 'Degradation check',
     },
     health: {
       refresh: 'Refresh',
@@ -574,6 +575,15 @@ export default {
         credential_not_allowed: 'Credential is excluded from this request',
         no_available_credential: 'Group has no currently available credential',
         unknown: 'Unknown route reason',
+      },
+    },
+    degradation: {
+      title: 'Degradation check',
+      description:
+        'Surfaces signs that a credential is being quietly downgraded upstream. Not wired up yet.',
+      empty: {
+        title: 'Degradation check is not wired up yet',
+        description: 'Per-credential model behaviour comparisons will appear here.',
       },
     },
     logs: {

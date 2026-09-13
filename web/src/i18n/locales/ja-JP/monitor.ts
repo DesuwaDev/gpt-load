@@ -12,6 +12,7 @@ export default {
       logs: 'リクエストログ',
       usage: '使用量とコスト',
       inspector: 'ルート検査',
+      degradation: '劣化検査',
     },
     health: {
       refresh: '更新',
@@ -572,6 +573,14 @@ export default {
         credential_not_allowed: 'このリクエストから認証情報が除外されました',
         no_available_credential: 'グループに現在利用可能な認証情報がありません',
         unknown: '不明なルート理由',
+      },
+    },
+    degradation: {
+      title: '劣化検査',
+      description: '上流で認証情報が密かに格下げされている兆候を見つけます。検査機能は未接続です。',
+      empty: {
+        title: '劣化検査はまだ未接続です',
+        description: '認証情報ごとのモデル挙動の比較がここに表示されます。',
       },
     },
     logs: {

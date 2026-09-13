@@ -12,6 +12,7 @@ export default {
       logs: '请求日志',
       usage: '用量与成本',
       inspector: '路由检查',
+      degradation: '降智检测',
     },
     health: {
       refresh: '刷新',
@@ -552,6 +553,14 @@ export default {
         credential_not_allowed: '该请求排除了此凭据',
         no_available_credential: '分组当前没有可用凭据',
         unknown: '未知路由原因',
+      },
+    },
+    degradation: {
+      title: '降智检测',
+      description: '用来发现凭据被上游悄悄降级的迹象。检测能力尚未接入。',
+      empty: {
+        title: '降智检测尚未接入',
+        description: '各凭据的模型表现对比会出现在这里。',
       },
     },
     logs: {

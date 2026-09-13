@@ -36,6 +36,7 @@ import {
 } from './monitor-route'
 import { parseAppliedUsageFilters } from './usage-filters'
 
+const DegradationTab = lazySurface(() => import('./DegradationTab.vue'))
 const InspectorTab = lazySurface(() => import('./InspectorTab.vue'))
 const LogsTab = lazySurface(() => import('./LogsTab.vue'))
 const UsageTab = lazySurface(() => import('./UsageTab.vue'))
@@ -86,6 +87,7 @@ const items = computed<AppTabItem[]>(() => {
         { value: 'health', label: t('monitor.tabs.health') },
         ...shared,
         { value: 'inspector', label: t('monitor.tabs.inspector') },
+        { value: 'degradation', label: t('monitor.tabs.degradation') },
       ]
 })
 const routeUsageFilters = computed(() => parseAppliedUsageFilters(route.query))
@@ -407,8 +409,11 @@ function applyTimeRange(from: number, to: number, preset?: DateTimePreset): void
               @time-range-resolved="updateResolvedTimeRange"
             />
           </div>
-          <div v-else class="monitor-panel">
+          <div v-else-if="activeTab === 'inspector'" class="monitor-panel">
             <InspectorTab />
+          </div>
+          <div v-else class="monitor-panel">
+            <DegradationTab />
           </div>
         </template>
       </AppTabs>

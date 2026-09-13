@@ -15,7 +15,7 @@ import {
 } from './usage-filters'
 import { normalizeMonitorText } from './filter-validation'
 
-export type MonitorTab = 'health' | 'logs' | 'inspector' | 'usage'
+export type MonitorTab = 'health' | 'logs' | 'inspector' | 'usage' | 'degradation'
 export interface HealthMonitorState {
   groupsExpanded: boolean
 }
@@ -46,15 +46,17 @@ const requestIDPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3
 const logCursorPattern = /^[A-Za-z0-9_-]{1,512}$/u
 
 export function normalizeMonitorTab(raw: unknown): MonitorTab {
-  return raw === 'logs' || raw === 'inspector' || raw === 'usage' || raw === 'health'
-    ? raw
-    : 'health'
+  if (raw === 'logs' || raw === 'inspector' || raw === 'usage' || raw === 'degradation') {
+    return raw
+  }
+  return 'health'
 }
 
 export function normalizeMonitorQuery(query: Record<string, unknown>): LocationQueryRaw {
   const tab = normalizeMonitorTab(query.tab)
   if (tab === 'health') return healthMonitorQuery(parseHealthMonitorState(query))
   if (tab === 'inspector') return inspectorMonitorQuery(parseInspectorMonitorState(query))
+  if (tab === 'degradation') return degradationMonitorQuery()
   if (tab === 'usage') {
     return usageMonitorQuery(parseAppliedUsageFilters(query), parseUsageMonitorState(query))
   }
@@ -110,6 +112,11 @@ export function parseHealthMonitorState(query: Record<string, unknown>): HealthM
 
 export function healthMonitorQuery(state: HealthMonitorState): LocationQueryRaw {
   return state.groupsExpanded ? { tab: 'health', groups: 'expanded' } : { tab: 'health' }
+}
+
+// 降智检测目前没有可持久化的界面状态，URL 里只留分区本身。
+export function degradationMonitorQuery(): LocationQueryRaw {
+  return { tab: 'degradation' }
 }
 
 export function usageMonitorQuery(
