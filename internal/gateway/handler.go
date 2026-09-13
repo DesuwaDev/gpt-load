@@ -688,7 +688,7 @@ func (handler *Handler) Handle(ginContext *gin.Context) {
 		}
 	} else {
 		requestAffinity = handler.resolveRequestAffinity(
-			snapshot, accessKey.ID, selectedRoute.Protocol, metadata.AffinityPrefix, allowedCredentialRefs,
+			snapshot, accessKey.ID, selectedRoute.Protocol, metadata.AffinityPrefix, allowedCredentialRefs, metadata.PromptCacheKey,
 		)
 		query.PreferredCredentialID = requestAffinity.preferredCredentialID
 	}
@@ -999,7 +999,11 @@ func (handler *Handler) executeAttempts(
 		attemptSequence++
 		if attemptSequence == 1 && (originalMetadata.PreviousResponseID != "" ||
 			(requestAffinity.preferredCredentialID != 0 && selection.CredentialID == requestAffinity.preferredCredentialID)) {
-			recorder.setAffinityHit(true)
+			kind := requestAffinity.kind
+			if originalMetadata.PreviousResponseID != "" {
+				kind = telemetry.AffinityResponseContinuity
+			}
+			recorder.setAffinityHit(true, kind)
 		}
 		updateDebugHeaders(ginContext.Writer.Header(), selection.Group.Name, attemptSequence)
 		if recorder != nil {
@@ -1218,7 +1222,11 @@ func (handler *Handler) executeAttempts(
 		forwardAttempts++
 		if attemptSequence == 1 && (originalMetadata.PreviousResponseID != "" ||
 			(requestAffinity.preferredCredentialID != 0 && selection.CredentialID == requestAffinity.preferredCredentialID)) {
-			recorder.setAffinityHit(true)
+			kind := requestAffinity.kind
+			if originalMetadata.PreviousResponseID != "" {
+				kind = telemetry.AffinityResponseContinuity
+			}
+			recorder.setAffinityHit(true, kind)
 		}
 		updateDebugHeaders(ginContext.Writer.Header(), selection.Group.Name, attemptSequence)
 		executionRequestID := "untracked"
