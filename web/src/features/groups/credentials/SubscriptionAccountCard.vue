@@ -2031,7 +2031,7 @@ function runMenuAction(
   display: grid;
   flex: 0 1 auto;
   grid-template-columns: repeat(2, minmax(0, 96px));
-  /* 有条/无条的两格不能互相拉伸，否则 “0/∞” 会被垂直居中而与相邻的 “0/5” 错位。 */
+  /* 两格现在都带进度条，高度天然一致；仍按顶端对齐，任一格换行时不会顶偏另一格。 */
   align-items: start;
   gap: 1px 12px;
 }

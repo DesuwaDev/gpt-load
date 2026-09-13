@@ -5,8 +5,9 @@ import { useI18n } from 'vue-i18n'
 import QuotaProgressBar from '@/components/ui/QuotaProgressBar.vue'
 import { quotaProgressTone } from '@/lib/quota-progress'
 
-// 限额实时用量：已用/上限 + 进度条。上限为 0 时显示 ∞ 并省略进度条，
-// 因为“无限”没有可填充的比例，画一条空槽反而误导。
+// 限额实时用量：已用/上限 + 进度条。上限为 0 时限流器压根不记账（Acquire 在
+// limit <= 0 时直接放行），已用数恒为 0，所以不写“0/∞”这种假测量值，
+// 只留 ∞ 并把进度条按满格的独立色画出来，表示“没有上限”而不是“还剩很多”。
 const props = defineProps<{
   label: string
   used: number
@@ -22,9 +23,11 @@ const remainingPercent = computed(() => {
   return Math.max(0, Math.min(100, ((props.limit - props.used) / props.limit) * 100))
 })
 const tone = computed(() =>
-  quotaProgressTone(remainingPercent.value, !unlimited.value && props.used >= props.limit),
+  unlimited.value
+    ? ('unlimited' as const)
+    : quotaProgressTone(remainingPercent.value, props.used >= props.limit),
 )
-const text = computed(() => `${n(props.used)}/${unlimited.value ? '∞' : n(props.limit)}`)
+const text = computed(() => (unlimited.value ? '∞' : `${n(props.used)}/${n(props.limit)}`))
 </script>
 
 <template>
@@ -32,7 +35,6 @@ const text = computed(() => `${n(props.used)}/${unlimited.value ? '∞' : n(prop
     <span class="limit-usage__label">{{ label }}</span>
     <span class="limit-usage__value" :class="`limit-usage__value--${tone}`">{{ text }}</span>
     <QuotaProgressBar
-      v-if="!unlimited"
       class="limit-usage__bar"
       :value="remainingPercent"
       :tone="tone"

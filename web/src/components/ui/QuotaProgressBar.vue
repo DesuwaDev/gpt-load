@@ -4,7 +4,8 @@ import { computed } from 'vue'
 const props = withDefaults(
   defineProps<{
     value?: number
-    tone?: 'success' | 'warning' | 'danger'
+    // unlimited 是“没有上限”，不是某个百分比算出来的档位，所以不并入 QuotaProgressTone。
+    tone?: 'success' | 'warning' | 'danger' | 'unlimited'
     label: string
     valueText: string
     compact?: boolean
@@ -68,6 +69,10 @@ const normalizedValue = computed(() => {
 .quota-progress--danger {
   background: light-dark(#ffe5e8, #421d25);
 }
+/* 不限额：整条填满，但用独立的蓝色，免得和“剩余 100%”的绿色看成同一回事。 */
+.quota-progress--unlimited {
+  background: light-dark(#e3ecff, #1e2b47);
+}
 .quota-progress__fill {
   position: absolute;
   inset: 0 auto 0 0;
@@ -79,6 +84,9 @@ const normalizedValue = computed(() => {
 }
 .quota-progress__fill--danger {
   background: #fa4d56;
+}
+.quota-progress__fill--unlimited {
+  background: #4589ff;
 }
 .quota-progress--unknown {
   background: repeating-linear-gradient(
