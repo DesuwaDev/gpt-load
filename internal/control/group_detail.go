@@ -21,6 +21,7 @@ type GroupEffectiveConfigResponse struct {
 	HeaderRules               HeaderRulesResponse `json:"header_rules"`
 	BlacklistThreshold        int                 `json:"blacklist_threshold"`
 	AffinityEnabled           bool                `json:"affinity_enabled"`
+	CacheKeyRotationEnabled   bool                `json:"cache_key_rotation_enabled"`
 	ResponsesWebsocketEnabled bool                `json:"responses_websocket_enabled"`
 }
 
@@ -88,6 +89,7 @@ func effectiveGroupConfig(
 		},
 		BlacklistThreshold:        resolved.BlacklistThreshold,
 		AffinityEnabled:           resolved.AffinityEnabled,
+		CacheKeyRotationEnabled:   resolved.CacheKeyRotationEnabled,
 		ResponsesWebsocketEnabled: resolved.ResponsesWebsocketEnabled,
 	}, nil
 }

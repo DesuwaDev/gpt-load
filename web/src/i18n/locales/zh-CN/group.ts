@@ -352,6 +352,9 @@ export default {
         websocketHelp: '关闭会立即断开本分组的 WS 连接并中断生成，HTTP/SSE 不受影响。',
         affinity_enabled: '请求亲和',
         affinityHelp: '只控制本分组是否学习或复用亲和目标，不改变普通轮询、权重或重试。',
+        cache_key_rotation_enabled: '降智时轮换缓存键',
+        cacheKeyRotationHelp:
+          '本分组在上游降智或拒绝接单时是否给该会话换一个上游缓存分片，代价是丢弃已建立的上游缓存与推理续写。',
       },
       delete: {
         sectionDescription: '删除分组会同时删除其全部渠道凭据，且无法撤销。',

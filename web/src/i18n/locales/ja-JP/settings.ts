@@ -95,6 +95,9 @@ export default {
       affinity_enabled: 'リクエストアフィニティを有効化',
       enabledHelp:
         '無効の場合、明示的に有効化したグループのみアフィニティ対象を学習して再利用できます。',
+      cache_key_rotation_enabled: '劣化時にキャッシュキーを切り替え',
+      cacheKeyRotationHelp:
+        '劣化と判定された場合や、上流が容量不足で受け付けなかった場合に、その会話を別の上流キャッシュシャードへ移します。これまでの上流キャッシュと推論の継続は破棄されるため、次のターンは遅くなります。',
       affinity_ttl: '既定の有効期間',
       affinity_ttlEffective: '{value} 秒',
       affinity_ttlError: '9,223,372,036 以下の正の安全な整数を入力してください。',

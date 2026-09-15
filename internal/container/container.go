@@ -98,6 +98,9 @@ func BuildContainer() (*dig.Container, error) {
 		func(runtime *control.PriceRuntime) gateway.PriceTableProvider {
 			return priceRuntimeProvider{runtime: runtime}
 		},
+		func(service *control.Service) gateway.DegradedTargetProvider {
+			return service.DegradationRuntime()
+		},
 		func(
 			db *gorm.DB,
 			redactor *redact.Redactor,

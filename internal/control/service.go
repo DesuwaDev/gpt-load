@@ -45,6 +45,7 @@ type Service struct {
 	registrySnapshot                  func() []state.CredentialRuntimeView
 	priceRuntime                      *PriceRuntime
 	catalogRuntime                    *catalog.Runtime
+	degradationRuntime                *DegradationRuntime
 	catalogSync                       *CatalogSyncCoordinator
 	modelsDevAutoSyncOverride         *bool
 	environmentProxy                  *outboundproxy.Config
@@ -182,7 +183,11 @@ func NewService(
 		channelRegistry: channelRegistry,
 		priceRuntime:    priceRuntime,
 		catalogRuntime:  catalogRuntime,
-		encryption:      encryptionService, executor: executor, subscriptions: subscriptions, requestLogs: requestLogs,
+		// 降智判定发布在进程内运行时里，不进配置快照：判定每几十秒就可能翻转，
+		// 而快照修订号一变会连带清空亲和缓存。
+		degradationRuntime: NewDegradationRuntime(),
+
+		encryption: encryptionService, executor: executor, subscriptions: subscriptions, requestLogs: requestLogs,
 		usageStats: usageStats, homeStatistics: homeStatistics,
 		stats: stats, mutations: mutations, requestLogStats: requestLogStats, accessQuota: accessQuota,
 		limitUsage:            limitUsage,

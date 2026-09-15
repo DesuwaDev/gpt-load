@@ -365,6 +365,9 @@ export default {
         affinity_enabled: 'Request affinity',
         affinityHelp:
           'Controls whether this Group learns or reuses affinity targets without changing normal weights, scheduling, or retries.',
+        cache_key_rotation_enabled: 'Rotate cache key when degraded',
+        cacheKeyRotationHelp:
+          'Controls whether this Group moves a conversation to a different upstream cache shard when the target is judged degraded or refuses the attempt for want of capacity, at the cost of the upstream cache and reasoning it had built up.',
       },
       delete: {
         sectionDescription:

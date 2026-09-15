@@ -261,6 +261,18 @@ const affinityEnabledLabel = computed(() =>
     ? t('group.settings.runtime.enabledValue')
     : t('group.settings.runtime.disabledValue'),
 )
+const rotationOverridden = computed(
+  () => draft.value?.overrides.cache_key_rotation_enabled !== undefined,
+)
+const rotationPendingRestore = computed(
+  () =>
+    !rotationOverridden.value && saved.value?.overrides.cache_key_rotation_enabled !== undefined,
+)
+const rotationEnabledLabel = computed(() =>
+  saved.value?.effective.cache_key_rotation_enabled
+    ? t('group.settings.runtime.enabledValue')
+    : t('group.settings.runtime.disabledValue'),
+)
 const websocketOverridden = computed(
   () => draft.value?.overrides.responses_websocket_enabled !== undefined,
 )
@@ -444,6 +456,22 @@ function setAffinityValue(value: boolean): void {
   draft.value = {
     ...draft.value,
     overrides: { ...draft.value.overrides, affinity_enabled: value },
+  }
+}
+
+function toggleRotationOverride(): void {
+  if (!draft.value || !saved.value) return
+  const overrides = { ...draft.value.overrides }
+  if (rotationOverridden.value) delete overrides.cache_key_rotation_enabled
+  else overrides.cache_key_rotation_enabled = saved.value.effective.cache_key_rotation_enabled
+  draft.value = { ...draft.value, overrides }
+}
+
+function setRotationValue(value: boolean): void {
+  if (!draft.value) return
+  draft.value = {
+    ...draft.value,
+    overrides: { ...draft.value.overrides, cache_key_rotation_enabled: value },
   }
 }
 
@@ -833,7 +861,6 @@ onBeforeUnmount(() => {
                 "
                 :overridden="affinityOverridden"
                 :pending-restore="affinityPendingRestore"
-                :divided="false"
                 :disabled="mutationPending"
                 @toggle="toggleAffinityOverride"
               >
@@ -843,6 +870,41 @@ onBeforeUnmount(() => {
                     :disabled="mutationPending"
                     :label="t('group.settings.runtime.affinity_enabled')"
                     @update:model-value="setAffinityValue"
+                  />
+                </template>
+              </SettingRow>
+              <SettingRow
+                :label="t('group.settings.runtime.cache_key_rotation_enabled')"
+                :value="
+                  rotationPendingRestore
+                    ? t('group.settings.runtime.resetPending')
+                    : rotationEnabledLabel
+                "
+                :help="t('group.settings.runtime.cacheKeyRotationHelp')"
+                :source-label="
+                  rotationOverridden
+                    ? t('group.settings.runtime.override')
+                    : rotationPendingRestore
+                      ? t('group.settings.runtime.pendingRestoreSource')
+                      : t('group.settings.runtime.inherited')
+                "
+                :action-label="
+                  rotationOverridden
+                    ? t('group.settings.runtime.useInherited')
+                    : t('group.settings.runtime.useOverride')
+                "
+                :overridden="rotationOverridden"
+                :pending-restore="rotationPendingRestore"
+                :divided="false"
+                :disabled="mutationPending"
+                @toggle="toggleRotationOverride"
+              >
+                <template #control>
+                  <AppSwitch
+                    :model-value="draft.overrides.cache_key_rotation_enabled ?? false"
+                    :disabled="mutationPending"
+                    :label="t('group.settings.runtime.cache_key_rotation_enabled')"
+                    @update:model-value="setRotationValue"
                   />
                 </template>
               </SettingRow>

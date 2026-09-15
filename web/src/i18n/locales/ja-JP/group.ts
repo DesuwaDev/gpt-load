@@ -366,6 +366,9 @@ export default {
         affinity_enabled: 'リクエストアフィニティ',
         affinityHelp:
           '通常の重み、スケジューリング、再試行を変えず、このグループがアフィニティ対象を学習または再利用するかを制御します。',
+        cache_key_rotation_enabled: '劣化時にキャッシュキーを切り替え',
+        cacheKeyRotationHelp:
+          '劣化と判定された場合や上流が容量不足で受け付けなかった場合に、このグループが会話を別の上流キャッシュシャードへ移すかを制御します。蓄積された上流キャッシュと推論は破棄されます。',
       },
       delete: {
         sectionDescription:

@@ -117,6 +117,7 @@ export interface GroupRuntimeConfigDto {
   blacklist_threshold?: number
   header_rules?: HeaderRulesDto
   affinity_enabled?: boolean
+  cache_key_rotation_enabled?: boolean
   responses_websocket_enabled?: boolean
   parameter_overrides?: ParameterOverrideRuleDto[]
 }
@@ -128,6 +129,7 @@ export interface GroupEffectiveConfigDto {
   blacklist_threshold: number
   header_rules: HeaderRulesDto
   affinity_enabled: boolean
+  cache_key_rotation_enabled: boolean
   responses_websocket_enabled: boolean
 }
 

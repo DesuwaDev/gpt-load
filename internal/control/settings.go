@@ -47,6 +47,7 @@ type SettingsValuesResponse struct {
 	RouteStrategy             state.RouteStrategy `json:"route_strategy"`
 	BlacklistThreshold        int                 `json:"blacklist_threshold"`
 	AffinityEnabled           bool                `json:"affinity_enabled"`
+	CacheKeyRotationEnabled   bool                `json:"cache_key_rotation_enabled"`
 	ResponsesWebsocketEnabled bool                `json:"responses_websocket_enabled"`
 	AffinityTTL               int64               `json:"affinity_ttl"`
 	AffinityCapacity          int                 `json:"affinity_capacity"`
@@ -357,6 +358,7 @@ func mapSettingsResponse(
 			RouteStrategy:             settings.RouteStrategy,
 			BlacklistThreshold:        settings.BlacklistThreshold,
 			AffinityEnabled:           settings.AffinityEnabled,
+			CacheKeyRotationEnabled:   settings.CacheKeyRotationEnabled,
 			ResponsesWebsocketEnabled: settings.ResponsesWebsocketEnabled,
 			AffinityTTL:               durationSeconds(settings.AffinityTTL),
 			AffinityCapacity:          settings.AffinityCapacity,

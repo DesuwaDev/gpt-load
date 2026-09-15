@@ -124,6 +124,7 @@ const runtimeSettingFields = [
   'blacklist_threshold',
   'header_rules',
   'affinity_enabled',
+  'cache_key_rotation_enabled',
   'responses_websocket_enabled',
 ] as const
 const groupRuntimeSettingFields = [...runtimeSettingFields, 'parameter_overrides'] as const
@@ -140,6 +141,7 @@ export interface GroupRuntimeConfigDto {
   blacklist_threshold?: number
   header_rules?: HeaderRulesDto
   affinity_enabled?: boolean
+  cache_key_rotation_enabled?: boolean
   responses_websocket_enabled?: boolean
   parameter_overrides?: ParameterOverrideRuleDto[]
 }
@@ -151,6 +153,7 @@ export interface GroupEffectiveConfigDto {
   blacklist_threshold: number
   header_rules: HeaderRulesDto
   affinity_enabled: boolean
+  cache_key_rotation_enabled: boolean
   responses_websocket_enabled: boolean
 }
 
@@ -378,6 +381,9 @@ function projectRuntimeConfig(
   }
   if (complete || Object.prototype.hasOwnProperty.call(record, 'affinity_enabled')) {
     result.affinity_enabled = projectBoolean(record.affinity_enabled)
+  }
+  if (complete || Object.prototype.hasOwnProperty.call(record, 'cache_key_rotation_enabled')) {
+    result.cache_key_rotation_enabled = projectBoolean(record.cache_key_rotation_enabled)
   }
   if (complete || Object.prototype.hasOwnProperty.call(record, 'responses_websocket_enabled')) {
     result.responses_websocket_enabled = projectBoolean(record.responses_websocket_enabled)

@@ -101,5 +101,6 @@ func (s *Service) EnsureInitialState(ctx context.Context) error {
 	}
 	s.priceRuntime.Publish(priceTable)
 	logrus.WithField("event", "startup.model_prices_publish").Info("model prices published")
+	s.refreshDegradedTargets(ctx)
 	return nil
 }

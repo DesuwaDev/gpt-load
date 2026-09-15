@@ -288,7 +288,12 @@ function confirmDiscard(): void {
 }
 
 function settingLabel(key: RuntimeSettingKey): string {
-  if (key === 'affinity_enabled' || key === 'affinity_ttl' || key === 'affinity_capacity')
+  if (
+    key === 'affinity_enabled' ||
+    key === 'cache_key_rotation_enabled' ||
+    key === 'affinity_ttl' ||
+    key === 'affinity_capacity'
+  )
     return t(`settings.affinity.${key}`)
   if (key === 'request_log_retention_days') return t('settings.logs.retention')
   if (key === 'header_rules') return t('settings.headers.blockTitle')
@@ -309,6 +314,7 @@ function sectionForKey(key: RuntimeSettingKey): SettingsSection {
   if (
     key === 'route_strategy' ||
     key === 'affinity_enabled' ||
+    key === 'cache_key_rotation_enabled' ||
     key === 'affinity_ttl' ||
     key === 'affinity_capacity'
   )

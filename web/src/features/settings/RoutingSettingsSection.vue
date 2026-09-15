@@ -42,6 +42,11 @@ const enabledValue = computed(() =>
     ? t('settings.runtime.enabled')
     : t('settings.runtime.disabled'),
 )
+const rotationValue = computed(() =>
+  props.base.settings.values.cache_key_rotation_enabled
+    ? t('settings.runtime.enabled')
+    : t('settings.runtime.disabled'),
+)
 
 function cloneDraft(): SettingsDraft {
   return createSettingsDraft({
@@ -89,6 +94,12 @@ function setEnabled(value: boolean): void {
   const draft = cloneDraft()
   draft.values.affinity_enabled = value
   publish('affinity_enabled', draft)
+}
+
+function setCacheKeyRotation(value: boolean): void {
+  const draft = cloneDraft()
+  draft.values.cache_key_rotation_enabled = value
+  publish('cache_key_rotation_enabled', draft)
 }
 
 function setNumber(key: (typeof numericKeys)[number], value: string): void {
@@ -167,6 +178,32 @@ function numberFieldValue(key: (typeof numericKeys)[number]): string {
             :disabled="disabled"
             :label="t('settings.affinity.affinity_enabled')"
             @update:model-value="setEnabled"
+          />
+        </template>
+      </SettingRow>
+
+      <SettingRow
+        :label="t('settings.affinity.cache_key_rotation_enabled')"
+        :value="
+          isPendingRestore('cache_key_rotation_enabled')
+            ? t('settings.runtime.resetPending')
+            : rotationValue
+        "
+        :help="t('settings.affinity.cacheKeyRotationHelp')"
+        :source-label="sourceLabel('cache_key_rotation_enabled')"
+        :action-label="actionLabel('cache_key_rotation_enabled')"
+        :overridden="hasOverride('cache_key_rotation_enabled')"
+        :pending-restore="isPendingRestore('cache_key_rotation_enabled')"
+        :disabled="disabled"
+        @toggle="toggleOverride('cache_key_rotation_enabled')"
+      >
+        <template #control>
+          <AppSwitch
+            id="settings-value-cache_key_rotation_enabled"
+            :model-value="draft.values.cache_key_rotation_enabled"
+            :disabled="disabled"
+            :label="t('settings.affinity.cache_key_rotation_enabled')"
+            @update:model-value="setCacheKeyRotation"
           />
         </template>
       </SettingRow>

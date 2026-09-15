@@ -83,6 +83,14 @@ type PriceTableProvider interface {
 	Load() *pricing.Table
 }
 
+// DegradedTargetProvider reports the degradation detector's current verdict for
+// one upstream target. A non-zero episode means the detector judges that
+// credential to be serving that model degraded right now; the number changes
+// only when a new episode starts, never while one is running.
+type DegradedTargetProvider interface {
+	Episode(credentialID uint, upstreamModel string) uint64
+}
+
 type credentialMutationCoordinator interface {
 	Do(uint, func())
 }
@@ -126,6 +134,8 @@ type Handler struct {
 	routeNotFoundEvents *utils.RateLimitedEventCounter
 	lifecycle           *httplifecycle.Coordinator
 	affinityCache       *affinity.Cache
+	cacheKeyRotations   *affinity.RotationStore
+	degradedTargets     DegradedTargetProvider
 	responseBindings    *state.ResponseBindings
 	websocketLimits     websocketLimits
 	websocketBudget     websocketBudget
@@ -185,6 +195,7 @@ func NewHandler(
 		limiter: limiter, concurrency: unlimitedAccessKeyConcurrencyLimiter{}, requestLogSink: requestLogSink, priceTables: priceTables,
 		credentialLimiter: unlimitedCredentialLimiter{},
 		affinityCache:     affinity.NewCache(),
+		cacheKeyRotations: affinity.NewRotationStore(),
 		responseBindings:  state.NewResponseBindings(),
 		websocketLimits:   defaultWebsocketLimits(),
 		newRequestID:      newRequestID,
@@ -232,6 +243,7 @@ func NewHandlerWithLifecycle(
 	accessQuota *accessquota.Runtime,
 	lifecycle *httplifecycle.Coordinator,
 	responseBindings *state.ResponseBindings,
+	degradedTargets DegradedTargetProvider,
 ) *Handler {
 	handler := NewHandler(
 		manager,
@@ -260,6 +272,7 @@ func NewHandlerWithLifecycle(
 	}
 	handler.lifecycle = lifecycle
 	handler.responseBindings = responseBindings
+	handler.degradedTargets = degradedTargets
 	return handler
 }
 
@@ -1259,7 +1272,7 @@ func (handler *Handler) executeAttempts(
 			Proxy:                  effectiveProxy,
 			ProxyFingerprint:       proxyFingerprint,
 			ForceCredentialRefresh: forceCredentialRefresh,
-			ContinuityKey:          requestAffinity.continuityKey,
+			ContinuityKey:          handler.rotatedContinuityKey(selection, requestAffinity.continuityKey),
 			OnResponse:             handler.responseBindingObserver(recorder.accessKeyID, selection, ref, prepared.request),
 			OnFirstResponse: func() {
 				recorder.recordFirstResponse()
@@ -1379,6 +1392,7 @@ func (handler *Handler) executeAttempts(
 			attemptNow,
 			optionalModelValue(selection.UpstreamModelID),
 		)
+		handler.rotateCacheKeyOnFailure(selection, decision, requestAffinity.continuityKey)
 		if decision.Retry == health.RetryRefreshCredential &&
 			!authRefreshReplayUsed && forwardAttempts < forwardAttemptLimit {
 			refreshRetry = &credentialRefreshRetry{selection: selection, ref: ref}
