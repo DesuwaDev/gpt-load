@@ -89,15 +89,15 @@ type CredentialAccountResponse struct {
 }
 
 type CredentialItemResponse struct {
-	ModelCooldowns   []ModelCooldownResponse        `json:"model_cooldowns"`
-	CredentialID     uint                           `json:"credential_id"`
-	ConnectionType   string                         `json:"connection_type"`
-	SecretVersion    uint64                         `json:"secret_version"`
-	Mask             string                         `json:"mask"`
-	Account          CredentialAccountResponse      `json:"account"`
-	AuthState        string                         `json:"auth_state"`
-	AuthErrorCode    string                         `json:"auth_error_code,omitempty"`
-	Observation      *CredentialObservationResponse `json:"observation,omitempty"`
+	ModelCooldowns []ModelCooldownResponse        `json:"model_cooldowns"`
+	CredentialID   uint                           `json:"credential_id"`
+	ConnectionType string                         `json:"connection_type"`
+	SecretVersion  uint64                         `json:"secret_version"`
+	Mask           string                         `json:"mask"`
+	Account        CredentialAccountResponse      `json:"account"`
+	AuthState      string                         `json:"auth_state"`
+	AuthErrorCode  string                         `json:"auth_error_code,omitempty"`
+	Observation    *CredentialObservationResponse `json:"observation,omitempty"`
 	// Mark/MarkNote 是人工模型状态标记，只用于呈现；mark 为空串时 mark_note 必为空。
 	Mark             string `json:"mark"`
 	MarkNote         string `json:"mark_note"`
