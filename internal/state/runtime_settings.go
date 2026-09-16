@@ -31,7 +31,6 @@ const (
 	SettingValidationInterval        = "validation_interval"
 	SettingRequestLogRetentionDays   = "request_log_retention_days"
 	SettingModelsDevAutoSyncEnabled  = "models_dev_auto_sync_enabled"
-	SettingCacheKeyRotationEnabled   = "cache_key_rotation_enabled"
 	SettingParameterOverrides        = "parameter_overrides"
 )
 
@@ -68,7 +67,6 @@ type RuntimeSettings struct {
 	ValidationInterval        time.Duration
 	RequestLogRetentionDays   int
 	ModelsDevAutoSyncEnabled  bool
-	CacheKeyRotationEnabled   bool
 }
 
 type ResolvedGroupSettings struct {
@@ -77,7 +75,6 @@ type ResolvedGroupSettings struct {
 	BlacklistThreshold        int
 	AffinityEnabled           bool
 	ResponsesWebsocketEnabled bool
-	CacheKeyRotationEnabled   bool
 	ParameterOverrides        parameteroverride.Rules
 }
 
@@ -99,8 +96,6 @@ func DefaultRuntimeSettings() RuntimeSettings {
 		ValidationInterval:        10 * time.Minute,
 		RequestLogRetentionDays:   defaultRequestLogRetentionDays,
 		ModelsDevAutoSyncEnabled:  true,
-		// 轮换会主动丢弃该会话的上游缓存，默认关闭，由用户按需开启。
-		CacheKeyRotationEnabled: false,
 	}
 }
 
@@ -121,8 +116,7 @@ func IsRuntimeSettingKey(key string) bool {
 		SettingAffinityCapacity,
 		SettingValidationInterval,
 		SettingRequestLogRetentionDays,
-		SettingModelsDevAutoSyncEnabled,
-		SettingCacheKeyRotationEnabled:
+		SettingModelsDevAutoSyncEnabled:
 		return true
 	default:
 		return false
@@ -234,12 +228,6 @@ func ResolveRuntimeSettings(settings config.Settings) (RuntimeSettings, error) {
 				return RuntimeSettings{}, err
 			}
 			resolved.ModelsDevAutoSyncEnabled = value
-		case SettingCacheKeyRotationEnabled:
-			value, err := strictBoolean(key, value)
-			if err != nil {
-				return RuntimeSettings{}, err
-			}
-			resolved.CacheKeyRotationEnabled = value
 		default:
 			return RuntimeSettings{}, fmt.Errorf("unknown runtime setting %q", key)
 		}
@@ -261,7 +249,6 @@ func ResolveGroupRuntimeSettings(
 		BlacklistThreshold:        base.BlacklistThreshold,
 		AffinityEnabled:           base.AffinityEnabled,
 		ResponsesWebsocketEnabled: base.ResponsesWebsocketEnabled,
-		CacheKeyRotationEnabled:   base.CacheKeyRotationEnabled,
 	}
 	for key, value := range settings {
 		switch key {
@@ -310,12 +297,6 @@ func ResolveGroupRuntimeSettings(
 				return ResolvedGroupSettings{}, err
 			}
 			resolved.ResponsesWebsocketEnabled = parsed
-		case SettingCacheKeyRotationEnabled:
-			parsed, err := strictBoolean(key, value)
-			if err != nil {
-				return ResolvedGroupSettings{}, err
-			}
-			resolved.CacheKeyRotationEnabled = parsed
 		case SettingParameterOverrides:
 			parsed, err := parameteroverride.Compile(value)
 			if err != nil {
@@ -352,7 +333,7 @@ func ValidateRuntimeSetting(key string, value any) error {
 	case SettingRouteStrategy:
 		_, err := parseRouteStrategy(value)
 		return err
-	case SettingAffinityEnabled, SettingResponsesWebsocketEnabled, SettingCacheKeyRotationEnabled:
+	case SettingAffinityEnabled, SettingResponsesWebsocketEnabled:
 		_, err := strictBoolean(key, value)
 		return err
 	case SettingAffinityTTL:

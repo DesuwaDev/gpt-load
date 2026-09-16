@@ -96,9 +96,6 @@ export default {
       affinity_enabled: 'Enable request affinity',
       enabledHelp:
         'When disabled, only Groups that explicitly enable affinity can learn and reuse an affinity target.',
-      cache_key_rotation_enabled: 'Rotate cache key when degraded',
-      cacheKeyRotationHelp:
-        'Moves a conversation to a different upstream cache shard when detection judges the target degraded or the upstream refuses the attempt for want of capacity. The conversation loses the upstream cache and the provider-side reasoning it had built up, so the next turn is slower.',
       affinity_ttl: 'Default lifetime',
       affinity_ttlEffective: '{value} seconds',
       affinity_ttlError: 'Enter a positive safe integer no greater than 9,223,372,036.',

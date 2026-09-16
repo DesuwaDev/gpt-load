@@ -90,9 +90,6 @@ export default {
       description: '决定一次请求先尝试谁、以及是否复用上次命中的目标；分组可单独继承或覆盖。',
       affinity_enabled: '启用请求亲和',
       enabledHelp: '关闭后仅显式开启亲和的分组可以学习和复用亲和目标。',
-      cache_key_rotation_enabled: '降智时轮换缓存键',
-      cacheKeyRotationHelp:
-        '上游判定降智或拒绝接单时，给该会话换一个上游缓存分片。代价是丢弃这次对话已建立的上游缓存与推理续写，下一轮延迟会变高。',
       affinity_ttl: '默认有效期',
       affinity_ttlEffective: '{value} 秒',
       affinity_ttlError: '请输入不超过 9,223,372,036 的正安全整数。',

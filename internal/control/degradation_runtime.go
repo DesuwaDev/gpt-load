@@ -118,9 +118,6 @@ func (scheduler *degradationScheduler) tick(ctx context.Context) {
 	if !ok {
 		return
 	}
-	// 每次心跳重新发布降智目标：监控项被删除、停用或改动时没有单独的回调，
-	// 靠这次全量刷新兜底，检测完成后的即时刷新负责及时性。
-	scheduler.service.refreshDegradedTargets(ctx)
 	nowMS := scheduler.service.currentTime().UnixMilli()
 	// 历史清理与开关无关：即使暂停检测，过期记录也应该继续回收。
 	if nowMS-scheduler.lastRetentionMS >= degradationRetentionInterval.Milliseconds() {

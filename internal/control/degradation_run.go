@@ -497,9 +497,6 @@ func (s *Service) commitDegradationRun(
 	if err != nil {
 		return fmt.Errorf("record degradation run: %w", app_errors.ErrDatabase)
 	}
-	if !outcome.skipped {
-		s.refreshDegradedTargets(ctx)
-	}
 	return nil
 }
 

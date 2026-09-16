@@ -34,7 +34,6 @@ export const runtimeSettingKeys = [
   'cors',
   'response_header_rules',
   'affinity_enabled',
-  'cache_key_rotation_enabled',
   'responses_websocket_enabled',
   'affinity_ttl',
   'affinity_capacity',
@@ -53,7 +52,6 @@ export type TimeoutSettingKey = Exclude<
   | 'cors'
   | 'response_header_rules'
   | 'affinity_enabled'
-  | 'cache_key_rotation_enabled'
   | 'responses_websocket_enabled'
   | 'affinity_capacity'
   | 'request_log_retention_days'
@@ -82,7 +80,6 @@ export interface SettingsValues {
   cors: CORSConfigDto
   response_header_rules: HeaderRulesDto
   affinity_enabled: boolean
-  cache_key_rotation_enabled: boolean
   responses_websocket_enabled: boolean
   affinity_ttl: number
   affinity_capacity: number
@@ -109,7 +106,6 @@ export type SettingsPatch = Partial<{
   cors: CORSConfigDto | null
   response_header_rules: HeaderRulesDto | null
   affinity_enabled: boolean | null
-  cache_key_rotation_enabled: boolean | null
   responses_websocket_enabled: boolean | null
   affinity_ttl: number | null
   affinity_capacity: number | null
@@ -210,7 +206,6 @@ export function projectSettings(value: unknown): SettingsDto {
       cors: projectCORSConfig(values.cors),
       response_header_rules: projectHeaderRules(values.response_header_rules),
       affinity_enabled: projectBoolean(values.affinity_enabled),
-      cache_key_rotation_enabled: projectBoolean(values.cache_key_rotation_enabled),
       responses_websocket_enabled: projectBoolean(values.responses_websocket_enabled),
       affinity_ttl: projectSafeInteger(values.affinity_ttl, { minimum: 1 }),
       affinity_capacity: projectSafeInteger(values.affinity_capacity, {

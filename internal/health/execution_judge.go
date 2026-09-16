@@ -508,7 +508,7 @@ func transientCapacityDecision(attempt ExecutionAttempt) (Decision, bool) {
 		evidence.ScopeHint,
 		RetryNextCandidate,
 		EffectNone,
-		ruleTransientCapacity,
+		"candidate.transient_capacity",
 	), true
 }
 

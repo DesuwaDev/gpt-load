@@ -42,10 +42,6 @@ const (
 // RuleID is the stable identifier of the rule that produced a decision.
 type RuleID string
 
-// ruleTransientCapacity marks the rule that fires when the upstream rejected an
-// attempt before processing it because it had no room for it right then.
-const ruleTransientCapacity RuleID = "candidate.transient_capacity"
-
 func (directive RetryDirective) Valid() bool {
 	return directive == RetryNone ||
 		directive == RetryRefreshCredential ||
@@ -83,18 +79,6 @@ type Decision struct {
 func (decision Decision) ShouldRetry() bool {
 	return decision.Retry == RetryRefreshCredential ||
 		decision.Retry == RetryNextCandidate
-}
-
-// IndicatesUpstreamCapacityPressure reports whether the upstream refused this
-// attempt for want of capacity rather than because the request, the credential,
-// or the model was wrong. A caller that can move the attempt to different
-// upstream capacity uses it to decide whether moving is worth anything.
-func (decision Decision) IndicatesUpstreamCapacityPressure() bool {
-	if decision.Origin != execution.ErrorOriginUpstream {
-		return false
-	}
-	return decision.Category == FailureCategoryRateLimited ||
-		decision.RuleID == ruleTransientCapacity
 }
 
 // LegacyAction projects the new independent retry/effect decision onto the

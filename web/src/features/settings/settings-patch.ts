@@ -33,12 +33,7 @@ const requestForwardingKeys: RuntimeSettingKey[] = [
   'validation_interval',
 ]
 const logsMaintenanceKeys: RuntimeSettingKey[] = ['request_log_retention_days']
-const affinityKeys: RuntimeSettingKey[] = [
-  'affinity_enabled',
-  'cache_key_rotation_enabled',
-  'affinity_ttl',
-  'affinity_capacity',
-]
+const affinityKeys: RuntimeSettingKey[] = ['affinity_enabled', 'affinity_ttl', 'affinity_capacity']
 const browserAccessKeys: RuntimeSettingKey[] = ['cors', 'response_header_rules']
 const modelPriceKeys: RuntimeSettingKey[] = ['models_dev_auto_sync_enabled']
 
@@ -91,8 +86,6 @@ export function setSettingsOverride(
       next.values.route_strategy = base.values.route_strategy
     } else if (key === 'affinity_enabled') {
       next.values.affinity_enabled = base.values.affinity_enabled
-    } else if (key === 'cache_key_rotation_enabled') {
-      next.values.cache_key_rotation_enabled = base.values.cache_key_rotation_enabled
     } else if (key === 'responses_websocket_enabled') {
       next.values.responses_websocket_enabled = base.values.responses_websocket_enabled
     } else if (key === 'models_dev_auto_sync_enabled') {

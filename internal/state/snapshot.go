@@ -159,7 +159,6 @@ type GroupView struct {
 	BlacklistThreshold         int
 	AffinityEnabled            bool
 	ResponsesWebsocketEnabled  bool
-	CacheKeyRotationEnabled    bool
 	WeightManual               *int
 	CredentialRPMLimit         int64
 	CredentialConcurrencyLimit int64
@@ -262,7 +261,6 @@ func Compile(input CompileInput) (*ConfigSnapshot, error) {
 			BlacklistThreshold:         resolved.BlacklistThreshold,
 			AffinityEnabled:            resolved.AffinityEnabled,
 			ResponsesWebsocketEnabled:  resolved.ResponsesWebsocketEnabled,
-			CacheKeyRotationEnabled:    resolved.CacheKeyRotationEnabled,
 			WeightManual:               cloneWeight(group.WeightManual),
 			CredentialRPMLimit:         group.CredentialRPMLimit,
 			CredentialConcurrencyLimit: group.CredentialConcurrencyLimit,
