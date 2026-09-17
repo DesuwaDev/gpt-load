@@ -79,9 +79,16 @@ func (input ForwardInput) ResolvedCodexTurnState() string {
 // matchesCodexTurnStateModels 判定模型名单是否命中。名单为空表示不限模型；条目大小
 // 写不敏感，结尾的 * 做前缀匹配。客户端模型与上游模型任一命中即算命中——路由重写
 // 之后两者常常不是同一个名字，而操作者填的通常是自己请求时用的那个。
+//
+// 两个模型名都拿不到时按命中处理：名单是用来「缩小」注入范围的，筛不动的时候应该
+// 放行而不是静默吞掉注入。metadata.Model 允许为 nil，没有改写时上游模型名也是空，
+// 所以这条路是真会走到的。
 func matchesCodexTurnStateModels(scope string, models ...string) bool {
 	scope = strings.TrimSpace(scope)
 	if scope == "" {
+		return true
+	}
+	if !hasKnownModelName(models) {
 		return true
 	}
 	for _, entry := range strings.Split(scope, ",") {
@@ -101,6 +108,15 @@ func matchesCodexTurnStateModels(scope string, models ...string) bool {
 			if !wildcard && strings.EqualFold(model, entry) {
 				return true
 			}
+		}
+	}
+	return false
+}
+
+func hasKnownModelName(models []string) bool {
+	for _, model := range models {
+		if strings.TrimSpace(model) != "" {
+			return true
 		}
 	}
 	return false

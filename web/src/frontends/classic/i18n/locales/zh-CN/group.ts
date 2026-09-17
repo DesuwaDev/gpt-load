@@ -456,7 +456,8 @@ export default {
         length: '{count} 字符',
         invalid: '仅支持单行 ASCII 可见字符',
         models: '限定模型',
-        modelsHint: '只在这些模型上注入，逗号分隔，结尾 * 表示前缀匹配；留空表示不限模型。',
+        modelsHint:
+          '只在这些模型上注入，逗号分隔，结尾 * 表示前缀匹配；留空表示不限模型。识别不出模型的请求照常注入。',
         modelsPlaceholder: 'gpt-5.1-codex, gpt-5*',
         modelsAll: '全部模型',
         modelsScoped: '按模型限定',

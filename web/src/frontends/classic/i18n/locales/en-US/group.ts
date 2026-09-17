@@ -472,7 +472,7 @@ export default {
         invalid: 'Single-line printable ASCII only',
         models: 'Model scope',
         modelsHint:
-          'Inject only for these models. Comma-separated; a trailing * matches by prefix. Blank means every model.',
+          'Inject only for these models. Comma-separated; a trailing * matches by prefix. Blank means every model. Requests with no identifiable model are injected anyway.',
         modelsPlaceholder: 'gpt-5.1-codex, gpt-5*',
         modelsAll: 'Every model',
         modelsScoped: 'Scoped to models',
