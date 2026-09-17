@@ -1272,6 +1272,10 @@ export default {
           observed: 'Returned',
           sources: 'From attempts',
           length: '{count} characters',
+          blocks: '{count} cipher blocks',
+          blocksHint:
+            'The Fernet envelope is {total} bytes = 9 header + 16 IV + {cipher} ciphertext + 32 HMAC. AES-CBC works in 16-byte blocks with PKCS7 padding, so the plaintext is between {min} and {max} bytes. One extra block only means the plaintext crossed a 16-byte boundary, not that it grew by exactly 16 bytes.',
+          notFernet: 'Not a Fernet envelope',
           copy: 'Copy turn state',
         },
         usage: {

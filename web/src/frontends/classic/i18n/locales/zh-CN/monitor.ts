@@ -1235,6 +1235,10 @@ export default {
           observed: '回带',
           sources: '来源尝试',
           length: '{count} 字符',
+          blocks: '密文 {count} 块',
+          blocksHint:
+            'Fernet 封装共 {total} 字节 = 9 头部 + 16 IV + {cipher} 密文 + 32 HMAC。AES-CBC 按 16 字节分块、PKCS7 填充，所以明文在 {min}–{max} 字节之间；块数多一块只说明明文跨过了一次 16 字节边界，不等于内容正好多 16 字节。',
+          notFernet: '非 Fernet 结构',
           copy: '复制轮次状态',
         },
         usage: {

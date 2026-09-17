@@ -23,6 +23,7 @@ import OverflowTooltip from '@/components/ui/OverflowTooltip.vue'
 import QueryFeedback from '@/components/ui/QueryFeedback.vue'
 import SkeletonSurface from '@/components/ui/SkeletonSurface.vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
+import { parseFernetToken, type FernetToken } from '@/lib/fernet'
 import { formatEstimatedCost, formatExactNanoUSD } from '@/lib/format'
 
 import { formatCacheHitRate } from '@/lib/cache-rate'
@@ -69,14 +70,22 @@ const finalAttempt = computed(() => {
 // 淹没差异。这里只依赖 attempts，所以请求没跑完、只要某次尝试有过 state 就仍然能显示
 // 和复制。注入项排在回带项前面——先看发出去的是什么，再看上游换回了什么。
 const turnStates = computed(() => {
-  const groups: { kind: 'injected' | 'observed'; value: string; sequences: number[] }[] = []
+  const groups: {
+    kind: 'injected' | 'observed'
+    value: string
+    sequences: number[]
+    // 密文体积是这段值里唯一不用密钥就能比较的形状。块数变了说明上游塞进去的内容跨过
+    // 了一次 16 字节边界，是个可以横向比对的线索，所以顺手标出来。
+    fernet: FernetToken | null
+  }[] = []
   function collect(kind: 'injected' | 'observed'): void {
     for (const attempt of log.value?.attempts ?? []) {
       const value = kind === 'injected' ? attempt.injected_turn_state : attempt.upstream_turn_state
       if (!value) continue
       const existing = groups.find((group) => group.kind === kind && group.value === value)
       if (existing) existing.sequences.push(attempt.sequence)
-      else groups.push({ kind, value, sequences: [attempt.sequence] })
+      else
+        groups.push({ kind, value, sequences: [attempt.sequence], fernet: parseFernetToken(value) })
     }
   }
   collect('injected')
@@ -595,6 +604,23 @@ function toggleAttemptErrorMessage(sequence: number): void {
             <span class="log-turn-state__length">
               {{ t('monitor.logs.drawer.turnState.length', { count: entry.value.length }) }}
             </span>
+            <span
+              v-if="entry.fernet !== null"
+              class="log-turn-state__blocks"
+              :title="
+                t('monitor.logs.drawer.turnState.blocksHint', {
+                  total: entry.fernet.totalBytes,
+                  cipher: entry.fernet.cipherBytes,
+                  min: entry.fernet.plaintextMinBytes,
+                  max: entry.fernet.plaintextMaxBytes,
+                })
+              "
+            >
+              {{ t('monitor.logs.drawer.turnState.blocks', { count: entry.fernet.blocks }) }}
+            </span>
+            <span v-else class="log-turn-state__length">
+              {{ t('monitor.logs.drawer.turnState.notFernet') }}
+            </span>
             <CopyButton
               class="log-turn-state__copy"
               :value="entry.value"
@@ -949,6 +975,15 @@ function toggleAttemptErrorMessage(sequence: number): void {
 .log-turn-state__length {
   color: var(--color-text-muted);
   font-size: var(--text-sm);
+}
+
+/* 块数是要横向比对的数字，等宽 + 加重，方便在几条记录之间一眼扫出差异。 */
+.log-turn-state__blocks {
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: 650;
+  cursor: help;
 }
 
 /* 「注入 / 回带」是这一段最先要读到的信息，用徽章把两个方向拉开距离。 */

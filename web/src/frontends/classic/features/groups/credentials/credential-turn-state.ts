@@ -1,5 +1,7 @@
 import { onScopeDispose, ref, type Ref } from 'vue'
 
+import { parseFernetToken } from '@/lib/fernet'
+
 /** 注入值要原样进 HTTP 头，长度与字符集与服务端的 validCodexTurnState 保持一致。 */
 export const credentialTurnStateMaxLength = 4096
 
@@ -64,30 +66,13 @@ export function useCredentialTurnStateNow(): Ref<number> {
   return sharedNowMs
 }
 
-// 时间戳落在 2020-01-01 ~ 2100-01-01 之外的，只可能是随机字节碰巧撞上 0x80，不是签发时刻。
-const credentialTurnStateIssuedFloorSeconds = 1_577_836_800
-const credentialTurnStateIssuedCeilSeconds = 4_102_444_800
-
 /**
- * X-Codex-Turn-State 是标准 Fernet token：base64url 的 0x80 版本字节 + 8 字节大端秒级
- * 时间戳 + IV + 密文 + HMAC。前 12 个 base64url 字符正好解出前 9 个字节，所以不解整串、
- * 更不需要密钥就能读到上游的签发时刻。这比「我们什么时候把它写进库」准，也不挑存量行——
- * 值自己带着起点。不是 Fernet 结构就返回 null，由调用方决定退回哪个起点。
+ * X-Codex-Turn-State 是标准 Fernet token，值自己带着上游的签发时刻——这比「我们什么
+ * 时候把它写进库」准，也不挑存量行。不是 Fernet 结构就返回 null，由调用方决定退回
+ * 哪个起点。
  */
 export function credentialTurnStateIssuedAtMs(value: string): number | null {
-  const prefix = value.slice(0, 12)
-  if (!/^[A-Za-z0-9_-]{12}$/.test(prefix)) return null
-  let bytes: string
-  try {
-    bytes = atob(prefix.replace(/-/g, '+').replace(/_/g, '/'))
-  } catch {
-    return null
-  }
-  if (bytes.length !== 9 || bytes.charCodeAt(0) !== 0x80) return null
-  let seconds = 0
-  for (let index = 1; index < 9; index += 1) seconds = seconds * 256 + bytes.charCodeAt(index)
-  if (seconds < credentialTurnStateIssuedFloorSeconds) return null
-  return seconds < credentialTurnStateIssuedCeilSeconds ? seconds * 1000 : null
+  return parseFernetToken(value)?.issuedAtMs ?? null
 }
 
 /** 剩余时效毫秒数，负数表示已超时；没有起点时返回 null，表示无法计时。 */

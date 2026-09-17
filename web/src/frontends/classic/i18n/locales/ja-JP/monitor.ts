@@ -1265,6 +1265,10 @@ export default {
           observed: '返却',
           sources: '取得元の試行',
           length: '{count} 文字',
+          blocks: '暗号文 {count} ブロック',
+          blocksHint:
+            'Fernet 全体で {total} バイト = ヘッダ 9 + IV 16 + 暗号文 {cipher} + HMAC 32。AES-CBC は 16 バイト単位で PKCS7 パディングするため、平文は {min}〜{max} バイトの範囲です。ブロックが 1 つ増えたのは平文が 16 バイト境界を越えたという意味で、内容がちょうど 16 バイト増えたわけではありません。',
+          notFernet: 'Fernet 構造ではない',
           copy: 'ターン状態をコピー',
         },
         usage: {
