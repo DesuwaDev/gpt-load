@@ -481,6 +481,10 @@ export default {
         ttlRemaining: '残り {duration}',
         ttlExpired: '{duration} 超過',
         ttlUnknown: '有効期限は不明',
+        ttlIssuedAt: '発行時刻 {time}（値の中の Fernet タイムスタンプから取得）',
+        ttlApprox:
+          'この値は標準の Fernet トークンではないため発行時刻を読み取れません。保存時刻からの概算です。',
+        ttlUnknownHint: 'この値は標準の Fernet トークンではないため、発行時刻を読み取れません。',
         ttlNotice:
           '注入値は 1 時間の有効期限を過ぎています。差し替えを検討してください。これは通知のみで、注入は止まりません。',
         apply: '保存',

@@ -481,6 +481,10 @@ export default {
         ttlRemaining: '{duration} left',
         ttlExpired: 'Expired {duration} ago',
         ttlUnknown: 'Age unknown',
+        ttlIssuedAt: 'Issued at {time}, read from the Fernet timestamp inside the value',
+        ttlApprox:
+          'This value is not a standard Fernet token, so the issue time cannot be read; counting from when it was saved instead.',
+        ttlUnknownHint: 'This value is not a standard Fernet token, so the issue time is unknown.',
         ttlNotice:
           'This value is past its 1-hour window; consider replacing it. This is a reminder only — injection keeps running.',
         apply: 'Save',
