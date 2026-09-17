@@ -25,12 +25,14 @@ import QueryFeedback from '@/components/ui/QueryFeedback.vue'
 import SkeletonSurface from '@/components/ui/SkeletonSurface.vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import {
-  codexTurnStateBaselineBlocks,
-  codexTurnStateBaselineMaxPlaintextBytes,
   codexTurnStateExpiredByMs,
   codexTurnStateRemainingMs,
+  codexTurnStateShapeOf,
+  codexTurnStateShapeOrder,
+  codexTurnStateShapes,
   codexTurnStateVerdict,
   formatCodexTurnStateDuration,
+  type CodexTurnStateShape,
   type CodexTurnStateVerdict,
 } from '@/lib/codex-turn-state'
 import { parseFernetToken, type FernetToken } from '@/lib/fernet'
@@ -96,6 +98,8 @@ const turnStates = computed(() => {
     // 密文体积是这段值里唯一不用密钥就能比较的形状。块数变了说明上游塞进去的内容跨过
     // 了一次 16 字节边界，是个可以横向比对的线索，所以顺手标出来。
     fernet: FernetToken | null
+    /** 命中的正常形态（个人号 / team 号）；对不上任何一种就是 null。 */
+    shape: CodexTurnStateShape | null
     verdict: CodexTurnStateVerdict
     /** 注入时已经过期多久，毫秒；没过期或不适用时为 null。 */
     expiredByMs: number | null
@@ -115,6 +119,7 @@ const turnStates = computed(() => {
         value,
         sequences: [attempt.sequence],
         fernet,
+        shape: codexTurnStateShapeOf(fernet),
         verdict: codexTurnStateVerdict(fernet),
         // 只算注入项：上游回带的值是响应时现签的，拿请求时刻去比没有意义。
         expiredByMs: kind === 'injected' ? codexTurnStateExpiredByMs(fernet, startedAtMs) : null,
@@ -125,6 +130,42 @@ const turnStates = computed(() => {
   collect('observed')
   return groups
 })
+function turnStateShapeLabel(shape: CodexTurnStateShape): string {
+  return t(`monitor.logs.drawer.turnState.shape.${shape}`)
+}
+// 说明文案里要把两种正常形态一起列出来，别让人以为只有 292 那一种算正常。
+const turnStateNormalSummary = computed(() =>
+  codexTurnStateShapeOrder
+    .map((shape) =>
+      t('monitor.logs.drawer.turnState.shapeSummary', {
+        shape: turnStateShapeLabel(shape),
+        blocks: codexTurnStateShapes[shape].blocks,
+        chars: codexTurnStateShapes[shape].chars,
+      }),
+    )
+    .join(t('monitor.logs.drawer.turnState.shapeJoin')),
+)
+const turnStateDegradedSummary = computed(() =>
+  codexTurnStateShapeOrder
+    .map((shape) => String(codexTurnStateShapes[shape].degradedChars))
+    .join(t('monitor.logs.drawer.turnState.shapeJoin')),
+)
+function turnStateVerdictHint(entry: {
+  verdict: CodexTurnStateVerdict
+  shape: CodexTurnStateShape | null
+  fernet: FernetToken | null
+}): string {
+  if (entry.verdict === 'normal' && entry.shape !== null && entry.fernet !== null) {
+    return t('monitor.logs.drawer.turnState.verdictHint.normal', {
+      blocks: entry.fernet.blocks,
+      shape: turnStateShapeLabel(entry.shape),
+      chars: codexTurnStateShapes[entry.shape].chars,
+    })
+  }
+  return t(`monitor.logs.drawer.turnState.verdictHint.${entry.verdict}`, {
+    normal: turnStateNormalSummary.value,
+  })
+}
 const turnStateNowMs = useCodexTurnStateNow()
 /**
  * 上游回带的值是响应时现签的，它「发出去时过没过期」不成问题，真正该盯的是它到此刻还
@@ -654,11 +695,7 @@ function toggleAttemptErrorMessage(sequence: number): void {
           {{ t('monitor.logs.drawer.turnState.expiredAlert') }}
         </p>
         <p v-if="turnStateSuspect" class="log-turn-state__alert">
-          {{
-            t('monitor.logs.drawer.turnState.suspectAlert', {
-              baseline: codexTurnStateBaselineBlocks,
-            })
-          }}
+          {{ t('monitor.logs.drawer.turnState.suspectAlert', { normal: turnStateNormalSummary }) }}
         </p>
         <div
           v-for="(entry, index) in turnStates"
@@ -676,13 +713,13 @@ function toggleAttemptErrorMessage(sequence: number): void {
             <span
               class="log-turn-state__verdict"
               :class="`log-turn-state__verdict--${entry.verdict}`"
-              :title="
-                t(`monitor.logs.drawer.turnState.verdictHint.${entry.verdict}`, {
-                  baseline: codexTurnStateBaselineBlocks,
-                })
-              "
+              :title="turnStateVerdictHint(entry)"
             >
               {{ t(`monitor.logs.drawer.turnState.verdict.${entry.verdict}`) }}
+            </span>
+            <!-- 正常也分两种，把命中的那种标出来，省得 team 号的状态被当成异常体积。 -->
+            <span v-if="entry.shape !== null" class="log-turn-state__shape">
+              {{ turnStateShapeLabel(entry.shape) }}
             </span>
             <span
               v-if="entry.expiredByMs !== null"
@@ -759,11 +796,10 @@ function toggleAttemptErrorMessage(sequence: number): void {
             {{
               t('monitor.logs.drawer.turnState.suspectNote', {
                 blocks: entry.fernet.blocks,
-                baseline: codexTurnStateBaselineBlocks,
-                extra: entry.fernet.blocks - codexTurnStateBaselineBlocks,
                 min: entry.fernet.plaintextMinBytes,
                 max: entry.fernet.plaintextMaxBytes,
-                baseMax: codexTurnStateBaselineMaxPlaintextBytes,
+                normal: turnStateNormalSummary,
+                degraded: turnStateDegradedSummary,
               })
             }}
           </p>
@@ -1159,6 +1195,16 @@ function toggleAttemptErrorMessage(sequence: number): void {
   font-size: var(--text-sm);
   /* 重试多了以后来源会列出一长串序号，窄屏里得允许它从中间断开。 */
   overflow-wrap: anywhere;
+}
+
+/* 形态标签跟判定徽章并排，但压低音量——它是补充说明，不是结论。 */
+.log-turn-state__shape {
+  border-radius: var(--radius-tag);
+  background: var(--color-surface-raised);
+  color: var(--color-text-muted);
+  padding: 1px 8px;
+  font-size: var(--text-label-xs);
+  font-weight: 650;
 }
 
 /* 回带值的剩余时效：还能用是中性读数，凉了才提高音量。 */

@@ -1,5 +1,9 @@
 import type { RequestLogDetailDto } from '@/app/resources/request-logs'
-import { codexTurnStateRemainingMs, codexTurnStateVerdict } from '@/lib/codex-turn-state'
+import {
+  codexTurnStateRemainingMs,
+  codexTurnStateShapeOf,
+  type CodexTurnStateShape,
+} from '@/lib/codex-turn-state'
 import { parseFernetToken } from '@/lib/fernet'
 
 export interface TurnStateCandidate {
@@ -16,12 +20,14 @@ export interface TurnStateCandidate {
 /**
  * 从日志详情里挑出「现在拿去注入还能用」的轮次状态。三道硬门槛：
  * 只看上游回带的值——注入值是我们自己塞进去的，复制它等于把旧值再抄一遍；
- * 必须能读出 Fernet 封装；判定要落在基线内，也就是那种 10 块密文、292 字符的正常状态。
+ * 必须能读出 Fernet 封装；块数要正好命中 shape 指定的那种正常形态。
+ * 形态是精确匹配而不是「不降智就行」：个人号和 team 号的状态不能互换着注入。
  * 过期与否按值自带的签发时刻算，不依赖日志的时间字段。
  */
 export function collectTurnStateCandidates(
   logs: readonly RequestLogDetailDto[],
   nowMs: number,
+  shape: CodexTurnStateShape,
 ): TurnStateCandidate[] {
   const seen = new Set<string>()
   const candidates: TurnStateCandidate[] = []
@@ -30,7 +36,7 @@ export function collectTurnStateCandidates(
       const value = attempt.upstream_turn_state
       if (!value || seen.has(value)) continue
       const token = parseFernetToken(value)
-      if (token === null || codexTurnStateVerdict(token) !== 'normal') continue
+      if (token === null || codexTurnStateShapeOf(token) !== shape) continue
       const remainingMs = codexTurnStateRemainingMs(token, nowMs)
       if (remainingMs === null || remainingMs <= 0) continue
       seen.add(value)

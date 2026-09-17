@@ -914,15 +914,20 @@ export default {
         filteredDescription: '调整或重置筛选条件后重试。',
       },
       turnStatePick: {
-        button: '取可用状态',
-        hint: '扫描最近 1 小时的请求日志，找出上游回带的、还没过期的正常轮次状态（10 块密文、292 字符那种）并复制。更早的日志里不可能有未过期的值，所以这里固定看最近 1 小时，不跟随上面选的时间范围；分组、凭据、模型等其余筛选条件照用。',
-        copied: '已复制签发最新的那条可用轮次状态。',
-        found: '找到了可用的轮次状态，但剪贴板用不了；请在弹窗里手动复制。',
+        shape: {
+          individual: '个人号',
+          team: 'team 号',
+        },
+        button: '取 {chars}',
+        hint: '扫描最近 1 小时的请求日志，找出上游回带的、还没过期的 {shape} 正常轮次状态（{blocks} 块密文、{chars} 字符）并复制。形态是精确匹配：个人号和 team 号的状态不能互换着注入，所以两种各有一个按钮。更早的日志里不可能有未过期的值，所以这里固定看最近 1 小时，不跟随上面选的时间范围；分组、凭据、模型等其余筛选条件照用。',
+        copied: '已复制签发最新的那条 {shape} 可用轮次状态（{chars} 字符）。',
+        found:
+          '找到了 {shape} 的可用轮次状态（{chars} 字符），但剪贴板用不了；请在弹窗里手动复制。',
         detail:
           '剩余 {duration} · 来自凭据 {credential} · 翻了最近 {scanned} 条日志，命中 {total} 条。',
         spread:
           '这 {total} 条分属 {credentials} 个凭据，复制的是签发最新、剩余时效最长的那条。要指定账号，先在筛选里选定凭据再点一次。',
-        none: '最近 1 小时的 {scanned} 条日志里，没有还没过期的正常轮次状态。',
+        none: '最近 1 小时的 {scanned} 条日志里，没有还没过期的 {shape} 正常轮次状态（{chars} 字符）。',
         noLogs: '最近 1 小时没有符合当前筛选的请求日志。',
         failed: '扫描失败，稍后再试。',
         dismiss: '关闭提示',
@@ -1259,14 +1264,20 @@ export default {
             suspect: '疑似降智',
             unknown: '无法判定',
           },
+          shape: {
+            individual: '个人号',
+            team: 'team 号',
+          },
+          shapeSummary: '{shape} {blocks} 块 / {chars} 字符',
+          shapeJoin: '、',
           verdictHint: {
-            normal: '密文块数在基线 {baseline} 块以内，体积与正常请求一致。',
-            suspect: '密文块数超过基线 {baseline} 块，体积与出问题的请求一致。',
+            normal: '密文 {blocks} 块，命中正常形态：{shape}（{chars} 字符）。',
+            suspect: '密文块数不在已知的正常形态里（{normal}），体积与降智请求一致。',
             unknown: '读不出 Fernet 结构，没法从体积上判断。',
           },
-          suspectAlert: '本次的轮次状态密文超出基线 {baseline} 块，疑似降智。',
+          suspectAlert: '本次的轮次状态块数不在已知的正常形态里（{normal}），疑似降智。',
           suspectNote:
-            '密文 {blocks} 块，比基线 {baseline} 块多 {extra} 块；明文落在 {min}–{max} 字节，正常应在 {baseMax} 字节以内。块数只能把明文框进 16 字节的窗口，所以这是疑似判据，不是确证。',
+            '密文 {blocks} 块，明文落在 {min}–{max} 字节。已知的正常形态是 {normal}；降智的那条在各自基线上恰好多一块，也就是 {degraded} 字符。块数只能把明文框进 16 字节的窗口，所以这是疑似判据，不是确证。',
           expired: '注入时已过期 {duration}',
           expiredHint:
             '请求发出的时刻按「完成时刻 − 总耗时」推算；整条重试链通常只跨几秒，对着 1 小时的时效足够用。',

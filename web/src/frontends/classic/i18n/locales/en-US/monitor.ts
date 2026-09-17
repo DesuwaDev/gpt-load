@@ -953,16 +953,20 @@ export default {
         filteredDescription: 'Adjust or reset the filters and try again.',
       },
       turnStatePick: {
-        button: 'Grab a usable state',
-        hint: 'Scans request logs from the past hour for a turn state returned by upstream that is still valid and sits at the baseline shape (10 cipher blocks, ~292 characters), then copies it. Anything older cannot still be valid, so this always looks at the past hour regardless of the range selected above; every other filter (group, credential, model, …) still applies.',
-        copied: 'Copied the most recently issued usable turn state.',
+        shape: {
+          individual: 'individual',
+          team: 'team',
+        },
+        button: 'Grab {chars}',
+        hint: 'Scans request logs from the past hour for a turn state returned by upstream that is still valid and matches the normal {shape} shape ({blocks} cipher blocks, ~{chars} characters), then copies it. The shape is matched exactly — individual and team states are not interchangeable for injection, so each gets its own button. Anything older cannot still be valid, so this always looks at the past hour regardless of the range selected above; every other filter (group, credential, model, …) still applies.',
+        copied: 'Copied the most recently issued usable {shape} turn state ({chars} chars).',
         found:
-          'Found a usable turn state, but the clipboard is unavailable; copy it manually from the dialog.',
+          'Found a usable {shape} turn state ({chars} chars), but the clipboard is unavailable; copy it manually from the dialog.',
         detail:
           '{duration} left · from credential {credential} · scanned the {scanned} most recent logs, {total} usable.',
         spread:
           'Those {total} span {credentials} credentials; the one copied was issued most recently and has the most time left. To target a specific account, pick a credential in the filters and try again.',
-        none: 'None of the {scanned} logs from the past hour carry an unexpired baseline turn state.',
+        none: 'None of the {scanned} logs from the past hour carry an unexpired normal {shape} turn state ({chars} chars).',
         noLogs: 'No request logs from the past hour match the current filters.',
         failed: 'Scan failed; try again in a moment.',
         dismiss: 'Dismiss',
@@ -1297,17 +1301,22 @@ export default {
             suspect: 'Possibly degraded',
             unknown: 'Cannot tell',
           },
+          shape: {
+            individual: 'individual',
+            team: 'team',
+          },
+          shapeSummary: '{shape} {blocks} blocks / {chars} chars',
+          shapeJoin: ', ',
           verdictHint: {
-            normal:
-              'The cipher block count is within the {baseline}-block baseline, matching normal requests.',
+            normal: '{blocks} cipher blocks — matches the {shape} shape ({chars} chars).',
             suspect:
-              'The cipher block count exceeds the {baseline}-block baseline, matching the requests that went wrong.',
+              'The cipher block count matches none of the known normal shapes ({normal}), so it lines up with degraded requests.',
             unknown: 'Not a Fernet envelope, so size tells us nothing here.',
           },
           suspectAlert:
-            'This turn state exceeds the {baseline}-block baseline — possibly a degraded request.',
+            'This turn state matches none of the known normal shapes ({normal}) — possibly a degraded request.',
           suspectNote:
-            '{blocks} cipher blocks, {extra} over the {baseline}-block baseline. The plaintext falls between {min} and {max} bytes, where normal stays within {baseMax}. Block count only brackets the plaintext to a 16-byte window, so treat this as a suspicion, not proof.',
+            '{blocks} cipher blocks, plaintext between {min} and {max} bytes. The known normal shapes are {normal}; a degraded state adds exactly one block to whichever baseline applies, landing at {degraded} chars. Block count only brackets the plaintext to a 16-byte window, so treat this as a suspicion, not proof.',
           expired: 'Expired {duration} before injection',
           expiredHint:
             'Send time is derived from completion time minus total duration; a retry chain usually spans seconds, which is precise enough against a one-hour lifetime.',

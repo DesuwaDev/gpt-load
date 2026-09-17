@@ -14,7 +14,13 @@ import { useAbortControllerPool } from '@/app/use-abort-controller-pool'
 import { useClipboardCopy } from '@/app/use-clipboard-copy'
 import AppButton from '@/components/ui/AppButton.vue'
 import CopyFallbackDialog from '@/components/ui/CopyFallbackDialog.vue'
-import { codexTurnStateTtlMs, formatCodexTurnStateDuration } from '@/lib/codex-turn-state'
+import {
+  codexTurnStateShapeOrder,
+  codexTurnStateShapes,
+  codexTurnStateTtlMs,
+  formatCodexTurnStateDuration,
+  type CodexTurnStateShape,
+} from '@/lib/codex-turn-state'
 
 import { collectTurnStateCandidates, countTurnStateCandidateCredentials } from './turn-state-pick'
 
@@ -31,17 +37,22 @@ const client = useApiClient()
 const pool = useAbortControllerPool()
 const { copy, fallbackText, pending, reset } = useClipboardCopy()
 const { t } = useI18n()
-const scanning = ref(false)
+const scanning = ref<CodexTurnStateShape | null>(null)
 const feedback = ref<{ tone: 'ok' | 'warn' | 'error'; lines: string[] } | null>(null)
+
+function shapeLabel(shape: CodexTurnStateShape): string {
+  return t(`monitor.logs.turnStatePick.shape.${shape}`)
+}
 
 function credentialLabel(name: string): string {
   return name === '' ? t('monitor.logs.turnStatePick.unknownCredential') : name
 }
 
-async function pick(): Promise<void> {
-  if (scanning.value) return
-  scanning.value = true
+async function pick(shape: CodexTurnStateShape): Promise<void> {
+  if (scanning.value !== null) return
+  scanning.value = shape
   feedback.value = null
+  const chars = codexTurnStateShapes[shape].chars
   const controller = pool.create()
   try {
     const nowMs = Date.now()
@@ -59,7 +70,7 @@ async function pick(): Promise<void> {
       return
     }
     const details: RequestLogDetailDto[] = []
-    let candidates = collectTurnStateCandidates(details, nowMs)
+    let candidates = collectTurnStateCandidates(details, nowMs, shape)
     for (let index = 0; index < items.length; index += batchSize) {
       const batch = items.slice(index, index + batchSize)
       details.push(
@@ -67,7 +78,7 @@ async function pick(): Promise<void> {
           batch.map((item) => getRequestLog(client, item.request_id, controller.signal)),
         )),
       )
-      candidates = collectTurnStateCandidates(details, nowMs)
+      candidates = collectTurnStateCandidates(details, nowMs, shape)
       // 列表本来就是从新到旧，命中就收手：再往回翻只会拿到签发更早、剩得更少的值。
       if (candidates.length > 0) break
     }
@@ -75,14 +86,23 @@ async function pick(): Promise<void> {
     if (best === undefined) {
       feedback.value = {
         tone: 'warn',
-        lines: [t('monitor.logs.turnStatePick.none', { scanned: details.length })],
+        lines: [
+          t('monitor.logs.turnStatePick.none', {
+            scanned: details.length,
+            chars,
+            shape: shapeLabel(shape),
+          }),
+        ],
       }
       return
     }
     const result = await copy(best.value)
     if (result === 'cancelled') return
     const lines = [
-      t(`monitor.logs.turnStatePick.${result === 'success' ? 'copied' : 'found'}`),
+      t(`monitor.logs.turnStatePick.${result === 'success' ? 'copied' : 'found'}`, {
+        chars,
+        shape: shapeLabel(shape),
+      }),
       t('monitor.logs.turnStatePick.detail', {
         duration: formatCodexTurnStateDuration(best.remainingMs),
         credential: credentialLabel(best.credentialName),
@@ -101,22 +121,32 @@ async function pick(): Promise<void> {
     feedback.value = { tone: 'error', lines: [t('monitor.logs.turnStatePick.failed')] }
   } finally {
     pool.release(controller)
-    scanning.value = false
+    scanning.value = null
   }
 }
 </script>
 
 <template>
   <span class="turn-state-pick">
+    <!-- 两种形态分开取：个人号和 team 号的状态不能互换着注入，合成一个按钮只会让人误用。 -->
     <AppButton
+      v-for="shape in codexTurnStateShapeOrder"
+      :key="shape"
       variant="secondary"
       size="compact"
-      :busy="scanning || pending"
-      :title="t('monitor.logs.turnStatePick.hint')"
-      @click="pick"
+      :busy="scanning === shape || (pending && scanning === null)"
+      :disabled="scanning !== null && scanning !== shape"
+      :title="
+        t('monitor.logs.turnStatePick.hint', {
+          chars: codexTurnStateShapes[shape].chars,
+          blocks: codexTurnStateShapes[shape].blocks,
+          shape: shapeLabel(shape),
+        })
+      "
+      @click="pick(shape)"
     >
       <Pipette :size="14" aria-hidden="true" />
-      {{ t('monitor.logs.turnStatePick.button') }}
+      {{ t('monitor.logs.turnStatePick.button', { chars: codexTurnStateShapes[shape].chars }) }}
     </AppButton>
     <span
       v-if="feedback"
@@ -146,9 +176,11 @@ async function pick(): Promise<void> {
 .turn-state-pick {
   position: relative;
   display: inline-flex;
+  gap: var(--space-1);
 }
-/* 结果有两三句话，撑不进一行徽章，所以做成一张跟着按钮左缘展开的浮层。不像普通的复制
-   反馈那样几秒后自动消失——这里要读的信息量足够大，留到下次扫描或手动关掉为止。 */
+/* 结果有两三句话，撑不进一行徽章，所以做成一张跟着这组按钮左缘展开的浮层。两个按钮共用
+   一块结果区——同时只会有一次扫描在跑，分成两块只是把同一条消息挪来挪去。不像普通的
+   复制反馈那样几秒后自动消失：这里要读的信息量足够大，留到下次扫描或手动关掉为止。 */
 .turn-state-pick__feedback {
   position: absolute;
   z-index: var(--z-popover);
