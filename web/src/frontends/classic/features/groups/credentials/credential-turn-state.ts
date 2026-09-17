@@ -1,7 +1,8 @@
-import { onScopeDispose, ref, type Ref } from 'vue'
-
 import { codexTurnStateTtlMs } from '@/lib/codex-turn-state'
 import { parseFernetToken } from '@/lib/fernet'
+
+// 日志抽屉也要同一块表，时钟本体挪到了 app 层；这里保留原名，凭据侧的调用方不用改。
+export { useCodexTurnStateNow as useCredentialTurnStateNow } from '@/app/use-codex-turn-state-now'
 
 /** 注入值要原样进 HTTP 头，长度与字符集与服务端的 validCodexTurnState 保持一致。 */
 export const credentialTurnStateMaxLength = 4096
@@ -39,29 +40,6 @@ export function canonicalCredentialTurnStateModels(raw: string): string | null {
 /** 条目只允许模型名里真会出现的字符，外加结尾的 * 做前缀匹配。 */
 function validCredentialTurnStateModelEntry(entry: string): boolean {
   return /^[a-z0-9\-_.:/]+\*?$/.test(entry)
-}
-
-// 凭据列表里可能同时挂着几十个编辑器，共用一个秒级时钟，免得每行各起一个定时器。
-const sharedNowMs = ref(Date.now())
-let sharedTimer: ReturnType<typeof setInterval> | null = null
-let sharedClockUsers = 0
-
-/** 订阅共享时钟；调用方所在的 effect scope 销毁时自动退订，最后一个退订者停表。 */
-export function useCredentialTurnStateNow(): Ref<number> {
-  sharedClockUsers += 1
-  if (sharedTimer === null) {
-    sharedNowMs.value = Date.now()
-    sharedTimer = setInterval(() => {
-      sharedNowMs.value = Date.now()
-    }, 1000)
-  }
-  onScopeDispose(() => {
-    sharedClockUsers -= 1
-    if (sharedClockUsers > 0 || sharedTimer === null) return
-    clearInterval(sharedTimer)
-    sharedTimer = null
-  })
-  return sharedNowMs
 }
 
 /**

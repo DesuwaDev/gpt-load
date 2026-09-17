@@ -1,0 +1,63 @@
+import type { RequestLogDetailDto } from '@/app/resources/request-logs'
+import { codexTurnStateRemainingMs, codexTurnStateVerdict } from '@/lib/codex-turn-state'
+import { parseFernetToken } from '@/lib/fernet'
+
+export interface TurnStateCandidate {
+  value: string
+  issuedAtMs: number
+  /** 到挑选时刻为止还剩多少时效，毫秒；必然为正。 */
+  remainingMs: number
+  requestID: string
+  credentialID: number | null
+  /** 凭据的可读标识（掩码），可能为空串。 */
+  credentialName: string
+}
+
+/**
+ * 从日志详情里挑出「现在拿去注入还能用」的轮次状态。三道硬门槛：
+ * 只看上游回带的值——注入值是我们自己塞进去的，复制它等于把旧值再抄一遍；
+ * 必须能读出 Fernet 封装；判定要落在基线内，也就是那种 10 块密文、292 字符的正常状态。
+ * 过期与否按值自带的签发时刻算，不依赖日志的时间字段。
+ */
+export function collectTurnStateCandidates(
+  logs: readonly RequestLogDetailDto[],
+  nowMs: number,
+): TurnStateCandidate[] {
+  const seen = new Set<string>()
+  const candidates: TurnStateCandidate[] = []
+  for (const log of logs) {
+    for (const attempt of log.attempts) {
+      const value = attempt.upstream_turn_state
+      if (!value || seen.has(value)) continue
+      const token = parseFernetToken(value)
+      if (token === null || codexTurnStateVerdict(token) !== 'normal') continue
+      const remainingMs = codexTurnStateRemainingMs(token, nowMs)
+      if (remainingMs === null || remainingMs <= 0) continue
+      seen.add(value)
+      candidates.push({
+        value,
+        issuedAtMs: token.issuedAtMs,
+        remainingMs,
+        requestID: log.request_id,
+        credentialID: attempt.credential_id,
+        credentialName: attempt.credential_name,
+      })
+    }
+  }
+  // 多个候选就按签发时刻从新到旧排：排在最前的那条剩余时效最长，也就是最经用的一条。
+  // 同一秒内签发的多条之间没有可比的先后，保持遍历顺序（日志从新到旧）即可。
+  candidates.sort((left, right) => right.issuedAtMs - left.issuedAtMs)
+  return candidates
+}
+
+/**
+ * 候选一共来自几个凭据。跨凭据就意味着「最新的那条」未必属于用户想注入的那个账号，
+ * 这时候只能把事实摆出来，让用户用筛选把范围收窄——筛选本身就是选择器。
+ */
+export function countTurnStateCandidateCredentials(
+  candidates: readonly TurnStateCandidate[],
+): number {
+  // 凭据被删掉时 credential_id 为 null，退回掩码名区分；两者都没有就算同一组。
+  return new Set(candidates.map((candidate) => candidate.credentialID ?? candidate.credentialName))
+    .size
+}

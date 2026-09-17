@@ -6,6 +6,7 @@ import { useI18n } from 'vue-i18n'
 
 import { useApiClient } from '@shared/http/client-context'
 import { useAbortControllerPool } from '@/app/use-abort-controller-pool'
+import { useCodexTurnStateNow } from '@/app/use-codex-turn-state-now'
 import { useStableLoading } from '@/app/loading-state'
 import type { ChannelDto } from '@/app/resources/channels'
 import { revealCredential } from '@/app/resources/credentials'
@@ -27,6 +28,7 @@ import {
   codexTurnStateBaselineBlocks,
   codexTurnStateBaselineMaxPlaintextBytes,
   codexTurnStateExpiredByMs,
+  codexTurnStateRemainingMs,
   codexTurnStateVerdict,
   formatCodexTurnStateDuration,
   type CodexTurnStateVerdict,
@@ -123,6 +125,19 @@ const turnStates = computed(() => {
   collect('observed')
   return groups
 })
+const turnStateNowMs = useCodexTurnStateNow()
+/**
+ * 上游回带的值是响应时现签的，它「发出去时过没过期」不成问题，真正该盯的是它到此刻还
+ * 剩多少时效——这决定了还能不能直接抄去注入。注入项另有一条以请求发出时刻为参照的过期
+ * 提示，两个参照点不混在一起，所以这里只算回带项。
+ */
+const turnStateRemaining = computed(() =>
+  turnStates.value.map((entry) =>
+    entry.kind === 'observed'
+      ? codexTurnStateRemainingMs(entry.fernet, turnStateNowMs.value)
+      : null,
+  ),
+)
 function turnStateSources(sequences: number[]): string {
   return sequences.map((sequence) => `#${sequence}`).join(' · ')
 }
@@ -646,7 +661,7 @@ function toggleAttemptErrorMessage(sequence: number): void {
           }}
         </p>
         <div
-          v-for="entry in turnStates"
+          v-for="(entry, index) in turnStates"
           :key="entry.kind + entry.value"
           class="log-turn-state"
           :class="[
@@ -678,6 +693,19 @@ function toggleAttemptErrorMessage(sequence: number): void {
                 t('monitor.logs.drawer.turnState.expired', {
                   duration: formatCodexTurnStateDuration(entry.expiredByMs),
                 })
+              }}
+            </span>
+            <span
+              v-if="turnStateRemaining[index] !== null && turnStateRemaining[index] !== undefined"
+              class="log-turn-state__remaining"
+              :class="{ 'log-turn-state__remaining--stale': turnStateRemaining[index]! <= 0 }"
+              :title="t('monitor.logs.drawer.turnState.remainingHint')"
+            >
+              {{
+                t(
+                  `monitor.logs.drawer.turnState.${turnStateRemaining[index]! > 0 ? 'remaining' : 'stale'}`,
+                  { duration: formatCodexTurnStateDuration(turnStateRemaining[index]!) },
+                )
               }}
             </span>
             <span
@@ -1131,6 +1159,23 @@ function toggleAttemptErrorMessage(sequence: number): void {
   font-size: var(--text-sm);
   /* 重试多了以后来源会列出一长串序号，窄屏里得允许它从中间断开。 */
   overflow-wrap: anywhere;
+}
+
+/* 回带值的剩余时效：还能用是中性读数，凉了才提高音量。 */
+.log-turn-state__remaining {
+  border-radius: var(--radius-tag);
+  background: var(--color-surface-raised);
+  color: var(--color-text-muted);
+  padding: 1px 8px;
+  font-size: var(--text-label-xs);
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+  cursor: help;
+}
+
+.log-turn-state__remaining--stale {
+  background: var(--color-warning-bg);
+  color: var(--color-warning);
 }
 
 /* 块数是要横向比对的数字，等宽 + 加重，方便在几条记录之间一眼扫出差异。 */

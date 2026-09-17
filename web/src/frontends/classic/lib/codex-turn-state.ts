@@ -41,6 +41,17 @@ export function codexTurnStateExpiredByMs(
   return overdue > 0 ? overdue : null
 }
 
+/**
+ * 这个值到「此刻」还剩多少时效，毫秒；负数表示已经过期。读不出结构就返回 null。
+ * 和 codexTurnStateExpiredByMs 的差别只在参照点：那个比的是请求发出的时刻，回答「这次
+ * 注入当时该不该发」；这个比的是现在，回答「这个值现在还能不能直接拿去注入」。上游回带
+ * 的值只适用后者。
+ */
+export function codexTurnStateRemainingMs(token: FernetToken | null, nowMs: number): number | null {
+  if (token === null || !Number.isFinite(nowMs)) return null
+  return token.issuedAtMs + codexTurnStateTtlMs - nowMs
+}
+
 /** 把时长渲染成 mm:ss，跨过一小时的部分再补上小时位。只取绝对值，方向由文案给。 */
 export function formatCodexTurnStateDuration(ms: number): string {
   const total = Math.floor(Math.abs(ms) / 1000)

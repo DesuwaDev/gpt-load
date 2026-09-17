@@ -23,6 +23,7 @@ import { useAuthSession } from '@/features/auth/auth-session'
 
 import HealthTab from './HealthTab.vue'
 import { parseAppliedLogFilters } from './log-filters'
+import LogsTurnStatePicker from './LogsTurnStatePicker.vue'
 import {
   normalizeAccessKeyMonitorQuery,
   normalizeMonitorQuery,
@@ -348,6 +349,10 @@ function applyTimeRange(from: number, to: number, preset?: DateTimePreset): void
             v-else-if="activeTab === 'usage' || activeTab === 'logs'"
             class="monitor-data-actions"
           >
+            <LogsTurnStatePicker
+              v-if="activeTab === 'logs' && !isAccessKey"
+              :filters="logFilters"
+            />
             <AppDateTimeRangePicker
               :key="activeTab"
               v-model:from="timeDraft.from"
@@ -499,6 +504,12 @@ function applyTimeRange(from: number, to: number, preset?: DateTimePreset): void
   }
 
   .monitor-data-actions :deep(.app-popover) {
+    flex-basis: 100%;
+  }
+
+  /* 取状态按钮自己占一行：它的结果浮层按 left: 0 展开，占满整行才能保证左缘对齐容器，
+     不会在折行以后从右边界溢出去。 */
+  .monitor-data-actions :deep(.turn-state-pick) {
     flex-basis: 100%;
   }
 }

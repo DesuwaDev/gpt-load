@@ -913,6 +913,21 @@ export default {
         filteredTitle: '没有匹配当前筛选条件的日志',
         filteredDescription: '调整或重置筛选条件后重试。',
       },
+      turnStatePick: {
+        button: '取可用状态',
+        hint: '扫描最近 1 小时的请求日志，找出上游回带的、还没过期的正常轮次状态（10 块密文、292 字符那种）并复制。更早的日志里不可能有未过期的值，所以这里固定看最近 1 小时，不跟随上面选的时间范围；分组、凭据、模型等其余筛选条件照用。',
+        copied: '已复制签发最新的那条可用轮次状态。',
+        found: '找到了可用的轮次状态，但剪贴板用不了；请在弹窗里手动复制。',
+        detail:
+          '剩余 {duration} · 来自凭据 {credential} · 翻了最近 {scanned} 条日志，命中 {total} 条。',
+        spread:
+          '这 {total} 条分属 {credentials} 个凭据，复制的是签发最新、剩余时效最长的那条。要指定账号，先在筛选里选定凭据再点一次。',
+        none: '最近 1 小时的 {scanned} 条日志里，没有还没过期的正常轮次状态。',
+        noLogs: '最近 1 小时没有符合当前筛选的请求日志。',
+        failed: '扫描失败，稍后再试。',
+        dismiss: '关闭提示',
+        unknownCredential: '未知凭据',
+      },
       options: {
         groupsFailed: '无法加载分组筛选选项；日志列表不受影响。',
         accessKeysFailed: '无法加载访问密钥筛选选项；日志列表不受影响。',
@@ -1258,6 +1273,10 @@ export default {
           expiredAlert: '本次注入的轮次状态在请求发出时已经超过 1 小时时效。',
           expiredNote:
             '这个值签发于 {issued}，请求 {sent} 才发出，已过期 {duration}。签发时刻是从值自身的 Fernet 时间戳读出来的，不依赖我们记录的写入时间。',
+          remaining: '剩余 {duration}',
+          stale: '已过期 {duration}',
+          remainingHint:
+            '按值自带的 Fernet 签发时刻算，距 1 小时时效还剩多久。这决定它现在还能不能直接拿去注入；上游回带的值才有这个读数，注入项看的是「发出时过没过期」。',
           copy: '复制轮次状态',
         },
         usage: {

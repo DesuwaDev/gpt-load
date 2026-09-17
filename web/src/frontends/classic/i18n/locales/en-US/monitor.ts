@@ -952,6 +952,22 @@ export default {
         filteredTitle: 'No logs match the current filters',
         filteredDescription: 'Adjust or reset the filters and try again.',
       },
+      turnStatePick: {
+        button: 'Grab a usable state',
+        hint: 'Scans request logs from the past hour for a turn state returned by upstream that is still valid and sits at the baseline shape (10 cipher blocks, ~292 characters), then copies it. Anything older cannot still be valid, so this always looks at the past hour regardless of the range selected above; every other filter (group, credential, model, …) still applies.',
+        copied: 'Copied the most recently issued usable turn state.',
+        found:
+          'Found a usable turn state, but the clipboard is unavailable; copy it manually from the dialog.',
+        detail:
+          '{duration} left · from credential {credential} · scanned the {scanned} most recent logs, {total} usable.',
+        spread:
+          'Those {total} span {credentials} credentials; the one copied was issued most recently and has the most time left. To target a specific account, pick a credential in the filters and try again.',
+        none: 'None of the {scanned} logs from the past hour carry an unexpired baseline turn state.',
+        noLogs: 'No request logs from the past hour match the current filters.',
+        failed: 'Scan failed; try again in a moment.',
+        dismiss: 'Dismiss',
+        unknownCredential: 'unknown credential',
+      },
       options: {
         groupsFailed: 'Unable to load Group filter options. The log list is unaffected.',
         accessKeysFailed: 'Unable to load Access key filter options. The log list is unaffected.',
@@ -1299,6 +1315,10 @@ export default {
             'The injected turn state was already past its one-hour lifetime when this request went out.',
           expiredNote:
             'Issued at {issued}, but the request went out at {sent} — {duration} past its lifetime. The issue time comes from the value’s own Fernet timestamp, not from when we recorded it.',
+          remaining: '{duration} left',
+          stale: 'expired {duration} ago',
+          remainingHint:
+            'Time left on the one-hour lifetime, measured from the Fernet issue timestamp the value carries. It decides whether the value can still be injected as-is; only values returned by upstream get this reading — injected ones are judged on whether they were already expired when sent.',
           copy: 'Copy turn state',
         },
         usage: {
