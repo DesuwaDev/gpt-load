@@ -8,7 +8,8 @@ const fernetVersion = 0x80
 const fernetPrefixBytes = 1 + 8
 const fernetIVBytes = 16
 const fernetHMACBytes = 32
-const fernetBlockBytes = 16
+/** AES-CBC 的分组长度；密文体积只能是它的整数倍。 */
+export const fernetBlockBytes = 16
 // 时间戳落在 2020-01-01 ~ 2100-01-01 之外的，只可能是随机字节碰巧撞上 0x80，不是签发时刻。
 const fernetIssuedFloorSeconds = 1_577_836_800
 const fernetIssuedCeilSeconds = 4_102_444_800

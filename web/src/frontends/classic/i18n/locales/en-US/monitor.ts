@@ -1275,7 +1275,23 @@ export default {
           blocks: '{count} cipher blocks',
           blocksHint:
             'The Fernet envelope is {total} bytes = 9 header + 16 IV + {cipher} ciphertext + 32 HMAC. AES-CBC works in 16-byte blocks with PKCS7 padding, so the plaintext is between {min} and {max} bytes. One extra block only means the plaintext crossed a 16-byte boundary, not that it grew by exactly 16 bytes.',
-          notFernet: 'Not a Fernet envelope',
+          notFernet: 'Not a Fernet envelope, so its size cannot be read or judged.',
+          verdict: {
+            normal: 'Normal',
+            suspect: 'Possibly degraded',
+            unknown: 'Cannot tell',
+          },
+          verdictHint: {
+            normal:
+              'The cipher block count is within the {baseline}-block baseline, matching normal requests.',
+            suspect:
+              'The cipher block count exceeds the {baseline}-block baseline, matching the requests that went wrong.',
+            unknown: 'Not a Fernet envelope, so size tells us nothing here.',
+          },
+          suspectAlert:
+            'This turn state exceeds the {baseline}-block baseline — possibly a degraded request.',
+          suspectNote:
+            '{blocks} cipher blocks, {extra} over the {baseline}-block baseline. The plaintext falls between {min} and {max} bytes, where normal stays within {baseMax}. Block count only brackets the plaintext to a 16-byte window, so treat this as a suspicion, not proof.',
           copy: 'Copy turn state',
         },
         usage: {

@@ -1238,7 +1238,20 @@ export default {
           blocks: '密文 {count} 块',
           blocksHint:
             'Fernet 封装共 {total} 字节 = 9 头部 + 16 IV + {cipher} 密文 + 32 HMAC。AES-CBC 按 16 字节分块、PKCS7 填充，所以明文在 {min}–{max} 字节之间；块数多一块只说明明文跨过了一次 16 字节边界，不等于内容正好多 16 字节。',
-          notFernet: '非 Fernet 结构',
+          notFernet: '非 Fernet 结构，读不出体积，无法判定。',
+          verdict: {
+            normal: '正常',
+            suspect: '疑似降智',
+            unknown: '无法判定',
+          },
+          verdictHint: {
+            normal: '密文块数在基线 {baseline} 块以内，体积与正常请求一致。',
+            suspect: '密文块数超过基线 {baseline} 块，体积与出问题的请求一致。',
+            unknown: '读不出 Fernet 结构，没法从体积上判断。',
+          },
+          suspectAlert: '本次的轮次状态密文超出基线 {baseline} 块，疑似降智。',
+          suspectNote:
+            '密文 {blocks} 块，比基线 {baseline} 块多 {extra} 块；明文落在 {min}–{max} 字节，正常应在 {baseMax} 字节以内。块数只能把明文框进 16 字节的窗口，所以这是疑似判据，不是确证。',
           copy: '复制轮次状态',
         },
         usage: {

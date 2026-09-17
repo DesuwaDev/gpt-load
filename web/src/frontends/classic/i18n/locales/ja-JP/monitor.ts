@@ -1268,7 +1268,20 @@ export default {
           blocks: '暗号文 {count} ブロック',
           blocksHint:
             'Fernet 全体で {total} バイト = ヘッダ 9 + IV 16 + 暗号文 {cipher} + HMAC 32。AES-CBC は 16 バイト単位で PKCS7 パディングするため、平文は {min}〜{max} バイトの範囲です。ブロックが 1 つ増えたのは平文が 16 バイト境界を越えたという意味で、内容がちょうど 16 バイト増えたわけではありません。',
-          notFernet: 'Fernet 構造ではない',
+          notFernet: 'Fernet 構造ではないためサイズを読めず、判定できません。',
+          verdict: {
+            normal: '正常',
+            suspect: '劣化の疑い',
+            unknown: '判定不可',
+          },
+          verdictHint: {
+            normal: '暗号文のブロック数が基準 {baseline} ブロック以内で、正常な要求と同じです。',
+            suspect: '暗号文のブロック数が基準 {baseline} ブロックを超え、問題の要求と同じです。',
+            unknown: 'Fernet 構造ではないため、サイズからは判断できません。',
+          },
+          suspectAlert: '今回のターン状態は基準 {baseline} ブロックを超えており、劣化の疑いです。',
+          suspectNote:
+            '暗号文 {blocks} ブロックで、基準 {baseline} ブロックより {extra} ブロック多い状態です。平文は {min}〜{max} バイトに収まり、正常なら {baseMax} バイト以内です。ブロック数は平文を 16 バイトの幅にしか絞れないため、これは疑いであって確証ではありません。',
           copy: 'ターン状態をコピー',
         },
         usage: {
