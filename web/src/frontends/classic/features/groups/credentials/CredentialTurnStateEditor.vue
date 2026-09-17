@@ -2,14 +2,14 @@
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import { codexTurnStateTtlMs, formatCodexTurnStateDuration } from '@/lib/codex-turn-state'
+
 import {
   canonicalCredentialTurnStateModels,
   credentialTurnStateIssuedAtMs,
   credentialTurnStateMaxLength,
   credentialTurnStateModelsMaxLength,
   credentialTurnStateRemainingMs,
-  credentialTurnStateTtlMs,
-  formatCredentialTurnStateDuration,
   useCredentialTurnStateNow,
   validCredentialTurnState,
 } from './credential-turn-state'
@@ -80,7 +80,7 @@ const ttlText = computed(() => {
   if (remainingMs.value === null) return t('group.credentials.turnState.ttlUnknown')
   // 估出来的倒计时前面挂个 ≈，免得看着像从值里读出来的那种精确。
   const approx = origin.value?.exact === false ? '≈' : ''
-  const duration = approx + formatCredentialTurnStateDuration(remainingMs.value)
+  const duration = approx + formatCodexTurnStateDuration(remainingMs.value)
   return remainingMs.value <= 0
     ? t('group.credentials.turnState.ttlExpired', { duration })
     : t('group.credentials.turnState.ttlRemaining', { duration })
@@ -96,7 +96,7 @@ const ttlTitle = computed(() => {
 })
 const ttlPercent = computed(() => {
   if (remainingMs.value === null) return 0
-  const ratio = remainingMs.value / credentialTurnStateTtlMs
+  const ratio = remainingMs.value / codexTurnStateTtlMs
   return Math.min(100, Math.max(0, Math.round(ratio * 100)))
 })
 

@@ -22,3 +22,31 @@ export function codexTurnStateVerdict(token: FernetToken | null): CodexTurnState
   if (token === null) return 'unknown'
   return token.blocks > codexTurnStateBaselineBlocks ? 'suspect' : 'normal'
 }
+
+/** 上游签发的 X-Codex-Turn-State 实测约 1 小时后失效。超时只提醒，不停注入。 */
+export const codexTurnStateTtlMs = 60 * 60 * 1000
+
+/**
+ * 这个值发出去的时候已经过期多久，毫秒；还在时效内返回 null。
+ * 注入值是我们自己挑的，挑的时候它可能早就凉了——这是不用解密、也不用猜的硬事实，
+ * 和块数那种统计味的判据不是一回事。上游回带的值是响应时现签的，不适用。
+ */
+export function codexTurnStateExpiredByMs(
+  token: FernetToken | null,
+  sentAtMs: number | null,
+): number | null {
+  if (token === null || sentAtMs === null || !Number.isFinite(sentAtMs) || sentAtMs <= 0)
+    return null
+  const overdue = sentAtMs - (token.issuedAtMs + codexTurnStateTtlMs)
+  return overdue > 0 ? overdue : null
+}
+
+/** 把时长渲染成 mm:ss，跨过一小时的部分再补上小时位。只取绝对值，方向由文案给。 */
+export function formatCodexTurnStateDuration(ms: number): string {
+  const total = Math.floor(Math.abs(ms) / 1000)
+  const pad = (value: number): string => String(value).padStart(2, '0')
+  const seconds = total % 60
+  const minutes = Math.floor(total / 60) % 60
+  const hours = Math.floor(total / 3600)
+  return hours > 0 ? `${hours}:${pad(minutes)}:${pad(seconds)}` : `${pad(minutes)}:${pad(seconds)}`
+}

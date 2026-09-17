@@ -1252,6 +1252,12 @@ export default {
           suspectAlert: '本次的轮次状态密文超出基线 {baseline} 块，疑似降智。',
           suspectNote:
             '密文 {blocks} 块，比基线 {baseline} 块多 {extra} 块；明文落在 {min}–{max} 字节，正常应在 {baseMax} 字节以内。块数只能把明文框进 16 字节的窗口，所以这是疑似判据，不是确证。',
+          expired: '注入时已过期 {duration}',
+          expiredHint:
+            '请求发出的时刻按「完成时刻 − 总耗时」推算；整条重试链通常只跨几秒，对着 1 小时的时效足够用。',
+          expiredAlert: '本次注入的轮次状态在请求发出时已经超过 1 小时时效。',
+          expiredNote:
+            '这个值签发于 {issued}，请求 {sent} 才发出，已过期 {duration}。签发时刻是从值自身的 Fernet 时间戳读出来的，不依赖我们记录的写入时间。',
           copy: '复制轮次状态',
         },
         usage: {

@@ -26,7 +26,9 @@ import StatusBadge from '@/components/ui/StatusBadge.vue'
 import {
   codexTurnStateBaselineBlocks,
   codexTurnStateBaselineMaxPlaintextBytes,
+  codexTurnStateExpiredByMs,
   codexTurnStateVerdict,
+  formatCodexTurnStateDuration,
   type CodexTurnStateVerdict,
 } from '@/lib/codex-turn-state'
 import { parseFernetToken, type FernetToken } from '@/lib/fernet'
@@ -72,10 +74,19 @@ const finalAttempt = computed(() => {
     ) ?? attempts[0]
   )
 })
+// 请求发出的时刻。逐次尝试只记了自己的耗时、没有各自的时间戳，但整条重试链通常只跨几
+// 秒，对着 1 小时的时效足够用了。
+const requestStartedAtMs = computed(() => {
+  const value = log.value
+  if (!value || value.completed_at_ms <= 0) return null
+  const started = value.completed_at_ms - value.duration_ms
+  return started > 0 ? started : null
+})
 // 轮次状态按「方向 + 值」去重：重试链上同一个 state 往往连续出现多次，逐条列出只会
 // 淹没差异。这里只依赖 attempts，所以请求没跑完、只要某次尝试有过 state 就仍然能显示
 // 和复制。注入项排在回带项前面——先看发出去的是什么，再看上游换回了什么。
 const turnStates = computed(() => {
+  const startedAtMs = requestStartedAtMs.value
   const groups: {
     kind: 'injected' | 'observed'
     value: string
@@ -84,6 +95,8 @@ const turnStates = computed(() => {
     // 了一次 16 字节边界，是个可以横向比对的线索，所以顺手标出来。
     fernet: FernetToken | null
     verdict: CodexTurnStateVerdict
+    /** 注入时已经过期多久，毫秒；没过期或不适用时为 null。 */
+    expiredByMs: number | null
   }[] = []
   function collect(kind: 'injected' | 'observed'): void {
     for (const attempt of log.value?.attempts ?? []) {
@@ -101,6 +114,8 @@ const turnStates = computed(() => {
         sequences: [attempt.sequence],
         fernet,
         verdict: codexTurnStateVerdict(fernet),
+        // 只算注入项：上游回带的值是响应时现签的，拿请求时刻去比没有意义。
+        expiredByMs: kind === 'injected' ? codexTurnStateExpiredByMs(fernet, startedAtMs) : null,
       })
     }
   }
@@ -111,9 +126,17 @@ const turnStates = computed(() => {
 function turnStateSources(sequences: number[]): string {
   return sequences.map((sequence) => `#${sequence}`).join(' · ')
 }
+function turnStateTime(ms: number): string {
+  return new Date(ms).toLocaleString(locale.value)
+}
 // 整段只要有一条超出基线就在小节顶部挑明，省得抽屉拉长以后把那条徽章翻漏了。
 const turnStateSuspect = computed(() =>
   turnStates.value.some((entry) => entry.verdict === 'suspect'),
+)
+// 过期是确定的事实，和块数那种统计味的判据分开提示：一个说「这次注入根本不该发出去」，
+// 一个说「体积不对劲」。
+const turnStateExpired = computed(() =>
+  turnStates.value.some((entry) => entry.expiredByMs !== null),
 )
 const mainErrorMessage = computed(() => log.value?.error_summary ?? '')
 const mainErrorCode = computed(() => log.value?.error_code ?? '')
@@ -612,6 +635,9 @@ function toggleAttemptErrorMessage(sequence: number): void {
       >
         <h3>{{ t('monitor.logs.drawer.turnState.title') }}</h3>
         <p class="log-turn-state__hint">{{ t('monitor.logs.drawer.turnState.hint') }}</p>
+        <p v-if="turnStateExpired" class="log-turn-state__alert log-turn-state__alert--expired">
+          {{ t('monitor.logs.drawer.turnState.expiredAlert') }}
+        </p>
         <p v-if="turnStateSuspect" class="log-turn-state__alert">
           {{
             t('monitor.logs.drawer.turnState.suspectAlert', {
@@ -623,7 +649,10 @@ function toggleAttemptErrorMessage(sequence: number): void {
           v-for="entry in turnStates"
           :key="entry.kind + entry.value"
           class="log-turn-state"
-          :class="`log-turn-state--${entry.verdict}`"
+          :class="[
+            `log-turn-state--${entry.verdict}`,
+            { 'log-turn-state--expired': entry.expiredByMs !== null },
+          ]"
         >
           <div class="log-turn-state__head">
             <span class="log-turn-state__kind" :class="`log-turn-state__kind--${entry.kind}`">
@@ -639,6 +668,17 @@ function toggleAttemptErrorMessage(sequence: number): void {
               "
             >
               {{ t(`monitor.logs.drawer.turnState.verdict.${entry.verdict}`) }}
+            </span>
+            <span
+              v-if="entry.expiredByMs !== null"
+              class="log-turn-state__expired"
+              :title="t('monitor.logs.drawer.turnState.expiredHint')"
+            >
+              {{
+                t('monitor.logs.drawer.turnState.expired', {
+                  duration: formatCodexTurnStateDuration(entry.expiredByMs),
+                })
+              }}
             </span>
             <span
               v-if="entry.fernet !== null"
@@ -669,6 +709,20 @@ function toggleAttemptErrorMessage(sequence: number): void {
               :failure-label="t('common.copyFailed')"
             />
           </div>
+          <p
+            v-if="
+              entry.expiredByMs !== null && entry.fernet !== null && requestStartedAtMs !== null
+            "
+            class="log-turn-state__note log-turn-state__note--expired"
+          >
+            {{
+              t('monitor.logs.drawer.turnState.expiredNote', {
+                duration: formatCodexTurnStateDuration(entry.expiredByMs),
+                issued: turnStateTime(entry.fernet.issuedAtMs),
+                sent: turnStateTime(requestStartedAtMs),
+              })
+            }}
+          </p>
           <!-- 判据与它的边界写在一起：徽章给结论，这行给出结论是怎么来的、有多硬。 -->
           <p
             v-if="entry.verdict === 'suspect' && entry.fernet !== null"
@@ -1027,6 +1081,13 @@ function toggleAttemptErrorMessage(sequence: number): void {
   line-height: 1.5;
 }
 
+/* 过期是确定的事实，比「疑似」硬，所以用危险色，并且排在 suspect 规则后面覆盖它。 */
+.log-turn-state__alert--expired {
+  border-left-color: var(--color-danger);
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+}
+
 .log-turn-state {
   display: grid;
   gap: 6px;
@@ -1039,6 +1100,22 @@ function toggleAttemptErrorMessage(sequence: number): void {
 .log-turn-state--suspect {
   border-color: var(--color-warning);
   background: var(--color-warning-bg);
+}
+
+.log-turn-state--expired {
+  border-color: var(--color-danger);
+  background: var(--color-danger-bg);
+}
+
+.log-turn-state__expired {
+  border-radius: var(--radius-tag);
+  background: var(--color-danger);
+  color: var(--color-text-inverse);
+  padding: 1px 8px;
+  font-size: var(--text-label-xs);
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+  cursor: help;
 }
 
 .log-turn-state__head {
@@ -1096,6 +1173,10 @@ function toggleAttemptErrorMessage(sequence: number): void {
 
 .log-turn-state__note--suspect {
   color: var(--color-warning);
+}
+
+.log-turn-state__note--expired {
+  color: var(--color-danger);
 }
 
 /* 「注入 / 回带」是这一段最先要读到的信息，用徽章把两个方向拉开距离。 */

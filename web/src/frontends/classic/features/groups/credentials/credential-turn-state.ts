@@ -1,5 +1,6 @@
 import { onScopeDispose, ref, type Ref } from 'vue'
 
+import { codexTurnStateTtlMs } from '@/lib/codex-turn-state'
 import { parseFernetToken } from '@/lib/fernet'
 
 /** 注入值要原样进 HTTP 头，长度与字符集与服务端的 validCodexTurnState 保持一致。 */
@@ -40,9 +41,6 @@ function validCredentialTurnStateModelEntry(entry: string): boolean {
   return /^[a-z0-9\-_.:/]+\*?$/.test(entry)
 }
 
-/** 上游签发的 X-Codex-Turn-State 实测约 1 小时后失效。超时只提醒，不停注入。 */
-export const credentialTurnStateTtlMs = 60 * 60 * 1000
-
 // 凭据列表里可能同时挂着几十个编辑器，共用一个秒级时钟，免得每行各起一个定时器。
 const sharedNowMs = ref(Date.now())
 let sharedTimer: ReturnType<typeof setInterval> | null = null
@@ -78,15 +76,5 @@ export function credentialTurnStateIssuedAtMs(value: string): number | null {
 /** 剩余时效毫秒数，负数表示已超时；没有起点时返回 null，表示无法计时。 */
 export function credentialTurnStateRemainingMs(originMs: number, nowMs: number): number | null {
   if (!Number.isFinite(originMs) || originMs <= 0) return null
-  return originMs + credentialTurnStateTtlMs - nowMs
-}
-
-/** 把时长渲染成 mm:ss，跨过一小时的部分再补上小时位。只取绝对值，方向由文案给。 */
-export function formatCredentialTurnStateDuration(ms: number): string {
-  const total = Math.floor(Math.abs(ms) / 1000)
-  const pad = (value: number): string => String(value).padStart(2, '0')
-  const seconds = total % 60
-  const minutes = Math.floor(total / 60) % 60
-  const hours = Math.floor(total / 3600)
-  return hours > 0 ? `${hours}:${pad(minutes)}:${pad(seconds)}` : `${pad(minutes)}:${pad(seconds)}`
+  return originMs + codexTurnStateTtlMs - nowMs
 }

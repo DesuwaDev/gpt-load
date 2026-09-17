@@ -1292,6 +1292,13 @@ export default {
             'This turn state exceeds the {baseline}-block baseline — possibly a degraded request.',
           suspectNote:
             '{blocks} cipher blocks, {extra} over the {baseline}-block baseline. The plaintext falls between {min} and {max} bytes, where normal stays within {baseMax}. Block count only brackets the plaintext to a 16-byte window, so treat this as a suspicion, not proof.',
+          expired: 'Expired {duration} before injection',
+          expiredHint:
+            'Send time is derived from completion time minus total duration; a retry chain usually spans seconds, which is precise enough against a one-hour lifetime.',
+          expiredAlert:
+            'The injected turn state was already past its one-hour lifetime when this request went out.',
+          expiredNote:
+            'Issued at {issued}, but the request went out at {sent} — {duration} past its lifetime. The issue time comes from the value’s own Fernet timestamp, not from when we recorded it.',
           copy: 'Copy turn state',
         },
         usage: {
