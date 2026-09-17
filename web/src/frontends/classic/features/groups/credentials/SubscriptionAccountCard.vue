@@ -44,6 +44,7 @@ import { presentCredentialFailureCategory } from './credential-failure-presenter
 import CredentialLimitsPanel from './CredentialLimitsPanel.vue'
 import CredentialMarkIndicator from './CredentialMarkIndicator.vue'
 import CredentialMarkPicker from './CredentialMarkPicker.vue'
+import CredentialTurnStateEditor from './CredentialTurnStateEditor.vue'
 
 const props = withDefaults(
   defineProps<{
@@ -78,6 +79,7 @@ const emit = defineEmits<{
   weight: [payload: { item: CredentialItemDto; value: string }]
   limits: [payload: { item: CredentialItemDto; rpm_limit: number; concurrency_limit: number }]
   mark: [payload: { item: CredentialItemDto; mark: CredentialMark; mark_note: string }]
+  'turn-state': [payload: { item: CredentialItemDto; codex_turn_state: string }]
 }>()
 const { locale, n, t, te } = useI18n()
 const menuOpen = ref(false)
@@ -614,6 +616,11 @@ function applyMark(payload: { mark: CredentialMark; mark_note: string }): void {
   emit('mark', { item: props.item, ...payload })
 }
 
+function applyTurnState(payload: { codex_turn_state: string }): void {
+  menuOpen.value = false
+  emit('turn-state', { item: props.item, ...payload })
+}
+
 function runMenuAction(
   action: 'download' | 'refresh-credential' | 'toggle' | 'restore' | 'remove',
 ): void {
@@ -859,6 +866,12 @@ function runMenuAction(
                   :note="item.mark_note"
                   :disabled="busy"
                   @apply="applyMark"
+                />
+                <div class="subscription-account__menu-divider"></div>
+                <CredentialTurnStateEditor
+                  :value="item.codex_turn_state"
+                  :disabled="busy"
+                  @apply="applyTurnState"
                 />
                 <div class="subscription-account__menu-divider"></div>
                 <button type="button" :disabled="busy" @click="runMenuAction('download')">

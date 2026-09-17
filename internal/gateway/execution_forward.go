@@ -751,6 +751,13 @@ func newExecutionAttemptSpec(input ForwardInput) (execution.AttemptSpec, error) 
 	}
 	sanitizeUpstreamRequestHeaders(headers)
 	headers.Set("Accept-Encoding", "identity")
+	configuredHeaders := input.Group.HeaderRules.ConfiguredNames()
+	if input.CodexTurnState != "" {
+		// 凭据级覆盖写在分组规则与清洗之后，并登记进 ConfiguredHeaders，让 Codex
+		// 的最后一跳把它重新贴回出站请求，避免被 SDK 自己的会话状态顶掉。
+		headers.Set(platformheader.CodexTurnStateName, input.CodexTurnState)
+		configuredHeaders = append(configuredHeaders, platformheader.CodexTurnStateName)
+	}
 	spec := execution.NewAttemptSpec(execution.AttemptSpec{
 		RequestID:                input.RequestID,
 		AttemptID:                input.AttemptID,
@@ -768,7 +775,7 @@ func newExecutionAttemptSpec(input ForwardInput) (execution.AttemptSpec, error) 
 		Path:                     input.Request.Path,
 		RawQuery:                 input.Request.RawQuery,
 		Header:                   headers,
-		ConfiguredHeaders:        input.Group.HeaderRules.ConfiguredNames(),
+		ConfiguredHeaders:        configuredHeaders,
 		Body:                     input.Request.Body,
 		IncludeUsage:             input.ObserveUsage,
 		ForceCredentialRefresh:   input.ForceCredentialRefresh,
@@ -809,6 +816,7 @@ func upstreamFromExecutionResult(
 		upstream.AppliedReasoning = result.AppliedReasoning.Clone()
 	}
 	upstream.UpstreamProtocol = result.UpstreamProtocol
+	upstream.UpstreamTurnState = result.UpstreamTurnState
 	if input.ClientProtocol == protocol.OpenAIImages ||
 		input.ClientProtocol == protocol.OpenAIEmbeddings {
 		// AttemptResult owns Body after the executor returns. Buffered opaque
@@ -843,6 +851,7 @@ func upstreamFromExecutionStreamResult(
 		upstream.AppliedReasoning = result.AppliedReasoning.Clone()
 	}
 	upstream.UpstreamProtocol = result.UpstreamProtocol
+	upstream.UpstreamTurnState = result.UpstreamTurnState
 	if !result.ResponseStarted && result.Error != nil {
 		upstream.Err = executionFailureError(ctx, result.Error)
 	}

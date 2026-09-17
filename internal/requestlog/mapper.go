@@ -19,7 +19,9 @@ import (
 const (
 	maxSummaryBytes = 4096
 	maxModelBytes   = 255
-	truncatedMarker = "...[truncated]"
+	// maxTurnStateBytes 对齐 request_log_attempts.upstream_turn_state 的列宽。
+	maxTurnStateBytes = 4096
+	truncatedMarker   = "...[truncated]"
 )
 
 func mapEvent(
@@ -79,6 +81,7 @@ func mapEvent(
 			RouteMode:             string(attempt.RouteMode),
 			UpstreamModel:         redactIdentityValue(redactor, projectModel(attempt.UpstreamModel)),
 			UpstreamRequestID:     redactIdentityValue(redactor, projectModel(attempt.UpstreamRequestID)),
+			UpstreamTurnState:     redactIdentityValue(redactor, projectTurnState(attempt.UpstreamTurnState)),
 			DispatchState:         string(attempt.DispatchState),
 			ResponseStarted:       attempt.ResponseStarted,
 			UpstreamProtocol:      string(attempt.UpstreamProtocol),
@@ -402,6 +405,20 @@ func redactIdentityValue(redactor *redact.Redactor, value string) string {
 		return value
 	}
 	return redactor.String(value)
+}
+
+// projectTurnState 按存储列宽收窄观测到的 X-Codex-Turn-State。超限或含控制字符的
+// 一律丢弃而不截断：截断后的 state 既不能复用，也会误导排查。
+func projectTurnState(value string) string {
+	if value == "" || len(value) > maxTurnStateBytes || !utf8.ValidString(value) {
+		return ""
+	}
+	for _, character := range value {
+		if character < 0x20 || character == 0x7f {
+			return ""
+		}
+	}
+	return value
 }
 
 func projectModel(model string) string {

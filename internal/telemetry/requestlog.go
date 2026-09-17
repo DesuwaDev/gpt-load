@@ -92,6 +92,8 @@ type Attempt struct {
 	RouteMode         channel.RouteMode
 	UpstreamModel     string
 	UpstreamRequestID string
+	// UpstreamTurnState 是上游本次尝试回带的 X-Codex-Turn-State，空串表示没有。
+	UpstreamTurnState string
 	DispatchState     execution.DispatchState
 	ResponseStarted   bool
 	UpstreamProtocol  protocol.Protocol

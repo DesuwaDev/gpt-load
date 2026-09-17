@@ -801,7 +801,8 @@ func mapCredentials(rows []models.Credential, groups []models.Group) []state.Cre
 			),
 			Fingerprint: row.Fingerprint, WeightManual: cloneWeight(row.WeightManual),
 			RPMLimit: row.RPMLimit, ConcurrencyLimit: row.ConcurrencyLimit,
-			Status: state.CredentialStatus(row.Status), AuthState: state.CredentialAuthState(row.AuthState), EncryptedValue: row.Data,
+			CodexTurnState: row.CodexTurnState,
+			Status:         state.CredentialStatus(row.Status), AuthState: state.CredentialAuthState(row.AuthState), EncryptedValue: row.Data,
 		})
 	}
 	return result

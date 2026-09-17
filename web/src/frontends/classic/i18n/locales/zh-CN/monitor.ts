@@ -1228,6 +1228,13 @@ export default {
         modelObservation: '上游返回模型观测',
         requestedModel: '上游请求模型',
         reportedModel: '上游返回模型',
+        turnState: {
+          title: 'Codex 轮次状态',
+          hint: '上游回带的 X-Codex-Turn-State。请求未完成但某次尝试回带过时同样会列出。',
+          sources: '来源尝试',
+          length: '{count} 字符',
+          copy: '复制轮次状态',
+        },
         usage: {
           title: '用量成本',
           description: '最终持久化的用量字段。成本始终为预估值，未知不代表免费。',

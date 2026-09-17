@@ -1258,6 +1258,7 @@ func (handler *Handler) executeAttempts(
 			),
 			Proxy:                  effectiveProxy,
 			ProxyFingerprint:       proxyFingerprint,
+			CodexTurnState:         selection.CredentialCodexTurnState,
 			ForceCredentialRefresh: forceCredentialRefresh,
 			ContinuityKey:          requestAffinity.continuityKey,
 			OnResponse:             handler.responseBindingObserver(recorder.accessKeyID, selection, ref, prepared.request),

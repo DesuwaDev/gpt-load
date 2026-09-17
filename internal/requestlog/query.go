@@ -256,6 +256,7 @@ func decodeAttemptRows(rows []models.RequestLogAttempt) ([]Attempt, error) {
 			RouteMode:         channel.RouteMode(row.RouteMode),
 			UpstreamModel:     row.UpstreamModel,
 			UpstreamRequestID: row.UpstreamRequestID,
+			UpstreamTurnState: row.UpstreamTurnState,
 			DispatchState:     execution.DispatchState(row.DispatchState),
 			ResponseStarted:   row.ResponseStarted,
 			UpstreamProtocol:  upstreamProtocol,

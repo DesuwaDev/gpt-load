@@ -50,6 +50,7 @@ func TestRequestTelemetryContractUsesExactFieldAllowlist(t *testing.T) {
 			"RouteMode",
 			"UpstreamModel",
 			"UpstreamRequestID",
+			"UpstreamTurnState",
 			"DispatchState",
 			"ResponseStarted",
 			"UpstreamProtocol",

@@ -20,7 +20,9 @@ func (transport codexHeadersRoundTripper) RoundTrip(request *http.Request) (*htt
 	for _, name := range transport.configured {
 		name = http.CanonicalHeaderKey(name)
 		switch name {
-		case "Originator":
+		// Turn-State 与 Originator 同理：调用者显式配置过就以调用者为准，不让
+		// CPA 自己的会话状态在最后一跳顶掉它。
+		case "Originator", "X-Codex-Turn-State":
 			value, present := codexHeaderValue(transport.source, name)
 			if present {
 				request.Header.Set(name, value)

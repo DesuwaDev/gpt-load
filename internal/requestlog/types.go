@@ -37,6 +37,7 @@ type Attempt struct {
 	RouteMode         channel.RouteMode         `json:"route_mode"`
 	UpstreamModel     string                    `json:"upstream_model"`
 	UpstreamRequestID string                    `json:"upstream_request_id"`
+	UpstreamTurnState string                    `json:"upstream_turn_state"`
 	DispatchState     execution.DispatchState   `json:"dispatch_state"`
 	ResponseStarted   bool                      `json:"response_started"`
 	UpstreamProtocol  protocol.Protocol         `json:"upstream_protocol"`

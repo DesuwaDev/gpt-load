@@ -290,6 +290,8 @@ export interface CredentialItemDto {
   /** mark 为 '' 时 mark_note 必为空；mark 为 'custom' 时 mark_note 即标签文字。 */
   mark: CredentialMark
   mark_note: string
+  /** 每次请求强制注入的 X-Codex-Turn-State；'' 表示不注入。 */
+  codex_turn_state: string
   configured_status: CredentialConfiguredStatus
   effective_status: CredentialStatus
   weight: number

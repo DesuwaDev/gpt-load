@@ -55,6 +55,7 @@ type RequestLogAttempt struct {
 	RouteMode             string      `gorm:"type:varchar(32);not null;default:''"`
 	UpstreamModel         string      `gorm:"type:varchar(255);not null;default:''"`
 	UpstreamRequestID     string      `gorm:"type:varchar(255);not null;default:''"`
+	UpstreamTurnState     string      `gorm:"column:upstream_turn_state;type:varchar(4096);not null;default:''"`
 	DispatchState         string      `gorm:"type:varchar(32);not null;default:''"`
 	ResponseStarted       bool        `gorm:"not null;default:false"`
 	UpstreamProtocol      string      `gorm:"type:varchar(32);not null;default:''"`

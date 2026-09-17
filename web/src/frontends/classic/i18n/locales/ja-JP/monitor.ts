@@ -1258,6 +1258,13 @@ export default {
         modelObservation: 'アップストリーム応答モデルの観測',
         requestedModel: 'アップストリーム要求モデル',
         reportedModel: 'アップストリーム応答モデル',
+        turnState: {
+          title: 'Codex ターン状態',
+          hint: 'アップストリームが返した X-Codex-Turn-State。リクエストが完了していなくても、いずれかの試行が返していれば表示されます。',
+          sources: '取得元の試行',
+          length: '{count} 文字',
+          copy: 'ターン状態をコピー',
+        },
         usage: {
           title: '使用量・コスト',
           description:

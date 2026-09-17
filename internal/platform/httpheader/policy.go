@@ -5,6 +5,11 @@ import (
 	"strings"
 )
 
+// CodexTurnStateName 是 Codex 上游每轮回带、也接受在请求上覆盖的轮次状态头。
+// 它不在 forbiddenRequestRuleNames 里，所以可以作为请求头规则注入；响应侧仍由
+// sanitizeForwardResponseHeaders 从客户端可见的头里剥掉。
+const CodexTurnStateName = "X-Codex-Turn-State"
+
 var credentialNames = map[string]struct{}{
 	"authorization":       {},
 	"proxy-authorization": {},

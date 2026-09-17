@@ -65,6 +65,22 @@ const finalAttempt = computed(() => {
     ) ?? attempts[0]
   )
 })
+// 轮次状态按值去重：重试链上同一个 state 往往连续回带多次，逐条列出只会淹没差异。
+// 这里只依赖 attempts，所以请求没跑完、只要某次尝试回带过就仍然能显示和复制。
+const turnStates = computed(() => {
+  const groups: { value: string; sequences: number[] }[] = []
+  for (const attempt of log.value?.attempts ?? []) {
+    const value = attempt.upstream_turn_state
+    if (!value) continue
+    const existing = groups.find((group) => group.value === value)
+    if (existing) existing.sequences.push(attempt.sequence)
+    else groups.push({ value, sequences: [attempt.sequence] })
+  }
+  return groups
+})
+function turnStateSources(sequences: number[]): string {
+  return sequences.map((sequence) => `#${sequence}`).join(' · ')
+}
 const mainErrorMessage = computed(() => log.value?.error_summary ?? '')
 const mainErrorCode = computed(() => log.value?.error_code ?? '')
 const drawerDescription = computed(() =>
@@ -556,6 +572,33 @@ function toggleAttemptErrorMessage(sequence: number): void {
         </div>
       </section>
 
+      <section
+        v-if="!selfScoped && turnStates.length > 0"
+        class="log-detail__section log-detail__section--turn-state"
+      >
+        <h3>{{ t('monitor.logs.drawer.turnState.title') }}</h3>
+        <p class="log-turn-state__hint">{{ t('monitor.logs.drawer.turnState.hint') }}</p>
+        <div v-for="entry in turnStates" :key="entry.value" class="log-turn-state">
+          <div class="log-turn-state__head">
+            <span class="log-turn-state__source">
+              {{ t('monitor.logs.drawer.turnState.sources') }}
+              <code>{{ turnStateSources(entry.sequences) }}</code>
+            </span>
+            <span class="log-turn-state__length">
+              {{ t('monitor.logs.drawer.turnState.length', { count: entry.value.length }) }}
+            </span>
+            <CopyButton
+              class="log-turn-state__copy"
+              :value="entry.value"
+              :label="t('monitor.logs.drawer.turnState.copy')"
+              :success-label="t('common.copied')"
+              :failure-label="t('common.copyFailed')"
+            />
+          </div>
+          <code class="log-turn-state__value">{{ entry.value }}</code>
+        </div>
+      </section>
+
       <section class="log-detail__section">
         <h3>{{ t('monitor.logs.drawer.usage.title') }}</h3>
         <dl class="log-detail__grid">
@@ -865,6 +908,58 @@ function toggleAttemptErrorMessage(sequence: number): void {
 .log-detail__section {
   border-top: 1px solid var(--color-border-subtle);
   padding: 16px 0;
+}
+
+.log-detail__section--turn-state {
+  display: grid;
+  gap: 8px;
+}
+
+.log-turn-state__hint {
+  margin: 0;
+  color: var(--color-text-faint);
+  font-size: var(--text-sm);
+}
+
+.log-turn-state {
+  display: grid;
+  gap: 6px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-card);
+  background: var(--color-surface-sunken);
+  padding: 10px 12px;
+}
+
+.log-turn-state__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+}
+
+.log-turn-state__source,
+.log-turn-state__length {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.log-turn-state__source code {
+  color: var(--color-text);
+  font-family: var(--font-mono);
+}
+
+.log-turn-state__copy {
+  margin-left: auto;
+}
+
+/* 轮次状态是要整串复制走的，所以按字符换行而不是省略号截断。 */
+.log-turn-state__value {
+  overflow-wrap: anywhere;
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: var(--text-label-xs);
+  line-height: 1.5;
+  word-break: break-all;
 }
 
 .log-detail__attempt-section {

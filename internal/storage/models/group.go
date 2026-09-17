@@ -75,12 +75,15 @@ type Credential struct {
 	ConcurrencyLimit    int64 `gorm:"column:concurrency_limit;not null;default:0"`
 	// Mark/MarkNote 是运维手工打的模型状态标记，空串表示未标记。只用于呈现，
 	// 不参与调度，取值集合由控制面校验。
-	Mark        string  `gorm:"column:mark;type:varchar(32);not null;default:''"`
-	MarkNote    string  `gorm:"column:mark_note;type:varchar(160);not null;default:''"`
-	ProxyConfig *string `gorm:"column:proxy_config;type:text"`
-	Group       *Group  `gorm:"foreignKey:GroupID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
-	CreatedAtMS int64   `gorm:"column:created_at_ms;not null;autoCreateTime:milli;check:chk_credential_created_at,created_at_ms >= 0"`
-	UpdatedAtMS int64   `gorm:"column:updated_at_ms;not null;autoUpdateTime:milli;check:chk_credential_updated_at,updated_at_ms >= 0"`
+	Mark     string `gorm:"column:mark;type:varchar(32);not null;default:''"`
+	MarkNote string `gorm:"column:mark_note;type:varchar(160);not null;default:''"`
+	// CodexTurnState 是凭据级强制注入的 X-Codex-Turn-State，空串表示不注入。
+	// 它参与运行时转发，因此要同步到注册表并参与 DB↔注册表一致性比对。
+	CodexTurnState string  `gorm:"column:codex_turn_state;type:varchar(4096);not null;default:''"`
+	ProxyConfig    *string `gorm:"column:proxy_config;type:text"`
+	Group          *Group  `gorm:"foreignKey:GroupID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
+	CreatedAtMS    int64   `gorm:"column:created_at_ms;not null;autoCreateTime:milli;check:chk_credential_created_at,created_at_ms >= 0"`
+	UpdatedAtMS    int64   `gorm:"column:updated_at_ms;not null;autoUpdateTime:milli;check:chk_credential_updated_at,updated_at_ms >= 0"`
 }
 
 type CredentialAuthState string

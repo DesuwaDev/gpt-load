@@ -1256,11 +1256,12 @@ function clearDeletedRouteState(ids: readonly number[]): void {
 
 async function mutateItem(
   item: CredentialItemDto,
-  action: 'weight' | 'toggle' | 'restore' | 'limits' | 'mark',
+  action: 'weight' | 'toggle' | 'restore' | 'limits' | 'mark' | 'turn-state',
   value?:
     | string
     | { rpm_limit: number; concurrency_limit: number }
-    | { mark: CredentialMark; mark_note: string },
+    | { mark: CredentialMark; mark_note: string }
+    | { codex_turn_state: string },
 ): Promise<void> {
   if (batchBusy.value || pending(item.credential_id)) return
   feedback.value = ''
@@ -1276,7 +1277,8 @@ async function mutateItem(
             item.credential_id,
             action === 'weight'
               ? { weight_manual: Number(value) }
-              : (action === 'limits' || action === 'mark') && typeof value === 'object'
+              : (action === 'limits' || action === 'mark' || action === 'turn-state') &&
+                  typeof value === 'object'
                 ? value
                 : { status: item.configured_status === 'active' ? 'disabled' : 'active' },
           )
@@ -1857,6 +1859,11 @@ async function runBatch(
                   mark_note: $event.mark_note,
                 })
               "
+              @turn-state="
+                mutateItem($event.item, 'turn-state', {
+                  codex_turn_state: $event.codex_turn_state,
+                })
+              "
               @refresh="refreshObservation"
               @load-details="loadCredentialUsage"
               @reset="openResetCreditDialog"
@@ -1915,6 +1922,11 @@ async function runBatch(
               mutateItem($event.item, 'mark', {
                 mark: $event.mark,
                 mark_note: $event.mark_note,
+              })
+            "
+            @turn-state="
+              mutateItem($event.item, 'turn-state', {
+                codex_turn_state: $event.codex_turn_state,
               })
             "
             @test="openCredentialTest"

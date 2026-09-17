@@ -466,8 +466,11 @@ type AttemptResult struct {
 	Body              []byte            `json:"body,omitempty"`
 	Model             string            `json:"model,omitempty"`
 	UpstreamRequestID string            `json:"upstream_request_id,omitempty"`
-	Usage             *UsageEvidence    `json:"usage,omitempty"`
-	Error             *ErrorEvidence    `json:"error,omitempty"`
+	// UpstreamTurnState 是上游回带的 X-Codex-Turn-State 观测值。Header 是给客户端
+	// 看的收窄集合，观测值必须单独带出来才不会被响应头策略吞掉。
+	UpstreamTurnState string         `json:"upstream_turn_state,omitempty"`
+	Usage             *UsageEvidence `json:"usage,omitempty"`
+	Error             *ErrorEvidence `json:"error,omitempty"`
 }
 
 // Clone returns an independent attempt result.
@@ -540,8 +543,10 @@ type StreamResult struct {
 	Header            http.Header       `json:"header,omitempty"`
 	Model             string            `json:"model,omitempty"`
 	UpstreamRequestID string            `json:"upstream_request_id,omitempty"`
-	Usage             *UsageEvidence    `json:"usage,omitempty"`
-	Error             *ErrorEvidence    `json:"error,omitempty"`
+	// UpstreamTurnState 与 AttemptResult 同义：观测值不随 Header 收窄而丢失。
+	UpstreamTurnState string         `json:"upstream_turn_state,omitempty"`
+	Usage             *UsageEvidence `json:"usage,omitempty"`
+	Error             *ErrorEvidence `json:"error,omitempty"`
 }
 
 // Clone returns an independent streaming result.

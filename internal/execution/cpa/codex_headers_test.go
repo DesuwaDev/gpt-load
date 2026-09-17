@@ -170,3 +170,81 @@ func TestCodexGatewayRequestIdentity(t *testing.T) {
 		}
 	}
 }
+
+// 凭据级 X-Codex-Turn-State 是强制覆盖：它写在分组规则与头部清洗之后，还要挺过
+// CPA 最后一跳的头部改写，所以 unary 与 stream 两条路都断言一次。
+func TestCodexGatewayInjectsCredentialTurnState(t *testing.T) {
+	const injected = "eyJzZXNzaW9uIjoiY3JlZGVudGlhbCJ9"
+	tests := []struct {
+		name      string
+		turnState string
+		headers   http.Header
+		rules     state.HeaderRules
+		want      string
+	}{
+		{name: "credential override reaches upstream", turnState: injected, want: injected},
+		{
+			name: "credential override beats the client header", turnState: injected,
+			headers: http.Header{"X-Codex-Turn-State": {"client-state"}}, want: injected,
+		},
+		{
+			name: "credential override beats group rules", turnState: injected,
+			rules: state.HeaderRules{
+				Set:    map[string]string{"x-codex-turn-state": "group-state"},
+				Remove: []string{"X-Codex-Turn-State"},
+			},
+			want: injected,
+		},
+		{name: "empty override injects nothing"},
+	}
+	for _, stream := range []bool{false, true} {
+		mode := "unary"
+		if stream {
+			mode = "stream"
+		}
+		for _, test := range tests {
+			t.Run(mode+"/"+test.name, func(t *testing.T) {
+				adapter, _, _, keyService, row := newAdapterFixture(t, credentialJSON("access", "refresh", time.Now().Add(time.Hour)))
+				spec := validSpec(t, row, keyService)
+				model := spec.UpstreamModel
+				body := `{"model":"` + model + `","input":"hello"}`
+				capturedHeaders := make(chan http.Header, 1)
+				transport := roundTripperFunc(func(request *http.Request) (*http.Response, error) {
+					capturedHeaders <- request.Header.Clone()
+					return &http.Response{
+						StatusCode: http.StatusOK,
+						Header:     http.Header{"Content-Type": {"text/event-stream"}},
+						Body:       io.NopCloser(strings.NewReader(`data: {"type":"response.completed","response":{"id":"resp_1","object":"response","status":"completed","model":"` + model + `","output":[]}}` + "\n\n")),
+						Request:    request,
+					}, nil
+				})
+				ctx := context.WithValue(t.Context(), "cliproxy.roundtripper", http.RoundTripper(transport))
+				input := gateway.ForwardInput{
+					Dialect: dialect.NewOpenAIResponses(), Group: state.GroupView{ID: row.GroupID, HeaderRules: test.rules},
+					Request:   &dialect.ParsedRequest{Method: http.MethodPost, Path: "/v1/responses", Header: test.headers.Clone(), Body: []byte(body)},
+					RequestID: spec.RequestID, AttemptID: spec.AttemptID, AttemptSequence: spec.Sequence,
+					ClientProtocol: spec.ClientProtocol, Operation: spec.Operation, ChannelID: spec.ChannelID,
+					RouteMode: spec.RouteMode, TargetConfig: spec.TargetConfig, Credential: spec.Credential,
+					ExternalModel: model, UpstreamModelID: model, CodexTurnState: test.turnState,
+				}
+				forwarder := gateway.NewExecutionForwarder(adapter)
+				var result gateway.UpstreamResult
+				if stream {
+					result = forwarder.ForwardStream(ctx, input, httptest.NewRecorder())
+				} else {
+					result = forwarder.Forward(ctx, input)
+				}
+				if result.Err != nil || result.StatusCode != http.StatusOK {
+					t.Fatalf("forward error = %v, status = %d", result.Err, result.StatusCode)
+				}
+				captured := <-capturedHeaders
+				if got := captured.Get("X-Codex-Turn-State"); got != test.want {
+					t.Errorf("X-Codex-Turn-State = %q, want %q", got, test.want)
+				}
+				if !reflect.DeepEqual(input.Request.Header, test.headers) {
+					t.Error("forwarding mutated the downstream headers")
+				}
+			})
+		}
+	}
+}

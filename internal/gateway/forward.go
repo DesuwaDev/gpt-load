@@ -59,6 +59,9 @@ type ForwardInput struct {
 	// ContinuityKey is an opaque per-tenant replay boundary for provider-private
 	// thinking and tool state. It never crosses the gateway DTO boundary.
 	ContinuityKey string
+	// CodexTurnState 是凭据级强制注入的 X-Codex-Turn-State，空串表示不注入。它在
+	// 分组头规则之后写入，所以凭据的覆盖优先于分组配置。
+	CodexTurnState string
 }
 
 // UpstreamResult is the gateway's stable view of one logical execution
@@ -83,7 +86,10 @@ type UpstreamResult struct {
 	UpstreamProtocol          protocol.Protocol
 	AppliedReasoning          reasoning.Config
 	UpstreamRequestID         string
-	ExecutionError            *execution.ErrorEvidence
+	// UpstreamTurnState 是本次尝试观测到的 X-Codex-Turn-State。HTTP/SSE 路径由执行
+	// 层单独带出（Header 已按客户端可见范围收窄），WS 路径的 Header 是原始响应头。
+	UpstreamTurnState string
+	ExecutionError    *execution.ErrorEvidence
 }
 
 func (result UpstreamResult) HasResponse() bool {

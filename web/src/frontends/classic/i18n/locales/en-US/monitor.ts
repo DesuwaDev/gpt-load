@@ -1265,6 +1265,13 @@ export default {
         modelObservation: 'Upstream response model observation',
         requestedModel: 'Upstream requested model',
         reportedModel: 'Upstream reported model',
+        turnState: {
+          title: 'Codex turn state',
+          hint: 'X-Codex-Turn-State returned by the upstream. Listed even when the request did not complete, as long as an attempt returned one.',
+          sources: 'From attempts',
+          length: '{count} characters',
+          copy: 'Copy turn state',
+        },
         usage: {
           title: 'Usage & cost',
           description:

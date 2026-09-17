@@ -47,8 +47,11 @@ type CredentialEntry struct {
 	EncryptedValue          string
 	EncryptedProxy          string
 	ProxyFingerprint        string
-	quotaRemaining          *float64
-	quotaResetAt            time.Time
+	// CodexTurnState 是凭据级强制注入的 X-Codex-Turn-State，空串表示不注入。
+	// 它不是身份，所以不进 CredentialRef：改它不该让在途请求失配。
+	CodexTurnState string
+	quotaRemaining *float64
+	quotaResetAt   time.Time
 }
 
 type CredentialMeta struct {
@@ -59,6 +62,7 @@ type CredentialMeta struct {
 	WeightManual       *int
 	RPMLimit           int64
 	ConcurrencyLimit   int64
+	CodexTurnState     string
 	ModelCooldowns     map[string]time.Time
 }
 
@@ -359,6 +363,7 @@ func samePersistedCredentialConfig(left, right CredentialEntry) bool {
 		left.EncryptedValue != right.EncryptedValue ||
 		left.EncryptedProxy != right.EncryptedProxy ||
 		left.ProxyFingerprint != right.ProxyFingerprint ||
+		left.CodexTurnState != right.CodexTurnState ||
 		left.RPMLimit != right.RPMLimit ||
 		left.ConcurrencyLimit != right.ConcurrencyLimit {
 		return false
@@ -735,6 +740,7 @@ func (r *CredentialRegistry) collectCredentialCandidatesLocked(groupIDs []uint, 
 				WeightManual:     cloneWeight(view.WeightManual),
 				RPMLimit:         entry.RPMLimit,
 				ConcurrencyLimit: entry.ConcurrencyLimit,
+				CodexTurnState:   entry.CodexTurnState,
 				ModelCooldowns:   view.ModelCooldowns,
 			}
 			metas = append(metas, meta)

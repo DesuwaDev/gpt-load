@@ -12,6 +12,7 @@ import (
 
 	"gpt-load/internal/execution"
 	"gpt-load/internal/health"
+	platformheader "gpt-load/internal/platform/httpheader"
 	"gpt-load/internal/platform/redact"
 	"gpt-load/internal/pricing"
 	"gpt-load/internal/protocol"
@@ -366,6 +367,7 @@ func (recorder *requestRecorder) appendDecisionAttempt(
 		RouteMode:         selection.RouteMode,
 		UpstreamModel:     optionalModelValue(selection.UpstreamModelID),
 		UpstreamRequestID: result.UpstreamRequestID,
+		UpstreamTurnState: attemptTurnState(result),
 		DispatchState:     result.DispatchState,
 		ResponseStarted:   result.ResponseStarted,
 		UpstreamProtocol:  result.UpstreamProtocol,
@@ -396,6 +398,19 @@ func (recorder *requestRecorder) appendDecisionAttempt(
 	recorder.pendingPricing = frozenAttemptPricing{}
 	recorder.pricingPending = false
 	return len(recorder.attempts) - 1
+}
+
+// attemptTurnState 取本次尝试观测到的 X-Codex-Turn-State。HTTP/SSE 路径由执行层
+// 填 UpstreamTurnState（响应头到这里已按客户端可见范围收窄），WS 路径的 Header
+// 本身就是上游原始响应头，直接读即可。
+func attemptTurnState(result UpstreamResult) string {
+	if result.UpstreamTurnState != "" {
+		return result.UpstreamTurnState
+	}
+	if result.Header == nil {
+		return ""
+	}
+	return result.Header.Get(platformheader.CodexTurnStateName)
 }
 
 func (recorder *requestRecorder) retryIfAnotherForward(index int) {
