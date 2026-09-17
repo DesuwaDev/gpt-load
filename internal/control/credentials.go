@@ -63,6 +63,7 @@ type CredentialCollectionQuery struct {
 	Status   *string
 	Page     int
 	PageSize int
+	modern   *modernCredentialFilters
 }
 
 type CredentialCollectionResponse struct {
@@ -104,6 +105,7 @@ type CredentialItemResponse struct {
 	ConfiguredStatus string `json:"configured_status"`
 	EffectiveStatus  string `json:"effective_status"`
 	Weight           int    `json:"weight"`
+	WeightManual     *int   `json:"-"` // 仅新版展示投影使用，经典接口不增加字段。
 	RPMLimit         int64  `json:"rpm_limit"`
 	ConcurrencyLimit int64  `json:"concurrency_limit"`
 	// Effective* 是解析继承后的实际生效值，Group* 是分组默认值，便于界面区分
@@ -190,8 +192,10 @@ type credentialObservation struct {
 }
 
 type credentialCollectionRecord struct {
-	item   CredentialItemResponse
-	bucket healthBucket
+	credentialKey string
+	createdAtMS   int64
+	item          CredentialItemResponse
+	bucket        healthBucket
 }
 
 func normalizeGroupConnectionType(value models.ConnectionType) models.ConnectionType {
@@ -474,7 +478,14 @@ func (s *Service) mapCredentialCollection(
 		if item.ConnectionType == string(models.ConnectionTypeSubscription) {
 			item.Observation = presentCredentialObservation(observation.subscription[row.ID], row.IdentityFingerprint)
 		}
-		records = append(records, credentialCollectionRecord{item: item, bucket: bucket})
+		var filterKey string
+		if query.modern != nil && query.modern.credentialKey != "" {
+			filterKey, err = s.credentialFilterKey(observation.group, row, canonical)
+			if err != nil {
+				return CredentialCollectionResponse{}, err
+			}
+		}
+		records = append(records, credentialCollectionRecord{item: item, bucket: bucket, createdAtMS: row.CreatedAtMS, credentialKey: filterKey})
 	}
 	summary := summarizeCredentialCollection(records)
 	filtered := make([]credentialCollectionRecord, 0, len(records))
@@ -485,6 +496,9 @@ func (s *Service) mapCredentialCollection(
 	}
 	sort.Slice(filtered, func(i, j int) bool {
 		left, right := filtered[i], filtered[j]
+		if query.modern != nil && query.modern.sort != "priority" {
+			return modernCredentialLess(left, right, query.modern.sort)
+		}
 		if credentialCollectionBucketOrder(left.bucket) != credentialCollectionBucketOrder(right.bucket) {
 			return credentialCollectionBucketOrder(left.bucket) < credentialCollectionBucketOrder(right.bucket)
 		}
@@ -518,6 +532,9 @@ func summarizeCredentialCollection(records []credentialCollectionRecord) Credent
 }
 
 func credentialCollectionMatches(record credentialCollectionRecord, query CredentialCollectionQuery) bool {
+	if query.modern != nil && !matchesModernCredential(record, *query.modern) {
+		return false
+	}
 	if query.Status != nil && record.item.EffectiveStatus != *query.Status {
 		return false
 	}

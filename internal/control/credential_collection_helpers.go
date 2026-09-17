@@ -152,6 +152,7 @@ func mapCredentialRuntimeItem(
 		ConfiguredStatus:  string(view.Status),
 		EffectiveStatus:   string(bucket),
 		Weight:            state.ConfiguredWeight(view.WeightManual),
+		WeightManual:      cloneInt(view.WeightManual),
 		RPMLimit:          view.RPMLimit,
 		ConcurrencyLimit:  view.ConcurrencyLimit,
 		EffectiveRPMLimit: state.EffectiveCredentialLimit(limitContext.groupRPMLimit, view.RPMLimit),

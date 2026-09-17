@@ -112,6 +112,8 @@ var migrations = []migration{
 	// 已应用校验按位置比对完整 ID，既有库的编号不能重排，只能把它挪到队尾。
 	{ID: migrationfiles.ID0018, Up: migrationfiles.Up0018, Validate: migrationfiles.Validate0018, ValidateRecoverable: migrationfiles.ValidateRecoverable0018},
 	{ID: migrationfiles.ID0019, Up: migrationfiles.Up0019, Validate: migrationfiles.Validate0019, ValidateRecoverable: migrationfiles.ValidateRecoverable0019},
+	// 同上：上游的 group_usage_index 原本占 0015，与本仓库已发布的 0015 撞号，改号追加到队尾。
+	{ID: migrationfiles.ID0020, Up: migrationfiles.Up0020, Validate: migrationfiles.Validate0020, ValidateRecoverable: migrationfiles.ValidateRecoverable0020},
 }
 
 func applyMigrations(db *gorm.DB) error {
