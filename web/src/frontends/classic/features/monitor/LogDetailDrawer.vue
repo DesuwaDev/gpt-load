@@ -1129,6 +1129,8 @@ function toggleAttemptErrorMessage(sequence: number): void {
 .log-turn-state__length {
   color: var(--color-text-muted);
   font-size: var(--text-sm);
+  /* 重试多了以后来源会列出一长串序号，窄屏里得允许它从中间断开。 */
+  overflow-wrap: anywhere;
 }
 
 /* 块数是要横向比对的数字，等宽 + 加重，方便在几条记录之间一眼扫出差异。 */
@@ -1430,6 +1432,20 @@ function toggleAttemptErrorMessage(sequence: number): void {
 
   .log-detail__wide {
     grid-column: auto;
+  }
+
+  /* 抽屉在这个宽度下满屏，轮次状态那张卡的头部会折成两三行。收一点内外间距，
+     再把复制按钮从右端拉回队列里——靠 margin-left: auto 顶着只会让它单独占掉一行。 */
+  .log-turn-state {
+    padding: 10px;
+  }
+
+  .log-turn-state__head {
+    gap: 6px 8px;
+  }
+
+  .log-turn-state__copy {
+    margin-left: 0;
   }
 }
 </style>

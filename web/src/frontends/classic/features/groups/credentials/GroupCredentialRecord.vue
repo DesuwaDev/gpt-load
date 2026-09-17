@@ -706,6 +706,9 @@ function runMenuAction(action: 'test' | 'toggle' | 'restore' | 'remove'): void {
   width: auto;
   /* 菜单顶部放了 2×2 的标记选择器，min-width 要能容下两列选项和自定义输入框。 */
   min-width: 212px;
+  /* width: auto 会跟着内容一路撑开，轮次状态那段说明在竖屏手机上足以把菜单顶出屏幕。
+     这里按 reka 量出来的可用宽度收口，下限仍然由上面的 min-width 兜着。 */
+  max-width: min(360px, var(--reka-popover-content-available-width, 360px));
   border-color: var(--color-border-control);
   border-radius: 10px;
   padding: 8px;

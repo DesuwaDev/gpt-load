@@ -372,4 +372,30 @@ function clear(): void {
   outline: 2px solid var(--color-focus);
   outline-offset: 1px;
 }
+
+/* 竖屏手机上这个菜单只有三百来像素宽，且全靠拇指操作：放宽输入区，把按钮抬到能点中的高度。 */
+@media (max-width: 560px) {
+  .credential-turn-state {
+    gap: 7px;
+  }
+
+  .credential-turn-state__input {
+    padding: 6px 8px;
+  }
+
+  .credential-turn-state__status {
+    gap: 3px 8px;
+  }
+
+  /* 窄屏里状态行必然折行，这时候再把字数推到右端只会和上一行对不齐。 */
+  .credential-turn-state__length,
+  .credential-turn-state__error {
+    margin-left: 0;
+  }
+
+  .credential-turn-state .credential-turn-state__clear,
+  .credential-turn-state .credential-turn-state__apply {
+    min-height: var(--touch-target);
+  }
+}
 </style>
