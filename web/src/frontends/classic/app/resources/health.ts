@@ -64,10 +64,14 @@ const blockedAccessKeyFields = [
   'next_available_at_ms',
   'blocking_rules',
 ] as const
+// 这两处的 identity 与 problemCredentialFields 里的同名字段是一回事，但经典版把额度与
+// 临期卡按分组聚合（见 features/home/attention.ts），不按账号逐条列，所以只放行不投影。
+// 不放行的话 assertNoSecretLikeFields 会让整个 /api/health 查询失败。
 const quotaCredentialFields = [
   'credential_id',
   'group_id',
   'group_name',
+  'identity',
   'remaining',
   'reset_at_ms',
 ] as const
@@ -75,6 +79,7 @@ const expiringResetCreditFields = [
   'credential_id',
   'group_id',
   'group_name',
+  'identity',
   'count',
   'nearest_expires_at_ms',
 ] as const

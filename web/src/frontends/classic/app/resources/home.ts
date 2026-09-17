@@ -191,6 +191,11 @@ const subscriptionAccountFields = [
   'channel_icon',
   'capabilities',
   'group_count',
+  // group_id 与 credential_key 是新版账号卡的跳转与聚合键（credential_key 是
+  // 身份指纹哈希，不是密文）。经典版不消费它们，但必须在白名单里放行，
+  // 否则 assertNoSecretLikeFields 会让整个首页订阅账号区加载失败。
+  'group_id',
+  'credential_key',
   'available_group_count',
   'credential',
 ] as const
