@@ -368,6 +368,7 @@ func (recorder *requestRecorder) appendDecisionAttempt(
 		UpstreamModel:     optionalModelValue(selection.UpstreamModelID),
 		UpstreamRequestID: result.UpstreamRequestID,
 		UpstreamTurnState: attemptTurnState(result),
+		InjectedTurnState: result.InjectedTurnState,
 		DispatchState:     result.DispatchState,
 		ResponseStarted:   result.ResponseStarted,
 		UpstreamProtocol:  result.UpstreamProtocol,

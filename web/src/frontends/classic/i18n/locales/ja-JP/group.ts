@@ -471,6 +471,13 @@ export default {
         inactive: '未注入',
         length: '{count} 文字',
         invalid: '1 行の印字可能 ASCII のみ対応',
+        models: '対象モデル',
+        modelsHint:
+          'これらのモデルにのみ注入します。カンマ区切りで、末尾の * は前方一致です。空欄ですべてのモデルが対象になります。',
+        modelsPlaceholder: 'gpt-5.1-codex, gpt-5*',
+        modelsAll: 'すべてのモデル',
+        modelsScoped: 'モデルを限定',
+        modelsInvalid: 'モデル名は英数字と - _ . : / のみ、末尾に * を付けられます',
         apply: '保存',
         clear: 'クリア',
       },

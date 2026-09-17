@@ -1260,7 +1260,9 @@ export default {
         reportedModel: 'アップストリーム応答モデル',
         turnState: {
           title: 'Codex ターン状態',
-          hint: 'アップストリームが返した X-Codex-Turn-State。リクエストが完了していなくても、いずれかの試行が返していれば表示されます。',
+          hint: 'ゲートウェイが注入した、およびアップストリームが返した X-Codex-Turn-State。「注入」の項目がなければ今回は注入されていません（未設定か、認証情報の対象モデルから外れたかです）。リクエストが完了していなくても、いずれかの試行に値があれば表示されます。',
+          injected: '注入',
+          observed: '返却',
           sources: '取得元の試行',
           length: '{count} 文字',
           copy: 'ターン状態をコピー',

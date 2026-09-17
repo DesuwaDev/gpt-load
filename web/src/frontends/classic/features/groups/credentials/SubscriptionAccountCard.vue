@@ -79,7 +79,13 @@ const emit = defineEmits<{
   weight: [payload: { item: CredentialItemDto; value: string }]
   limits: [payload: { item: CredentialItemDto; rpm_limit: number; concurrency_limit: number }]
   mark: [payload: { item: CredentialItemDto; mark: CredentialMark; mark_note: string }]
-  'turn-state': [payload: { item: CredentialItemDto; codex_turn_state: string }]
+  'turn-state': [
+    payload: {
+      item: CredentialItemDto
+      codex_turn_state: string
+      codex_turn_state_models: string
+    },
+  ]
 }>()
 const { locale, n, t, te } = useI18n()
 const menuOpen = ref(false)
@@ -616,7 +622,10 @@ function applyMark(payload: { mark: CredentialMark; mark_note: string }): void {
   emit('mark', { item: props.item, ...payload })
 }
 
-function applyTurnState(payload: { codex_turn_state: string }): void {
+function applyTurnState(payload: {
+  codex_turn_state: string
+  codex_turn_state_models: string
+}): void {
   menuOpen.value = false
   emit('turn-state', { item: props.item, ...payload })
 }
@@ -870,6 +879,7 @@ function runMenuAction(
                 <div class="subscription-account__menu-divider"></div>
                 <CredentialTurnStateEditor
                   :value="item.codex_turn_state"
+                  :models="item.codex_turn_state_models"
                   :disabled="busy"
                   @apply="applyTurnState"
                 />

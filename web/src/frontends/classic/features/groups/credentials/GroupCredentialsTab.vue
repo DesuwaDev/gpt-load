@@ -1261,7 +1261,7 @@ async function mutateItem(
     | string
     | { rpm_limit: number; concurrency_limit: number }
     | { mark: CredentialMark; mark_note: string }
-    | { codex_turn_state: string },
+    | { codex_turn_state: string; codex_turn_state_models: string },
 ): Promise<void> {
   if (batchBusy.value || pending(item.credential_id)) return
   feedback.value = ''
@@ -1862,6 +1862,7 @@ async function runBatch(
               @turn-state="
                 mutateItem($event.item, 'turn-state', {
                   codex_turn_state: $event.codex_turn_state,
+                  codex_turn_state_models: $event.codex_turn_state_models,
                 })
               "
               @refresh="refreshObservation"
@@ -1927,6 +1928,7 @@ async function runBatch(
             @turn-state="
               mutateItem($event.item, 'turn-state', {
                 codex_turn_state: $event.codex_turn_state,
+                codex_turn_state_models: $event.codex_turn_state_models,
               })
             "
             @test="openCredentialTest"

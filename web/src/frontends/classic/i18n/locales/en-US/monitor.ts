@@ -1267,7 +1267,9 @@ export default {
         reportedModel: 'Upstream reported model',
         turnState: {
           title: 'Codex turn state',
-          hint: 'X-Codex-Turn-State returned by the upstream. Listed even when the request did not complete, as long as an attempt returned one.',
+          hint: 'X-Codex-Turn-State injected by the gateway and returned by the upstream. No "Injected" entry means nothing was injected — either none is configured or the credential model scope excluded this request. Listed even when the request did not complete, as long as an attempt had one.',
+          injected: 'Injected',
+          observed: 'Returned',
           sources: 'From attempts',
           length: '{count} characters',
           copy: 'Copy turn state',

@@ -470,6 +470,14 @@ export default {
         inactive: 'Not injecting',
         length: '{count} characters',
         invalid: 'Single-line printable ASCII only',
+        models: 'Model scope',
+        modelsHint:
+          'Inject only for these models. Comma-separated; a trailing * matches by prefix. Blank means every model.',
+        modelsPlaceholder: 'gpt-5.1-codex, gpt-5*',
+        modelsAll: 'Every model',
+        modelsScoped: 'Scoped to models',
+        modelsInvalid:
+          'Model names allow letters, digits and - _ . : / with an optional trailing *',
         apply: 'Save',
         clear: 'Clear',
       },

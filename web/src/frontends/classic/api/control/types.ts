@@ -292,6 +292,8 @@ export interface CredentialItemDto {
   mark_note: string
   /** 每次请求强制注入的 X-Codex-Turn-State；'' 表示不注入。 */
   codex_turn_state: string
+  /** 把注入限定在这些模型上，逗号分隔；'' 表示不限模型。 */
+  codex_turn_state_models: string
   configured_status: CredentialConfiguredStatus
   effective_status: CredentialStatus
   weight: number

@@ -115,6 +115,7 @@ var migrations = []migration{
 	// 同上：上游的 group_usage_index 原本占 0015，与本仓库已发布的 0015 撞号，改号追加到队尾。
 	{ID: migrationfiles.ID0020, Up: migrationfiles.Up0020, Validate: migrationfiles.Validate0020, ValidateRecoverable: migrationfiles.ValidateRecoverable0020},
 	{ID: migrationfiles.ID0021, Up: migrationfiles.Up0021, Validate: migrationfiles.Validate0021, ValidateRecoverable: migrationfiles.ValidateRecoverable0021},
+	{ID: migrationfiles.ID0022, Up: migrationfiles.Up0022, Validate: migrationfiles.Validate0022, ValidateRecoverable: migrationfiles.ValidateRecoverable0022},
 }
 
 func applyMigrations(db *gorm.DB) error {

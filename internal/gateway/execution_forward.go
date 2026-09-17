@@ -752,10 +752,10 @@ func newExecutionAttemptSpec(input ForwardInput) (execution.AttemptSpec, error) 
 	sanitizeUpstreamRequestHeaders(headers)
 	headers.Set("Accept-Encoding", "identity")
 	configuredHeaders := input.Group.HeaderRules.ConfiguredNames()
-	if input.CodexTurnState != "" {
+	if turnState := input.ResolvedCodexTurnState(); turnState != "" {
 		// 凭据级覆盖写在分组规则与清洗之后，并登记进 ConfiguredHeaders，让 Codex
 		// 的最后一跳把它重新贴回出站请求，避免被 SDK 自己的会话状态顶掉。
-		headers.Set(platformheader.CodexTurnStateName, input.CodexTurnState)
+		headers.Set(platformheader.CodexTurnStateName, turnState)
 		configuredHeaders = append(configuredHeaders, platformheader.CodexTurnStateName)
 	}
 	spec := execution.NewAttemptSpec(execution.AttemptSpec{
@@ -817,6 +817,7 @@ func upstreamFromExecutionResult(
 	}
 	upstream.UpstreamProtocol = result.UpstreamProtocol
 	upstream.UpstreamTurnState = result.UpstreamTurnState
+	upstream.InjectedTurnState = input.ResolvedCodexTurnState()
 	if input.ClientProtocol == protocol.OpenAIImages ||
 		input.ClientProtocol == protocol.OpenAIEmbeddings {
 		// AttemptResult owns Body after the executor returns. Buffered opaque
@@ -852,6 +853,7 @@ func upstreamFromExecutionStreamResult(
 	}
 	upstream.UpstreamProtocol = result.UpstreamProtocol
 	upstream.UpstreamTurnState = result.UpstreamTurnState
+	upstream.InjectedTurnState = input.ResolvedCodexTurnState()
 	if !result.ResponseStarted && result.Error != nil {
 		upstream.Err = executionFailureError(ctx, result.Error)
 	}

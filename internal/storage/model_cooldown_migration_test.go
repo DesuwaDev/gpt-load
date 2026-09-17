@@ -80,7 +80,7 @@ func testModelCooldownMigration(t *testing.T, open func(*testing.T) *gorm.DB) {
 				}
 				legacy := models.RequestLogAttempt{RequestID: legacyRequest.ID, Sequence: 1, GroupID: 1, CredentialID: 1,
 					FailureCategory: "rate_limited", Action: "cooldown_credential", Effect: "cooldown_credential", ErrorSummary: "legacy limited"}
-				if err := db.Omit("CooldownUntilMS", "UpstreamTurnState").Create(&legacy).Error; err != nil {
+				if err := db.Omit("CooldownUntilMS", "UpstreamTurnState", "InjectedTurnState").Create(&legacy).Error; err != nil {
 					t.Fatal(err)
 				}
 			}

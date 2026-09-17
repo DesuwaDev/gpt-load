@@ -172,15 +172,18 @@ func TestCodexGatewayRequestIdentity(t *testing.T) {
 }
 
 // 凭据级 X-Codex-Turn-State 是强制覆盖：它写在分组规则与头部清洗之后，还要挺过
-// CPA 最后一跳的头部改写，所以 unary 与 stream 两条路都断言一次。
+// CPA 最后一跳的头部改写，所以 unary 与 stream 两条路都断言一次。模型名单同时决定
+// 出站头与请求日志里的「注入了没有」，因此两者一起断言，防止它们各说各话。
 func TestCodexGatewayInjectsCredentialTurnState(t *testing.T) {
 	const injected = "eyJzZXNzaW9uIjoiY3JlZGVudGlhbCJ9"
 	tests := []struct {
-		name      string
-		turnState string
-		headers   http.Header
-		rules     state.HeaderRules
-		want      string
+		name          string
+		turnState     string
+		scope         string
+		externalModel string
+		headers       http.Header
+		rules         state.HeaderRules
+		want          string
 	}{
 		{name: "credential override reaches upstream", turnState: injected, want: injected},
 		{
@@ -196,6 +199,19 @@ func TestCodexGatewayInjectsCredentialTurnState(t *testing.T) {
 			want: injected,
 		},
 		{name: "empty override injects nothing"},
+		{name: "model in scope injects", turnState: injected, scope: "gpt-5", want: injected},
+		{name: "model out of scope injects nothing", turnState: injected, scope: "gpt-5.1-codex"},
+		{name: "scope list matches any entry", turnState: injected, scope: "gpt-4o,gpt-5", want: injected},
+		{name: "trailing star matches by prefix", turnState: injected, scope: "gpt-5*", want: injected},
+		{name: "prefix scope still excludes other families", turnState: injected, scope: "claude-*"},
+		{
+			name: "scope matches the client model after a route rewrite", turnState: injected,
+			externalModel: "gpt-5-codex", scope: "gpt-5-codex", want: injected,
+		},
+		{
+			name: "out of scope client model does not block an upstream match", turnState: injected,
+			externalModel: "gpt-5-codex", scope: "gpt-5", want: injected,
+		},
 	}
 	for _, stream := range []bool{false, true} {
 		mode := "unary"
@@ -207,6 +223,10 @@ func TestCodexGatewayInjectsCredentialTurnState(t *testing.T) {
 				adapter, _, _, keyService, row := newAdapterFixture(t, credentialJSON("access", "refresh", time.Now().Add(time.Hour)))
 				spec := validSpec(t, row, keyService)
 				model := spec.UpstreamModel
+				externalModel := test.externalModel
+				if externalModel == "" {
+					externalModel = model
+				}
 				body := `{"model":"` + model + `","input":"hello"}`
 				capturedHeaders := make(chan http.Header, 1)
 				transport := roundTripperFunc(func(request *http.Request) (*http.Response, error) {
@@ -225,7 +245,8 @@ func TestCodexGatewayInjectsCredentialTurnState(t *testing.T) {
 					RequestID: spec.RequestID, AttemptID: spec.AttemptID, AttemptSequence: spec.Sequence,
 					ClientProtocol: spec.ClientProtocol, Operation: spec.Operation, ChannelID: spec.ChannelID,
 					RouteMode: spec.RouteMode, TargetConfig: spec.TargetConfig, Credential: spec.Credential,
-					ExternalModel: model, UpstreamModelID: model, CodexTurnState: test.turnState,
+					ExternalModel: externalModel, UpstreamModelID: model,
+					CodexTurnState: test.turnState, CodexTurnStateModels: test.scope,
 				}
 				forwarder := gateway.NewExecutionForwarder(adapter)
 				var result gateway.UpstreamResult
@@ -240,6 +261,9 @@ func TestCodexGatewayInjectsCredentialTurnState(t *testing.T) {
 				captured := <-capturedHeaders
 				if got := captured.Get("X-Codex-Turn-State"); got != test.want {
 					t.Errorf("X-Codex-Turn-State = %q, want %q", got, test.want)
+				}
+				if result.InjectedTurnState != test.want {
+					t.Errorf("InjectedTurnState = %q, want %q", result.InjectedTurnState, test.want)
 				}
 				if !reflect.DeepEqual(input.Request.Header, test.headers) {
 					t.Error("forwarding mutated the downstream headers")

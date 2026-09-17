@@ -1230,7 +1230,9 @@ export default {
         reportedModel: '上游返回模型',
         turnState: {
           title: 'Codex 轮次状态',
-          hint: '上游回带的 X-Codex-Turn-State。请求未完成但某次尝试回带过时同样会列出。',
+          hint: '网关注入与上游回带的 X-Codex-Turn-State。没有「注入」条目就说明本次没有注入（没配、或被凭据的限定模型挡掉）。请求未完成但某次尝试有值时同样会列出。',
+          injected: '注入',
+          observed: '回带',
           sources: '来源尝试',
           length: '{count} 字符',
           copy: '复制轮次状态',

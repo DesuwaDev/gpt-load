@@ -94,6 +94,8 @@ type Attempt struct {
 	UpstreamRequestID string
 	// UpstreamTurnState 是上游本次尝试回带的 X-Codex-Turn-State，空串表示没有。
 	UpstreamTurnState string
+	// InjectedTurnState 是本次尝试实际注入的凭据级 X-Codex-Turn-State，空串表示没注入。
+	InjectedTurnState string
 	DispatchState     execution.DispatchState
 	ResponseStarted   bool
 	UpstreamProtocol  protocol.Protocol

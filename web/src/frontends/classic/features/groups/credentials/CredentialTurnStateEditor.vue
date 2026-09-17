@@ -2,14 +2,22 @@
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
-import { credentialTurnStateMaxLength, validCredentialTurnState } from './credential-turn-state'
+import {
+  canonicalCredentialTurnStateModels,
+  credentialTurnStateMaxLength,
+  credentialTurnStateModelsMaxLength,
+  validCredentialTurnState,
+} from './credential-turn-state'
 
-const props = defineProps<{ value: string; disabled?: boolean }>()
-const emit = defineEmits<{ apply: [payload: { codex_turn_state: string }] }>()
+const props = defineProps<{ value: string; models: string; disabled?: boolean }>()
+const emit = defineEmits<{
+  apply: [payload: { codex_turn_state: string; codex_turn_state_models: string }]
+}>()
 
 const { n, t } = useI18n()
 
 const draft = ref(props.value)
+const modelsDraft = ref(props.models)
 
 // 菜单实例在行间复用，上游刷新出新值时要把草稿拉回当前值。
 watch(
@@ -18,21 +26,37 @@ watch(
     draft.value = value
   },
 )
+watch(
+  () => props.models,
+  (value) => {
+    modelsDraft.value = value
+  },
+)
 
 const trimmed = computed(() => draft.value.trim())
 const invalid = computed(() => !validCredentialTurnState(trimmed.value))
-const dirty = computed(() => trimmed.value !== props.value)
-const canApply = computed(() => !props.disabled && !invalid.value && dirty.value)
+const canonicalModels = computed(() => canonicalCredentialTurnStateModels(modelsDraft.value))
+const modelsInvalid = computed(() => canonicalModels.value === null)
+const dirty = computed(
+  () => trimmed.value !== props.value || canonicalModels.value !== props.models,
+)
+const canApply = computed(
+  () => !props.disabled && !invalid.value && !modelsInvalid.value && dirty.value,
+)
 
 function apply(): void {
-  if (!canApply.value) return
-  emit('apply', { codex_turn_state: trimmed.value })
+  if (!canApply.value || canonicalModels.value === null) return
+  emit('apply', {
+    codex_turn_state: trimmed.value,
+    codex_turn_state_models: canonicalModels.value,
+  })
 }
 
+// 清除只关注入值，模型名单原样留着，方便换一个 state 之后继续复用同一份范围。
 function clear(): void {
   if (props.disabled || props.value === '') return
   draft.value = ''
-  emit('apply', { codex_turn_state: '' })
+  emit('apply', { codex_turn_state: '', codex_turn_state_models: props.models })
 }
 </script>
 
@@ -70,6 +94,39 @@ function clear(): void {
       </span>
       <span v-else class="credential-turn-state__length">
         {{ t('group.credentials.turnState.length', { count: n(trimmed.length) }) }}
+      </span>
+    </p>
+    <p class="credential-turn-state__hint">{{ t('group.credentials.turnState.modelsHint') }}</p>
+    <input
+      v-model="modelsDraft"
+      class="credential-turn-state__input"
+      :class="{ 'credential-turn-state__input--invalid': modelsInvalid }"
+      type="text"
+      spellcheck="false"
+      autocomplete="off"
+      :maxlength="credentialTurnStateModelsMaxLength"
+      :disabled="disabled"
+      :placeholder="t('group.credentials.turnState.modelsPlaceholder')"
+      :aria-label="t('group.credentials.turnState.models')"
+      :aria-invalid="modelsInvalid"
+    />
+    <p class="credential-turn-state__status">
+      <span
+        class="credential-turn-state__state"
+        :class="
+          canonicalModels === ''
+            ? 'credential-turn-state__state--off'
+            : 'credential-turn-state__state--on'
+        "
+      >
+        {{
+          canonicalModels === ''
+            ? t('group.credentials.turnState.modelsAll')
+            : t('group.credentials.turnState.modelsScoped')
+        }}
+      </span>
+      <span v-if="modelsInvalid" class="credential-turn-state__error">
+        {{ t('group.credentials.turnState.modelsInvalid') }}
       </span>
     </p>
     <div class="credential-turn-state__actions">

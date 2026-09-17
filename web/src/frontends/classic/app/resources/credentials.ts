@@ -81,6 +81,8 @@ export interface CredentialPatch {
   mark_note?: string
   /** 强制注入的 X-Codex-Turn-State；'' 表示关闭注入。 */
   codex_turn_state?: string
+  /** 注入的模型名单，逗号分隔；'' 表示不限模型。 */
+  codex_turn_state_models?: string
   proxy?: ProxyMutation
 }
 
@@ -117,6 +119,7 @@ const credentialItemFields = [
   'mark',
   'mark_note',
   'codex_turn_state',
+  'codex_turn_state_models',
   'configured_status',
   'effective_status',
   'weight',
@@ -181,6 +184,13 @@ function validCodexTurnState(value: string): boolean {
   return (
     value.length <= codexTurnStateMaxLength && ![...value].some((char) => char < ' ' || char > '~')
   )
+}
+// 模型名单由服务端 canonicalCodexTurnStateModels 规范化，这里只校验规范形态。
+const codexTurnStateModelsMaxLength = 1024
+function validCodexTurnStateModels(value: string): boolean {
+  if (value.length > codexTurnStateModelsMaxLength) return false
+  if (value === '') return true
+  return value.split(',').every((entry) => /^[a-z0-9\-_.:/]+\*?$/.test(entry))
 }
 const effectiveStatuses = ['available', 'cooldown', 'blacklisted', 'disabled'] as const
 const recoveryModes = ['none', 'cooldown', 'probe', 'manual'] as const
@@ -590,6 +600,8 @@ export function projectCredentialItem(value: unknown): CredentialItemDto {
   const markNote = projectString(record.mark_note, { allowEmpty: true })
   const codexTurnState = projectString(record.codex_turn_state, { allowEmpty: true })
   if (!validCodexTurnState(codexTurnState)) invalidResponse()
+  const codexTurnStateModels = projectString(record.codex_turn_state_models, { allowEmpty: true })
+  if (!validCodexTurnStateModels(codexTurnStateModels)) invalidResponse()
   if (
     // 分组停用或权重为 0 时，active 凭据的运行时状态也会是 disabled。
     (configuredStatus === 'disabled' && effectiveStatus !== 'disabled') ||
@@ -620,6 +632,7 @@ export function projectCredentialItem(value: unknown): CredentialItemDto {
     mark,
     mark_note: markNote,
     codex_turn_state: codexTurnState,
+    codex_turn_state_models: codexTurnStateModels,
     configured_status: configuredStatus,
     effective_status: effectiveStatus,
     weight,
@@ -730,6 +743,7 @@ function normalizePatch(patch: CredentialPatch): CredentialPatch {
     'mark',
     'mark_note',
     'codex_turn_state',
+    'codex_turn_state_models',
     'proxy',
   ])
   if (keys.length === 0 || keys.some((key) => !allowed.has(key))) {
@@ -787,6 +801,13 @@ function normalizePatch(patch: CredentialPatch): CredentialPatch {
       throw new Error('INVALID_CREDENTIAL_TURN_STATE')
     }
     body.codex_turn_state = turnState
+  }
+  if (Object.prototype.hasOwnProperty.call(patch, 'codex_turn_state_models')) {
+    const models = patch.codex_turn_state_models
+    if (typeof models !== 'string' || !validCodexTurnStateModels(models)) {
+      throw new Error('INVALID_CREDENTIAL_TURN_STATE_MODELS')
+    }
+    body.codex_turn_state_models = models
   }
   if (Object.prototype.hasOwnProperty.call(patch, 'proxy')) {
     const proxy = patch.proxy

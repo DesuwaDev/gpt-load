@@ -62,6 +62,48 @@ type ForwardInput struct {
 	// CodexTurnState 是凭据级强制注入的 X-Codex-Turn-State，空串表示不注入。它在
 	// 分组头规则之后写入，所以凭据的覆盖优先于分组配置。
 	CodexTurnState string
+	// CodexTurnStateModels 把注入限定在指定模型上，逗号分隔，空串表示不限模型。
+	CodexTurnStateModels string
+}
+
+// ResolvedCodexTurnState 给出本次尝试真正会注入的 X-Codex-Turn-State，空串表示不
+// 注入。转发与请求日志都走这一个入口，两边不会对「注入了没有」给出不同答案。
+func (input ForwardInput) ResolvedCodexTurnState() string {
+	if input.CodexTurnState == "" ||
+		!matchesCodexTurnStateModels(input.CodexTurnStateModels, input.ExternalModel, input.UpstreamModelID) {
+		return ""
+	}
+	return input.CodexTurnState
+}
+
+// matchesCodexTurnStateModels 判定模型名单是否命中。名单为空表示不限模型；条目大小
+// 写不敏感，结尾的 * 做前缀匹配。客户端模型与上游模型任一命中即算命中——路由重写
+// 之后两者常常不是同一个名字，而操作者填的通常是自己请求时用的那个。
+func matchesCodexTurnStateModels(scope string, models ...string) bool {
+	scope = strings.TrimSpace(scope)
+	if scope == "" {
+		return true
+	}
+	for _, entry := range strings.Split(scope, ",") {
+		entry = strings.TrimSpace(entry)
+		if entry == "" {
+			continue
+		}
+		prefix, wildcard := strings.CutSuffix(entry, "*")
+		for _, model := range models {
+			model = strings.TrimSpace(model)
+			if model == "" {
+				continue
+			}
+			if wildcard && strings.HasPrefix(strings.ToLower(model), strings.ToLower(prefix)) {
+				return true
+			}
+			if !wildcard && strings.EqualFold(model, entry) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // UpstreamResult is the gateway's stable view of one logical execution
@@ -89,6 +131,9 @@ type UpstreamResult struct {
 	// UpstreamTurnState 是本次尝试观测到的 X-Codex-Turn-State。HTTP/SSE 路径由执行
 	// 层单独带出（Header 已按客户端可见范围收窄），WS 路径的 Header 是原始响应头。
 	UpstreamTurnState string
+	// InjectedTurnState 是本次尝试实际注入到出站请求上的凭据级 X-Codex-Turn-State，
+	// 空串表示没注入（没配、或者被模型名单挡掉、或者请求根本没发出去）。
+	InjectedTurnState string
 	ExecutionError    *execution.ErrorEvidence
 }
 

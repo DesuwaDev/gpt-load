@@ -65,17 +65,22 @@ const finalAttempt = computed(() => {
     ) ?? attempts[0]
   )
 })
-// 轮次状态按值去重：重试链上同一个 state 往往连续回带多次，逐条列出只会淹没差异。
-// 这里只依赖 attempts，所以请求没跑完、只要某次尝试回带过就仍然能显示和复制。
+// 轮次状态按「方向 + 值」去重：重试链上同一个 state 往往连续出现多次，逐条列出只会
+// 淹没差异。这里只依赖 attempts，所以请求没跑完、只要某次尝试有过 state 就仍然能显示
+// 和复制。注入项排在回带项前面——先看发出去的是什么，再看上游换回了什么。
 const turnStates = computed(() => {
-  const groups: { value: string; sequences: number[] }[] = []
-  for (const attempt of log.value?.attempts ?? []) {
-    const value = attempt.upstream_turn_state
-    if (!value) continue
-    const existing = groups.find((group) => group.value === value)
-    if (existing) existing.sequences.push(attempt.sequence)
-    else groups.push({ value, sequences: [attempt.sequence] })
+  const groups: { kind: 'injected' | 'observed'; value: string; sequences: number[] }[] = []
+  function collect(kind: 'injected' | 'observed'): void {
+    for (const attempt of log.value?.attempts ?? []) {
+      const value = kind === 'injected' ? attempt.injected_turn_state : attempt.upstream_turn_state
+      if (!value) continue
+      const existing = groups.find((group) => group.kind === kind && group.value === value)
+      if (existing) existing.sequences.push(attempt.sequence)
+      else groups.push({ kind, value, sequences: [attempt.sequence] })
+    }
   }
+  collect('injected')
+  collect('observed')
   return groups
 })
 function turnStateSources(sequences: number[]): string {
@@ -578,8 +583,11 @@ function toggleAttemptErrorMessage(sequence: number): void {
       >
         <h3>{{ t('monitor.logs.drawer.turnState.title') }}</h3>
         <p class="log-turn-state__hint">{{ t('monitor.logs.drawer.turnState.hint') }}</p>
-        <div v-for="entry in turnStates" :key="entry.value" class="log-turn-state">
+        <div v-for="entry in turnStates" :key="entry.kind + entry.value" class="log-turn-state">
           <div class="log-turn-state__head">
+            <span class="log-turn-state__kind" :class="`log-turn-state__kind--${entry.kind}`">
+              {{ t(`monitor.logs.drawer.turnState.${entry.kind}`) }}
+            </span>
             <span class="log-turn-state__source">
               {{ t('monitor.logs.drawer.turnState.sources') }}
               <code>{{ turnStateSources(entry.sequences) }}</code>
@@ -941,6 +949,24 @@ function toggleAttemptErrorMessage(sequence: number): void {
 .log-turn-state__length {
   color: var(--color-text-muted);
   font-size: var(--text-sm);
+}
+
+/* 「注入 / 回带」是这一段最先要读到的信息，用徽章把两个方向拉开距离。 */
+.log-turn-state__kind {
+  border-radius: var(--radius-tag);
+  padding: 1px 8px;
+  font-size: var(--text-label-xs);
+  font-weight: 650;
+}
+
+.log-turn-state__kind--injected {
+  background: var(--color-info-bg);
+  color: var(--color-info);
+}
+
+.log-turn-state__kind--observed {
+  background: var(--color-surface-raised);
+  color: var(--color-text-muted);
 }
 
 .log-turn-state__source code {

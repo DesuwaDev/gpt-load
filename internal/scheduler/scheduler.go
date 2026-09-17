@@ -55,6 +55,8 @@ type Selection struct {
 	CredentialConcurrencyLimit int64
 	// CredentialCodexTurnState 是凭据级强制注入的 X-Codex-Turn-State，空串表示不注入。
 	CredentialCodexTurnState string
+	// CredentialCodexTurnStateModels 把注入限定在指定模型上，空串表示不限模型。
+	CredentialCodexTurnStateModels string
 }
 
 type candidateTarget struct {
@@ -401,7 +403,8 @@ func newSelection(credential state.CredentialMeta, target candidateTarget) Selec
 		CredentialConcurrencyLimit: state.EffectiveCredentialLimit(
 			target.group.CredentialConcurrencyLimit, credential.ConcurrencyLimit,
 		),
-		CredentialCodexTurnState: credential.CodexTurnState,
+		CredentialCodexTurnState:       credential.CodexTurnState,
+		CredentialCodexTurnStateModels: credential.CodexTurnStateModels,
 	}
 }
 

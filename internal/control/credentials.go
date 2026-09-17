@@ -39,8 +39,10 @@ type CredentialUpdateRequest struct {
 	Mark     optionalField[string] `json:"mark"`
 	MarkNote optionalField[string] `json:"mark_note"`
 	// CodexTurnState 是每次请求强制注入的 X-Codex-Turn-State；空串表示不注入。
-	CodexTurnState optionalField[string]               `json:"codex_turn_state"`
-	Proxy          optionalField[outboundproxy.Config] `json:"proxy"`
+	// CodexTurnStateModels 把注入限定在指定模型上，逗号分隔，空串表示不限模型。
+	CodexTurnState       optionalField[string]               `json:"codex_turn_state"`
+	CodexTurnStateModels optionalField[string]               `json:"codex_turn_state_models"`
+	Proxy                optionalField[outboundproxy.Config] `json:"proxy"`
 }
 
 // 凭据的人工模型状态标记。空串表示未标记；其余取值只用于呈现，不参与调度。
@@ -57,6 +59,9 @@ const (
 // maxCodexTurnStateBytes 对齐 credentials.codex_turn_state 的列宽。实测上游回带的
 // state 在 300 字符上下，留一个数量级的余量即可。
 const maxCodexTurnStateBytes = 4096
+
+// maxCodexTurnStateModelsBytes 对齐 credentials.codex_turn_state_models 的列宽。
+const maxCodexTurnStateModelsBytes = 1024
 
 type CredentialRevealResult struct {
 	CredentialID uint            `json:"credential_id"`
@@ -109,13 +114,15 @@ type CredentialItemResponse struct {
 	Mark     string `json:"mark"`
 	MarkNote string `json:"mark_note"`
 	// CodexTurnState 是每次请求强制注入的 X-Codex-Turn-State；空串表示不注入。
-	CodexTurnState   string `json:"codex_turn_state"`
-	ConfiguredStatus string `json:"configured_status"`
-	EffectiveStatus  string `json:"effective_status"`
-	Weight           int    `json:"weight"`
-	WeightManual     *int   `json:"-"` // 仅新版展示投影使用，经典接口不增加字段。
-	RPMLimit         int64  `json:"rpm_limit"`
-	ConcurrencyLimit int64  `json:"concurrency_limit"`
+	// CodexTurnStateModels 把注入限定在指定模型上，逗号分隔，空串表示不限模型。
+	CodexTurnState       string `json:"codex_turn_state"`
+	CodexTurnStateModels string `json:"codex_turn_state_models"`
+	ConfiguredStatus     string `json:"configured_status"`
+	EffectiveStatus      string `json:"effective_status"`
+	Weight               int    `json:"weight"`
+	WeightManual         *int   `json:"-"` // 仅新版展示投影使用，经典接口不增加字段。
+	RPMLimit             int64  `json:"rpm_limit"`
+	ConcurrencyLimit     int64  `json:"concurrency_limit"`
 	// Effective* 是解析继承后的实际生效值，Group* 是分组默认值，便于界面区分
 	// “继承自分组”和“已单独覆盖”。
 	EffectiveRPMLimit         int64                         `json:"effective_rpm_limit"`
@@ -482,6 +489,7 @@ func (s *Service) mapCredentialCollection(
 		item.AuthErrorCode = safeInternalErrorCode(row.AuthErrorCode)
 		item.Mark, item.MarkNote = presentCredentialMark(row)
 		item.CodexTurnState = presentCodexTurnState(row)
+		item.CodexTurnStateModels = presentCodexTurnStateModels(row)
 		item.Account = account
 		item.Proxy = proxyViews[row.ID]
 		if item.ConnectionType == string(models.ConnectionTypeSubscription) {

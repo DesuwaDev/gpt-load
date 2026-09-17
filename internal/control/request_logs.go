@@ -74,6 +74,7 @@ type requestLogAttemptResponse struct {
 	UpstreamModel     *string                           `json:"upstream_model"`
 	UpstreamRequestID *string                           `json:"upstream_request_id"`
 	UpstreamTurnState *string                           `json:"upstream_turn_state"`
+	InjectedTurnState *string                           `json:"injected_turn_state"`
 	DispatchState     *execution.DispatchState          `json:"dispatch_state"`
 	ResponseStarted   bool                              `json:"response_started"`
 	UpstreamProtocol  *protocol.Protocol                `json:"upstream_protocol"`
@@ -1113,6 +1114,7 @@ func mapRequestLogAttempt(
 		UpstreamModel:     nullableRequestLogModel(attempt.UpstreamModel),
 		UpstreamRequestID: nullableRequestLogModel(attempt.UpstreamRequestID),
 		UpstreamTurnState: nullableRequestLogModel(attempt.UpstreamTurnState),
+		InjectedTurnState: nullableRequestLogModel(attempt.InjectedTurnState),
 		DispatchState:     dispatchState,
 		ResponseStarted:   attempt.ResponseStarted,
 		UpstreamProtocol:  upstreamProtocol,

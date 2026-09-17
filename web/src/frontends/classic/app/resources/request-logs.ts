@@ -141,6 +141,8 @@ export interface RequestLogAttemptDto {
   upstream_request_id: string | null
   /** 上游本次尝试回带的 X-Codex-Turn-State；没有时为 null。 */
   upstream_turn_state: string | null
+  /** 本次尝试实际注入到出站请求的凭据级 X-Codex-Turn-State；没注入时为 null。 */
+  injected_turn_state: string | null
   dispatch_state: RequestLogDispatchState | null
   response_started: boolean
   upstream_protocol: RequestLogUpstreamProtocol | null
@@ -469,6 +471,7 @@ function projectAttempt(value: unknown): RequestLogAttemptDto {
     'upstream_model',
     'upstream_request_id',
     'upstream_turn_state',
+    'injected_turn_state',
     'dispatch_state',
     'response_started',
     'upstream_protocol',
@@ -505,6 +508,7 @@ function projectAttempt(value: unknown): RequestLogAttemptDto {
     upstream_model: projectNullableModel(record.upstream_model),
     upstream_request_id: projectNullableModel(record.upstream_request_id),
     upstream_turn_state: projectNullableModel(record.upstream_turn_state),
+    injected_turn_state: projectNullableModel(record.injected_turn_state),
     dispatch_state:
       record.dispatch_state === null ? null : projectEnum(record.dispatch_state, dispatchStates),
     response_started: projectBoolean(record.response_started),

@@ -82,6 +82,7 @@ func mapEvent(
 			UpstreamModel:         redactIdentityValue(redactor, projectModel(attempt.UpstreamModel)),
 			UpstreamRequestID:     redactIdentityValue(redactor, projectModel(attempt.UpstreamRequestID)),
 			UpstreamTurnState:     redactIdentityValue(redactor, projectTurnState(attempt.UpstreamTurnState)),
+			InjectedTurnState:     redactIdentityValue(redactor, projectTurnState(attempt.InjectedTurnState)),
 			DispatchState:         string(attempt.DispatchState),
 			ResponseStarted:       attempt.ResponseStarted,
 			UpstreamProtocol:      string(attempt.UpstreamProtocol),

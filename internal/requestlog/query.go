@@ -257,6 +257,7 @@ func decodeAttemptRows(rows []models.RequestLogAttempt) ([]Attempt, error) {
 			UpstreamModel:     row.UpstreamModel,
 			UpstreamRequestID: row.UpstreamRequestID,
 			UpstreamTurnState: row.UpstreamTurnState,
+			InjectedTurnState: row.InjectedTurnState,
 			DispatchState:     execution.DispatchState(row.DispatchState),
 			ResponseStarted:   row.ResponseStarted,
 			UpstreamProtocol:  upstreamProtocol,

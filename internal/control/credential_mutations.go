@@ -42,9 +42,11 @@ type credentialUpdatePlan struct {
 	limits    credentialLimitUpdate
 	mark      credentialMarkUpdate
 	// codexTurnState 为 nil 表示未提交；空串表示清除注入。
-	codexTurnState *string
-	proxy          *string
-	proxySet       bool
+	// codexTurnStateModels 同理，空串表示不限模型。
+	codexTurnState       *string
+	codexTurnStateModels *string
+	proxy                *string
+	proxySet             bool
 }
 
 func normalizeCredentialUpdate(
@@ -54,7 +56,7 @@ func normalizeCredentialUpdate(
 	var plan credentialUpdatePlan
 	if !request.Status.Set && !request.WeightManual.Set && !request.RPMLimit.Set &&
 		!request.ConcurrencyLimit.Set && !request.Mark.Set && !request.MarkNote.Set &&
-		!request.CodexTurnState.Set && !request.Proxy.Set {
+		!request.CodexTurnState.Set && !request.CodexTurnStateModels.Set && !request.Proxy.Set {
 		return plan, app_errors.ErrBadRequest
 	}
 	if request.Status.Set {
@@ -96,6 +98,10 @@ func normalizeCredentialUpdate(
 	}
 	plan.mark.mark, plan.mark.note = mark, note
 	plan.codexTurnState, err = normalizeCodexTurnState(request.CodexTurnState)
+	if err != nil {
+		return plan, err
+	}
+	plan.codexTurnStateModels, err = normalizeCodexTurnStateModels(request.CodexTurnStateModels)
 	if err != nil {
 		return plan, err
 	}
@@ -169,6 +175,75 @@ func validCodexTurnState(value string) bool {
 func presentCodexTurnState(row models.Credential) string {
 	value := strings.TrimSpace(row.CodexTurnState)
 	if !validCodexTurnState(value) {
+		return ""
+	}
+	return value
+}
+
+// normalizeCodexTurnStateModels 校验并规范化注入的模型名单；未提交时返回 nil。
+// null 与空串都表示不限模型。规范化在这里做完，网关那侧就只剩一次朴素的逗号切分。
+func normalizeCodexTurnStateModels(field optionalField[string]) (*string, error) {
+	if !field.Set {
+		return nil, nil
+	}
+	if field.Null {
+		value := ""
+		return &value, nil
+	}
+	value, ok := canonicalCodexTurnStateModels(field.Value)
+	if !ok {
+		return nil, app_errors.ErrValidation
+	}
+	return &value, nil
+}
+
+// canonicalCodexTurnStateModels 把名单收敛成「去空白、小写、去重、逗号分隔」的单行
+// 形式。条目允许以 * 结尾做前缀匹配，除此之外不接受通配符——模型名本身不含 * 。
+func canonicalCodexTurnStateModels(raw string) (string, bool) {
+	entries := make([]string, 0, 4)
+	seen := make(map[string]struct{}, 4)
+	for _, entry := range strings.Split(raw, ",") {
+		entry = strings.ToLower(strings.TrimSpace(entry))
+		if entry == "" {
+			continue
+		}
+		if !validCodexTurnStateModelEntry(entry) {
+			return "", false
+		}
+		if _, duplicated := seen[entry]; duplicated {
+			continue
+		}
+		seen[entry] = struct{}{}
+		entries = append(entries, entry)
+	}
+	value := strings.Join(entries, ",")
+	if len(value) > maxCodexTurnStateModelsBytes {
+		return "", false
+	}
+	return value, true
+}
+
+// validCodexTurnStateModelEntry 只放行模型名里真正会出现的字符，外加结尾的 * 。
+func validCodexTurnStateModelEntry(entry string) bool {
+	entry = strings.TrimSuffix(entry, "*")
+	if entry == "" {
+		return false
+	}
+	for _, r := range entry {
+		switch {
+		case r >= 'a' && r <= 'z', r >= '0' && r <= '9':
+		case r == '-', r == '_', r == '.', r == ':', r == '/':
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+// presentCodexTurnStateModels 过滤直接改库留下的脏值，口径与写入时一致。
+func presentCodexTurnStateModels(row models.Credential) string {
+	value, ok := canonicalCodexTurnStateModels(row.CodexTurnStateModels)
+	if !ok {
 		return ""
 	}
 	return value
@@ -351,6 +426,10 @@ func (s *Service) UpdateGroupCredential(
 			committed.CodexTurnState = *plan.codexTurnState
 			updates["codex_turn_state"] = committed.CodexTurnState
 		}
+		if plan.codexTurnStateModels != nil {
+			committed.CodexTurnStateModels = *plan.codexTurnStateModels
+			updates["codex_turn_state_models"] = committed.CodexTurnStateModels
+		}
 		if plan.proxySet {
 			committed.ProxyConfig = plan.proxy
 			updates["proxy_config"] = plan.proxy
@@ -386,6 +465,7 @@ func (s *Service) UpdateGroupCredential(
 		entry.EncryptedProxy = committedProxy
 		entry.ProxyFingerprint = committedProxyFingerprint
 		entry.CodexTurnState = committed.CodexTurnState
+		entry.CodexTurnStateModels = committed.CodexTurnStateModels
 		return s.registry.RestoreGroupCredentialEntriesExact(groupID, []state.CredentialEntry{entry})
 	})
 	if committedProxyUpdate {
@@ -658,6 +738,7 @@ func (s *Service) mapCredentialItem(
 	item.AuthState = string(row.AuthState)
 	item.Mark, item.MarkNote = presentCredentialMark(row)
 	item.CodexTurnState = presentCodexTurnState(row)
+	item.CodexTurnStateModels = presentCodexTurnStateModels(row)
 	item.Account = account
 	proxyViews, err := s.credentialProxyViews(ctx, s.db, group, []models.Credential{row})
 	if err != nil {
