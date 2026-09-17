@@ -3,15 +3,24 @@ import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { frontendOptions } from '@shared/frontend/catalog'
-import { switchFrontend, type FrontendID } from '@shared/frontend/preference'
+import {
+  modernFrontendAvailable,
+  switchFrontend,
+  type FrontendID,
+} from '@shared/frontend/preference'
 
 const props = defineProps<{ disabled: boolean }>()
 const { t } = useI18n()
 const pending = ref(false)
 const failed = ref(false)
 
+// 关闭期间新版卡片仍然列出来——说清楚「有这个界面但现在进不去」，比整张卡片消失少一层猜。
+function unavailable(frontend: FrontendID): boolean {
+  return frontend === 'modern' && !modernFrontendAvailable
+}
+
 function select(frontend: FrontendID): void {
-  if (frontend === 'classic' || props.disabled || pending.value) return
+  if (frontend === 'classic' || unavailable(frontend) || props.disabled || pending.value) return
   failed.value = false
   pending.value = true
   try {
@@ -34,15 +43,19 @@ function select(frontend: FrontendID): void {
         type="button"
         class="frontend-option"
         :aria-pressed="frontend.id === 'classic'"
-        :disabled="disabled || pending"
+        :disabled="disabled || pending || unavailable(frontend.id)"
         @click="select(frontend.id)"
       >
         <img :src="frontend.preview" alt="" width="320" height="180" />
         <strong>{{ t(`settings.frontend.${frontend.id}.title`) }}</strong>
         <span>{{ t(`settings.frontend.${frontend.id}.description`) }}</span>
         <span v-if="frontend.id === 'classic'">{{ t('settings.frontend.current') }}</span>
+        <span v-else-if="unavailable(frontend.id)" class="frontend-option__unavailable">
+          {{ t('settings.frontend.unavailable') }}
+        </span>
       </button>
     </div>
+    <p v-if="!modernFrontendAvailable">{{ t('settings.frontend.unavailableNote') }}</p>
     <p>{{ t('settings.frontend.previewNote') }}</p>
     <p v-if="disabled" role="status">{{ t('settings.frontend.blocked') }}</p>
     <p v-if="failed" role="alert">{{ t('settings.frontend.saveFailed') }}</p>
@@ -101,6 +114,11 @@ p,
 .frontend-option:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+.frontend-option .frontend-option__unavailable {
+  color: var(--color-text-faint);
+  font-weight: 650;
 }
 
 .frontend-option img {

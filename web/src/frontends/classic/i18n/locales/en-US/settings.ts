@@ -9,6 +9,9 @@ export default {
         'Thumbnails are schematic. The new preview will be updated when its design is ready.',
       blocked: 'Save or discard your changes and wait for any ongoing operations before switching.',
       saveFailed: 'Unable to save your preference. Allow browser storage for this site and retry.',
+      unavailable: 'Unavailable',
+      unavailableNote:
+        'The modern interface is temporarily disabled: turn-state monitoring, credential turn state, and quota markers only exist in the classic interface. Browsers already on the modern interface switch back to classic on their next visit.',
       modern: {
         title: 'Modern',
         description: 'A modern management interface with sidebar navigation.',
