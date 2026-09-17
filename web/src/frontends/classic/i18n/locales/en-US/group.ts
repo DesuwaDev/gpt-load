@@ -478,6 +478,11 @@ export default {
         modelsScoped: 'Scoped to models',
         modelsInvalid:
           'Model names allow letters, digits and - _ . : / with an optional trailing *',
+        ttlRemaining: '{duration} left',
+        ttlExpired: 'Expired {duration} ago',
+        ttlUnknown: 'Age unknown',
+        ttlNotice:
+          'This value is past its 1-hour window; consider replacing it. This is a reminder only — injection keeps running.',
         apply: 'Save',
         clear: 'Clear',
       },

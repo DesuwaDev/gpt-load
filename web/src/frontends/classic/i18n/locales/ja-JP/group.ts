@@ -478,6 +478,11 @@ export default {
         modelsAll: 'すべてのモデル',
         modelsScoped: 'モデルを限定',
         modelsInvalid: 'モデル名は英数字と - _ . : / のみ、末尾に * を付けられます',
+        ttlRemaining: '残り {duration}',
+        ttlExpired: '{duration} 超過',
+        ttlUnknown: '有効期限は不明',
+        ttlNotice:
+          '注入値は 1 時間の有効期限を過ぎています。差し替えを検討してください。これは通知のみで、注入は止まりません。',
         apply: '保存',
         clear: 'クリア',
       },

@@ -249,6 +249,15 @@ func presentCodexTurnStateModels(row models.Credential) string {
 	return value
 }
 
+// presentCodexTurnStateSetAtMS 只在注入值确实有效时给出时效起点。存量行与直接改库
+// 的行没有起点，返回 0，界面据此显示「无法计时」而不是一个凭空编出来的倒计时。
+func presentCodexTurnStateSetAtMS(row models.Credential) int64 {
+	if row.CodexTurnStateSetAtMS <= 0 || presentCodexTurnState(row) == "" {
+		return 0
+	}
+	return row.CodexTurnStateSetAtMS
+}
+
 func validCredentialMarkNote(note string) bool {
 	if utf8.RuneCountInString(note) > maxCredentialMarkNoteRunes {
 		return false
@@ -423,8 +432,19 @@ func (s *Service) UpdateGroupCredential(
 		}
 		// 与标记不同，注入值参与运行时转发，所以下面的注册表同步闭包必须带上它。
 		if plan.codexTurnState != nil {
+			changed := *plan.codexTurnState != committed.CodexTurnState
 			committed.CodexTurnState = *plan.codexTurnState
 			updates["codex_turn_state"] = committed.CodexTurnState
+			// 时效起点只在注入值真正换了的时候重置，这样单独改模型名单不会把倒计时冲掉；
+			// 存量行原本没有起点，重新保存同一个值时补一次，让界面能开始计时。
+			switch {
+			case committed.CodexTurnState == "":
+				committed.CodexTurnStateSetAtMS = 0
+				updates["codex_turn_state_set_at_ms"] = committed.CodexTurnStateSetAtMS
+			case changed || committed.CodexTurnStateSetAtMS <= 0:
+				committed.CodexTurnStateSetAtMS = updatedAtMS
+				updates["codex_turn_state_set_at_ms"] = committed.CodexTurnStateSetAtMS
+			}
 		}
 		if plan.codexTurnStateModels != nil {
 			committed.CodexTurnStateModels = *plan.codexTurnStateModels
@@ -739,6 +759,7 @@ func (s *Service) mapCredentialItem(
 	item.Mark, item.MarkNote = presentCredentialMark(row)
 	item.CodexTurnState = presentCodexTurnState(row)
 	item.CodexTurnStateModels = presentCodexTurnStateModels(row)
+	item.CodexTurnStateSetAtMS = presentCodexTurnStateSetAtMS(row)
 	item.Account = account
 	proxyViews, err := s.credentialProxyViews(ctx, s.db, group, []models.Credential{row})
 	if err != nil {

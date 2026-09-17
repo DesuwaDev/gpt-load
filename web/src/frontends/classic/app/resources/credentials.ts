@@ -120,6 +120,7 @@ const credentialItemFields = [
   'mark_note',
   'codex_turn_state',
   'codex_turn_state_models',
+  'codex_turn_state_set_at_ms',
   'configured_status',
   'effective_status',
   'weight',
@@ -602,6 +603,9 @@ export function projectCredentialItem(value: unknown): CredentialItemDto {
   if (!validCodexTurnState(codexTurnState)) invalidResponse()
   const codexTurnStateModels = projectString(record.codex_turn_state_models, { allowEmpty: true })
   if (!validCodexTurnStateModels(codexTurnStateModels)) invalidResponse()
+  // 没有注入值就不可能有时效起点，服务端已经保证这一点，这里顺手拦住不一致的响应。
+  const codexTurnStateSetAt = projectSafeInteger(record.codex_turn_state_set_at_ms, { minimum: 0 })
+  if (codexTurnState === '' && codexTurnStateSetAt !== 0) invalidResponse()
   if (
     // 分组停用或权重为 0 时，active 凭据的运行时状态也会是 disabled。
     (configuredStatus === 'disabled' && effectiveStatus !== 'disabled') ||
@@ -633,6 +637,7 @@ export function projectCredentialItem(value: unknown): CredentialItemDto {
     mark_note: markNote,
     codex_turn_state: codexTurnState,
     codex_turn_state_models: codexTurnStateModels,
+    codex_turn_state_set_at_ms: codexTurnStateSetAt,
     configured_status: configuredStatus,
     effective_status: effectiveStatus,
     weight,

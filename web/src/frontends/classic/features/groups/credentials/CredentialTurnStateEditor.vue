@@ -6,10 +6,19 @@ import {
   canonicalCredentialTurnStateModels,
   credentialTurnStateMaxLength,
   credentialTurnStateModelsMaxLength,
+  credentialTurnStateRemainingMs,
+  credentialTurnStateTtlMs,
+  formatCredentialTurnStateDuration,
+  useCredentialTurnStateNow,
   validCredentialTurnState,
 } from './credential-turn-state'
 
-const props = defineProps<{ value: string; models: string; disabled?: boolean }>()
+const props = defineProps<{
+  value: string
+  models: string
+  setAtMs: number
+  disabled?: boolean
+}>()
 const emit = defineEmits<{
   apply: [payload: { codex_turn_state: string; codex_turn_state_models: string }]
 }>()
@@ -43,6 +52,31 @@ const dirty = computed(
 const canApply = computed(
   () => !props.disabled && !invalid.value && !modelsInvalid.value && dirty.value,
 )
+
+// 时效倒计时纯属提醒：超时既不停用凭据，也不停止注入，只是提示该换一个 state 了。
+const nowMs = useCredentialTurnStateNow()
+const remainingMs = computed(() =>
+  props.value === '' ? null : credentialTurnStateRemainingMs(props.setAtMs, nowMs.value),
+)
+const expired = computed(() => remainingMs.value !== null && remainingMs.value <= 0)
+// 剩余不足十分钟就转成告警色，留出换值的余量。
+const ttlTone = computed(() => {
+  if (remainingMs.value === null) return 'unknown'
+  if (remainingMs.value <= 0) return 'expired'
+  return remainingMs.value <= 10 * 60 * 1000 ? 'soon' : 'ok'
+})
+const ttlText = computed(() => {
+  if (remainingMs.value === null) return t('group.credentials.turnState.ttlUnknown')
+  const duration = formatCredentialTurnStateDuration(remainingMs.value)
+  return remainingMs.value <= 0
+    ? t('group.credentials.turnState.ttlExpired', { duration })
+    : t('group.credentials.turnState.ttlRemaining', { duration })
+})
+const ttlPercent = computed(() => {
+  if (remainingMs.value === null) return 0
+  const ratio = remainingMs.value / credentialTurnStateTtlMs
+  return Math.min(100, Math.max(0, Math.round(ratio * 100)))
+})
 
 function apply(): void {
   if (!canApply.value || canonicalModels.value === null) return
@@ -89,12 +123,30 @@ function clear(): void {
             : t('group.credentials.turnState.active')
         }}
       </span>
+      <span
+        v-if="value !== ''"
+        class="credential-turn-state__ttl"
+        :class="'credential-turn-state__ttl--' + ttlTone"
+      >
+        {{ ttlText }}
+      </span>
       <span v-if="invalid" class="credential-turn-state__error">
         {{ t('group.credentials.turnState.invalid') }}
       </span>
       <span v-else class="credential-turn-state__length">
         {{ t('group.credentials.turnState.length', { count: n(trimmed.length) }) }}
       </span>
+    </p>
+    <!-- 细条只是把「还剩多少」放大成一眼可扫的形状，信息本身在上面的文字里。 -->
+    <div v-if="remainingMs !== null" class="credential-turn-state__ttl-track" aria-hidden="true">
+      <span
+        class="credential-turn-state__ttl-fill"
+        :class="'credential-turn-state__ttl-fill--' + ttlTone"
+        :style="{ width: ttlPercent + '%' }"
+      ></span>
+    </div>
+    <p v-if="expired" class="credential-turn-state__notice">
+      {{ t('group.credentials.turnState.ttlNotice') }}
     </p>
     <p class="credential-turn-state__hint">{{ t('group.credentials.turnState.modelsHint') }}</p>
     <input
@@ -194,8 +246,9 @@ function clear(): void {
 }
 .credential-turn-state__status {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  gap: 2px 6px;
   margin: 0;
   font-size: var(--text-label-xs);
 }
@@ -207,6 +260,53 @@ function clear(): void {
 }
 .credential-turn-state__state--off {
   color: var(--color-text-faint);
+}
+.credential-turn-state__ttl {
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+}
+.credential-turn-state__ttl--ok {
+  color: var(--color-text-muted);
+}
+.credential-turn-state__ttl--soon {
+  color: var(--color-warning);
+}
+.credential-turn-state__ttl--expired {
+  color: var(--color-danger);
+}
+.credential-turn-state__ttl--unknown {
+  color: var(--color-text-faint);
+  font-weight: inherit;
+}
+.credential-turn-state__ttl-track {
+  height: 3px;
+  border-radius: 999px;
+  background: var(--color-border-control);
+  overflow: hidden;
+}
+.credential-turn-state__ttl-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  transition: width 0.9s linear;
+}
+.credential-turn-state__ttl-fill--ok {
+  background: var(--color-info);
+}
+.credential-turn-state__ttl-fill--soon {
+  background: var(--color-warning);
+}
+.credential-turn-state__ttl-fill--expired {
+  background: var(--color-danger);
+}
+.credential-turn-state__notice {
+  margin: 0;
+  border-radius: var(--radius-control);
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+  padding: 3px 6px;
+  font-size: var(--text-label-xs);
+  line-height: 1.5;
 }
 .credential-turn-state__length {
   margin-left: auto;

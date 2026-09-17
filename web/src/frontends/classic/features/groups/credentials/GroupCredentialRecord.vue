@@ -268,6 +268,7 @@ function runMenuAction(action: 'test' | 'toggle' | 'restore' | 'remove'): void {
             <CredentialTurnStateEditor
               :value="item.codex_turn_state"
               :models="item.codex_turn_state_models"
+              :set-at-ms="item.codex_turn_state_set_at_ms"
               :disabled="busy"
               @apply="applyTurnState"
             />

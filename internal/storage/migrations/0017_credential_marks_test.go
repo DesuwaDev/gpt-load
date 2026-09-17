@@ -26,7 +26,7 @@ func TestCredentialMarkMigrationDefaultsToEmpty(t *testing.T) {
 		IdentityFingerprint: "identity", Status: models.CredentialStatusActive,
 	}
 	if err := db.Omit("ProxyConfig", "RPMLimit", "ConcurrencyLimit", "Mark", "MarkNote",
-		"CodexTurnState", "CodexTurnStateModels").Create(&credential).Error; err != nil {
+		"CodexTurnState", "CodexTurnStateModels", "CodexTurnStateSetAtMS").Create(&credential).Error; err != nil {
 		t.Fatalf("create legacy credential: %v", err)
 	}
 

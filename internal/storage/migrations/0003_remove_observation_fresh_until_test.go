@@ -27,7 +27,7 @@ func TestRemoveObservationFreshUntilMigrationDropsColumnAndPreservesRows(t *test
 		IdentityFingerprint: "identity", Status: models.CredentialStatusActive,
 	}
 	if err := db.Omit("ProxyConfig", "RPMLimit", "ConcurrencyLimit", "Mark", "MarkNote",
-		"CodexTurnState", "CodexTurnStateModels").Create(&credential).Error; err != nil {
+		"CodexTurnState", "CodexTurnStateModels", "CodexTurnStateSetAtMS").Create(&credential).Error; err != nil {
 		t.Fatalf("create credential: %v", err)
 	}
 	if err := db.Exec(`INSERT INTO credential_observations (

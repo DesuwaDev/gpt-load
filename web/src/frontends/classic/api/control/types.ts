@@ -294,6 +294,8 @@ export interface CredentialItemDto {
   codex_turn_state: string
   /** 把注入限定在这些模型上，逗号分隔；'' 表示不限模型。 */
   codex_turn_state_models: string
+  /** 注入值的写入时刻，用于时效倒计时；0 表示没有注入值或无法计时。 */
+  codex_turn_state_set_at_ms: number
   configured_status: CredentialConfiguredStatus
   effective_status: CredentialStatus
   weight: number
