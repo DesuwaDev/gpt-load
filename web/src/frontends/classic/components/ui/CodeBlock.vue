@@ -26,6 +26,8 @@ withDefaults(
       <slot name="action">
         <CopyButton
           v-if="copyLabel && copySuccessLabel && copyFailureLabel"
+          size="compact"
+          variant="ghost"
           :value="code"
           :label="copyLabel"
           :success-label="copySuccessLabel"

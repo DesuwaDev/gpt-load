@@ -531,6 +531,8 @@ function toggleAttemptErrorMessage(sequence: number): void {
           </OverflowTooltip>
           <CopyButton
             :value="log.request_id"
+            size="compact"
+            variant="ghost"
             :label="t('monitor.logs.drawer.copyRequestId')"
             :success-label="t('common.copied')"
             :failure-label="t('common.copyFailed')"
@@ -875,6 +877,8 @@ function toggleAttemptErrorMessage(sequence: number): void {
             </span>
             <CopyButton
               class="log-turn-state__copy"
+              size="xs"
+              variant="ghost"
               :value="entry.value"
               :label="t('monitor.logs.drawer.turnState.copy')"
               :success-label="t('common.copied')"
@@ -1252,6 +1256,7 @@ function toggleAttemptErrorMessage(sequence: number): void {
 }
 
 .log-turn-state {
+  position: relative;
   display: grid;
   gap: 6px;
   border: 1px solid var(--color-border-subtle);
@@ -1269,7 +1274,8 @@ function toggleAttemptErrorMessage(sequence: number): void {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px 12px;
+  gap: 6px 8px;
+  padding-right: 28px;
 }
 
 .log-turn-state__source,
@@ -1358,7 +1364,9 @@ function toggleAttemptErrorMessage(sequence: number): void {
 }
 
 .log-turn-state__copy {
-  margin-left: auto;
+  position: absolute;
+  top: 7px;
+  right: 8px;
 }
 
 /* 轮次状态是要整串复制走的，有复制按钮，值本身设最大高度避免占满整屏。 */
@@ -1594,18 +1602,14 @@ function toggleAttemptErrorMessage(sequence: number): void {
     grid-column: auto;
   }
 
-  /* 抽屉在这个宽度下满屏，轮次状态那张卡的头部会折成两三行。收一点内外间距，
-     再把复制按钮从右端拉回队列里——靠 margin-left: auto 顶着只会让它单独占掉一行。 */
+  /* 抽屉在这个宽度下满屏，轮次状态那张卡的头部会折成两三行。收一点内外间距 */
   .log-turn-state {
     padding: 10px;
   }
 
   .log-turn-state__head {
     gap: 6px 8px;
-  }
-
-  .log-turn-state__copy {
-    margin-left: 0;
+    padding-right: 28px;
   }
 }
 </style>

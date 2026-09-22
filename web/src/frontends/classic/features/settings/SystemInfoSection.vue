@@ -211,6 +211,8 @@ async function checkForUpdate(): Promise<void> {
               >
                 <span>{{ infoQuery.data.value.auth_key.path }}</span>
                 <CopyButton
+                  size="compact"
+                  variant="ghost"
                   :value="infoQuery.data.value.auth_key.path"
                   :label="t('settings.system.copyPath')"
                   :success-label="t('common.copied')"
@@ -235,6 +237,8 @@ async function checkForUpdate(): Promise<void> {
               >
                 <span>{{ infoQuery.data.value.encryption.path }}</span>
                 <CopyButton
+                  size="compact"
+                  variant="ghost"
                   :value="infoQuery.data.value.encryption.path"
                   :label="t('settings.system.copyPath')"
                   :success-label="t('common.copied')"

@@ -1,16 +1,29 @@
 <script setup lang="ts">
 import { Check, Copy } from '@lucide/vue'
-import { onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 
 import { useClipboardCopy } from '@/app/use-clipboard-copy'
 import CopyFallbackDialog from './CopyFallbackDialog.vue'
 
-const props = defineProps<{
-  value: string
-  label: string
-  successLabel: string
-  failureLabel: string
-}>()
+const props = withDefaults(
+  defineProps<{
+    value: string
+    label: string
+    successLabel: string
+    failureLabel: string
+    size?: 'md' | 'compact' | 'xs'
+    variant?: 'default' | 'ghost'
+  }>(),
+  {
+    size: 'compact',
+    variant: 'default',
+  },
+)
+const iconSize = computed(() => {
+  if (props.size === 'xs') return 13
+  if (props.size === 'compact') return 14
+  return 16
+})
 const { copy: copyValue, fallbackText, pending, reset } = useClipboardCopy()
 const state = ref<'idle' | 'success' | 'failure'>('idle')
 let resetTimer: number | undefined
@@ -42,7 +55,7 @@ onBeforeUnmount(() => window.clearTimeout(resetTimer))
 </script>
 
 <template>
-  <span class="copy-control">
+  <span class="copy-control" :class="[`copy-control--${size}`, `copy-control--${variant}`]">
     <button
       type="button"
       :aria-label="label"
@@ -50,8 +63,8 @@ onBeforeUnmount(() => window.clearTimeout(resetTimer))
       :disabled="pending"
       @click="copy"
     >
-      <Check v-if="state === 'success'" :size="16" aria-hidden="true" />
-      <Copy v-else :size="16" aria-hidden="true" />
+      <Check v-if="state === 'success'" :size="iconSize" aria-hidden="true" />
+      <Copy v-else :size="iconSize" aria-hidden="true" />
     </button>
     <span
       v-if="state !== 'idle'"
@@ -73,15 +86,53 @@ onBeforeUnmount(() => window.clearTimeout(resetTimer))
 }
 .copy-control button {
   display: inline-flex;
-  width: 44px;
-  height: 44px;
+  width: 28px;
+  height: 28px;
   align-items: center;
   justify-content: center;
   border: 1px solid var(--color-border-control);
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-control-compact, 6px);
   background: var(--color-surface);
   color: var(--color-text-muted);
   cursor: pointer;
+  transition:
+    color var(--duration-fast) var(--easing-standard),
+    border-color var(--duration-fast) var(--easing-standard),
+    background-color var(--duration-fast) var(--easing-standard);
+}
+.copy-control button:hover:not(:disabled) {
+  border-color: var(--color-text-faint);
+  background: var(--color-surface-sunken);
+  color: var(--color-text);
+}
+.copy-control button:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 1px;
+}
+.copy-control--md button {
+  width: var(--control-md, 36px);
+  height: var(--control-md, 36px);
+  border-radius: var(--radius-control);
+}
+.copy-control--compact button {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-control-compact, 6px);
+}
+.copy-control--xs button {
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-control-compact, 6px);
+}
+.copy-control--ghost button {
+  border-color: transparent;
+  background: transparent;
+  color: var(--color-text-faint);
+}
+.copy-control--ghost button:hover:not(:disabled) {
+  border-color: transparent;
+  background: var(--color-surface-sunken);
+  color: var(--color-text);
 }
 .copy-control__feedback {
   position: absolute;
