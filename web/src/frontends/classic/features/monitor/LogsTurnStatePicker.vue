@@ -19,8 +19,6 @@ import CopyFallbackDialog from '@/components/ui/CopyFallbackDialog.vue'
 import {
   codexTurnStateShapeOrder,
   codexTurnStateShapes,
-  codexTurnStateTtlMs,
-  formatCodexTurnStateDuration,
   type CodexTurnStateShape,
 } from '@/lib/codex-turn-state'
 
@@ -59,12 +57,9 @@ async function pick(shape: CodexTurnStateShape): Promise<void> {
   const chars = codexTurnStateShapes[shape].chars
   const controller = pool.create()
   try {
-    const nowMs = Date.now()
-    // 轮次状态只活 1 小时，更早的日志里不可能有还没过期的值——所以时间范围固定取最近
-    // 1 小时，不跟随上面已应用的那个范围；分组、凭据、模型等其余筛选条件照用。
     const page = await listRequestLogs(
       client,
-      { ...props.filters, from_ms: nowMs - codexTurnStateTtlMs, to_ms: nowMs, limit: listSize },
+      { ...props.filters, limit: listSize },
       undefined,
       controller.signal,
     )
@@ -78,7 +73,7 @@ async function pick(shape: CodexTurnStateShape): Promise<void> {
       return
     }
     const details: RequestLogDetailDto[] = []
-    let candidates = collectTurnStateCandidates(details, nowMs, shape)
+    let candidates = collectTurnStateCandidates(details, shape)
     for (let index = 0; index < items.length; index += batchSize) {
       const batch = items.slice(index, index + batchSize)
       details.push(
@@ -86,8 +81,8 @@ async function pick(shape: CodexTurnStateShape): Promise<void> {
           batch.map((item) => getRequestLog(client, item.request_id, controller.signal)),
         )),
       )
-      candidates = collectTurnStateCandidates(details, nowMs, shape)
-      // 列表本来就是从新到旧，命中就收手：再往回翻只会拿到签发更早、剩得更少的值。
+      candidates = collectTurnStateCandidates(details, shape)
+      // 列表本来就是从新到旧，命中就收手：再往回翻只会拿到签发更早的值。
       if (candidates.length > 0) break
     }
     const best = candidates[0]
@@ -118,7 +113,6 @@ async function pick(shape: CodexTurnStateShape): Promise<void> {
         shape: shapeLabel(shape),
       }),
       t('monitor.logs.turnStatePick.detail', {
-        duration: formatCodexTurnStateDuration(best.remainingMs),
         credential: credentialLabel(best.credentialName),
         scanned: details.length,
         total: candidates.length,
@@ -135,7 +129,6 @@ async function pick(shape: CodexTurnStateShape): Promise<void> {
         message: t('monitor.logs.turnStatePick.toastCopied', {
           shape: shapeLabel(shape),
           chars,
-          duration: formatCodexTurnStateDuration(best.remainingMs),
         }),
         tone: 'success',
       })

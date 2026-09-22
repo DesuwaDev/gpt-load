@@ -968,27 +968,27 @@ export default {
       },
       turnStatePick: {
         trigger: 'Turn State',
-        triggerHint: 'Extract usable turn states (292 / 332 chars) from the last hour',
+        triggerHint: 'Extract usable turn states (292 / 332 chars)',
         menuTitle: 'Extract Turn State',
-        menuHint: 'Copy unexpired normal turn state for credential injection',
+        menuHint: 'Copy normal turn state for credential injection',
         individualDesc: 'Individual account baseline',
         teamDesc: 'Team account baseline',
-        toastCopied: 'Copied {shape} ({chars} chars) turn state, remaining {duration}',
+        toastCopied: 'Copied {shape} ({chars} chars) turn state',
         shape: {
           individual: 'individual',
           team: 'team',
         },
         button: 'Grab {chars}',
-        hint: 'Scans request logs from the past hour for a turn state returned by upstream that is still valid and matches the normal {shape} shape ({blocks} cipher blocks, ~{chars} characters), then copies it. The shape is matched exactly — individual and team states are not interchangeable for injection, so each gets its own button. Anything older cannot still be valid, so this always looks at the past hour regardless of the range selected above; every other filter (group, credential, model, …) still applies.',
+        hint: 'Scans recent request logs for a turn state returned by upstream that matches the normal {shape} shape ({blocks} cipher blocks, ~{chars} characters), then copies it. The shape is matched exactly — individual and team states are not interchangeable for injection, so each gets its own button.',
         copied: 'Copied the most recently issued usable {shape} turn state ({chars} chars).',
         found:
           'Found a usable {shape} turn state ({chars} chars), but the clipboard is unavailable; copy it manually from the dialog.',
         detail:
-          '{duration} left · from credential {credential} · scanned the {scanned} most recent logs, {total} usable.',
+          'from credential {credential} · scanned the {scanned} most recent logs, {total} usable.',
         spread:
-          'Those {total} span {credentials} credentials; the one copied was issued most recently and has the most time left. To target a specific account, pick a credential in the filters and try again.',
-        none: 'None of the {scanned} logs from the past hour carry an unexpired normal {shape} turn state ({chars} chars).',
-        noLogs: 'No request logs from the past hour match the current filters.',
+          'Those {total} span {credentials} credentials; the one copied was issued most recently. To target a specific account, pick a credential in the filters and try again.',
+        none: 'None of the {scanned} recent logs carry a normal {shape} turn state ({chars} chars).',
+        noLogs: 'No request logs match the current filters.',
         failed: 'Scan failed; try again in a moment.',
         dismiss: 'Dismiss',
         unknownCredential: 'unknown credential',
@@ -1341,17 +1341,6 @@ export default {
             'This turn state matches none of the known normal shapes ({normal}) — possibly a degraded request.',
           suspectNote:
             '{blocks} cipher blocks, plaintext between {min} and {max} bytes. The known normal shapes are {normal}; a degraded state adds exactly one block to whichever baseline applies, landing at {degraded} chars. Block count only brackets the plaintext to a 16-byte window, so treat this as a suspicion, not proof.',
-          expired: 'Expired {duration} before injection',
-          expiredHint:
-            'Send time is derived from completion time minus total duration; a retry chain usually spans seconds, which is precise enough against a one-hour lifetime.',
-          expiredAlert:
-            'The injected turn state was already past its one-hour lifetime when this request went out.',
-          expiredNote:
-            'Issued at {issued}, but the request went out at {sent} — {duration} past its lifetime. The issue time comes from the value’s own Fernet timestamp, not from when we recorded it.',
-          remaining: '{duration} left',
-          stale: 'expired {duration} ago',
-          remainingHint:
-            'Time left on the one-hour lifetime, measured from the Fernet issue timestamp the value carries. It decides whether the value can still be injected as-is; only values returned by upstream get this reading — injected ones are judged on whether they were already expired when sent.',
           copy: 'Copy turn state',
         },
         usage: {

@@ -1,8 +1,4 @@
-import { codexTurnStateTtlMs } from '@/lib/codex-turn-state'
 import { parseFernetToken } from '@/lib/fernet'
-
-// 日志抽屉也要同一块表，时钟本体挪到了 app 层；这里保留原名，凭据侧的调用方不用改。
-export { useCodexTurnStateNow as useCredentialTurnStateNow } from '@/app/use-codex-turn-state-now'
 
 /** 注入值要原样进 HTTP 头，长度与字符集与服务端的 validCodexTurnState 保持一致。 */
 export const credentialTurnStateMaxLength = 4096
@@ -51,8 +47,4 @@ export function credentialTurnStateIssuedAtMs(value: string): number | null {
   return parseFernetToken(value)?.issuedAtMs ?? null
 }
 
-/** 剩余时效毫秒数，负数表示已超时；没有起点时返回 null，表示无法计时。 */
-export function credentialTurnStateRemainingMs(originMs: number, nowMs: number): number | null {
-  if (!Number.isFinite(originMs) || originMs <= 0) return null
-  return originMs + codexTurnStateTtlMs - nowMs
-}
+

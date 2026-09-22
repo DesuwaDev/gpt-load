@@ -1,16 +1,10 @@
 import type { RequestLogDetailDto } from '@/app/resources/request-logs'
-import {
-  codexTurnStateRemainingMs,
-  codexTurnStateShapeOf,
-  type CodexTurnStateShape,
-} from '@/lib/codex-turn-state'
+import { codexTurnStateShapeOf, type CodexTurnStateShape } from '@/lib/codex-turn-state'
 import { parseFernetToken } from '@/lib/fernet'
 
 export interface TurnStateCandidate {
   value: string
   issuedAtMs: number
-  /** 到挑选时刻为止还剩多少时效，毫秒；必然为正。 */
-  remainingMs: number
   requestID: string
   credentialID: number | null
   /** 凭据的可读标识（掩码），可能为空串。 */
@@ -18,15 +12,13 @@ export interface TurnStateCandidate {
 }
 
 /**
- * 从日志详情里挑出「现在拿去注入还能用」的轮次状态。三道硬门槛：
+ * 从日志详情里挑出可用的轮次状态。门槛：
  * 只看上游回带的值——注入值是我们自己塞进去的，复制它等于把旧值再抄一遍；
  * 必须能读出 Fernet 封装；块数要正好命中 shape 指定的那种正常形态。
  * 形态是精确匹配而不是「不降智就行」：个人号和 team 号的状态不能互换着注入。
- * 过期与否按值自带的签发时刻算，不依赖日志的时间字段。
  */
 export function collectTurnStateCandidates(
   logs: readonly RequestLogDetailDto[],
-  nowMs: number,
   shape: CodexTurnStateShape,
 ): TurnStateCandidate[] {
   const seen = new Set<string>()
@@ -37,20 +29,17 @@ export function collectTurnStateCandidates(
       if (!value || seen.has(value)) continue
       const token = parseFernetToken(value)
       if (token === null || codexTurnStateShapeOf(token) !== shape) continue
-      const remainingMs = codexTurnStateRemainingMs(token, nowMs)
-      if (remainingMs === null || remainingMs <= 0) continue
       seen.add(value)
       candidates.push({
         value,
         issuedAtMs: token.issuedAtMs,
-        remainingMs,
         requestID: log.request_id,
         credentialID: attempt.credential_id,
         credentialName: attempt.credential_name,
       })
     }
   }
-  // 多个候选就按签发时刻从新到旧排：排在最前的那条剩余时效最长，也就是最经用的一条。
+  // 多个候选按签发时刻从新到旧排：排在最前的那条是最新签发的。
   // 同一秒内签发的多条之间没有可比的先后，保持遍历顺序（日志从新到旧）即可。
   candidates.sort((left, right) => right.issuedAtMs - left.issuedAtMs)
   return candidates

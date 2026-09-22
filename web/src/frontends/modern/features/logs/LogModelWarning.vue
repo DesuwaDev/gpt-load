@@ -63,15 +63,15 @@ const description = computed(() =>
   color: var(--modern-danger);
 }
 .modern-log-model-warning.is-mismatch-pill {
-  gap: 3px;
-  padding: 1px 6px;
+  gap: var(--modern-space-1);
+  padding: var(--modern-space-0-5) var(--modern-space-1-5);
   border-radius: var(--modern-radius-small);
   background: var(--modern-danger-soft);
-  border: 1px solid var(--modern-danger);
-  font-size: 11px;
-  font-weight: 600;
+  border: var(--modern-line-width) solid var(--modern-danger);
+  font-size: var(--modern-font-size-caption);
+  font-weight: var(--modern-weight-semibold);
   font-family: var(--modern-font-mono);
-  line-height: 1.2;
+  line-height: var(--modern-leading-compact);
 }
 .modern-log-model-mismatch-text {
   max-width: 140px;

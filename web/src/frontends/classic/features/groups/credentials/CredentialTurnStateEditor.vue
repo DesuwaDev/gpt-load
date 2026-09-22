@@ -2,22 +2,17 @@
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
-import { codexTurnStateTtlMs, formatCodexTurnStateDuration } from '@/lib/codex-turn-state'
-
 import {
   canonicalCredentialTurnStateModels,
-  credentialTurnStateIssuedAtMs,
   credentialTurnStateMaxLength,
   credentialTurnStateModelsMaxLength,
-  credentialTurnStateRemainingMs,
-  useCredentialTurnStateNow,
   validCredentialTurnState,
 } from './credential-turn-state'
 
 const props = defineProps<{
   value: string
   models: string
-  setAtMs: number
+  setAtMs?: number
   disabled?: boolean
 }>()
 const emit = defineEmits<{
@@ -53,52 +48,6 @@ const dirty = computed(
 const canApply = computed(
   () => !props.disabled && !invalid.value && !modelsInvalid.value && dirty.value,
 )
-
-// 时效倒计时纯属提醒：超时既不停用凭据，也不停止注入，只是提示该换一个 state 了。
-const nowMs = useCredentialTurnStateNow()
-// 起点优先从值本身读：Fernet token 自带签发时刻，比「什么时候保存的」准，而且刚粘进来
-// 还没保存也能立刻开始计时。读不出来才退回保存时刻，且只在草稿正是已保存的那个值时才
-// 退——草稿换了内容的话，那个时刻描述的是旧值，不是眼前这一个。
-const origin = computed<{ ms: number; exact: boolean } | null>(() => {
-  if (trimmed.value === '') return null
-  const issuedAtMs = credentialTurnStateIssuedAtMs(trimmed.value)
-  if (issuedAtMs !== null) return { ms: issuedAtMs, exact: true }
-  if (trimmed.value === props.value && props.setAtMs > 0) return { ms: props.setAtMs, exact: false }
-  return null
-})
-const remainingMs = computed(() =>
-  origin.value === null ? null : credentialTurnStateRemainingMs(origin.value.ms, nowMs.value),
-)
-const expired = computed(() => remainingMs.value !== null && remainingMs.value <= 0)
-// 剩余不足十分钟就转成告警色，留出换值的余量。
-const ttlTone = computed(() => {
-  if (remainingMs.value === null) return 'unknown'
-  if (remainingMs.value <= 0) return 'expired'
-  return remainingMs.value <= 10 * 60 * 1000 ? 'soon' : 'ok'
-})
-const ttlText = computed(() => {
-  if (remainingMs.value === null) return t('group.credentials.turnState.ttlUnknown')
-  // 估出来的倒计时前面挂个 ≈，免得看着像从值里读出来的那种精确。
-  const approx = origin.value?.exact === false ? '≈' : ''
-  const duration = approx + formatCodexTurnStateDuration(remainingMs.value)
-  return remainingMs.value <= 0
-    ? t('group.credentials.turnState.ttlExpired', { duration })
-    : t('group.credentials.turnState.ttlRemaining', { duration })
-})
-// 悬停时说清这个倒计时是从哪儿算起的，省得为一个数字去猜。
-const ttlTitle = computed(() => {
-  if (origin.value === null) return t('group.credentials.turnState.ttlUnknownHint')
-  return origin.value.exact
-    ? t('group.credentials.turnState.ttlIssuedAt', {
-        time: new Date(origin.value.ms).toLocaleString(),
-      })
-    : t('group.credentials.turnState.ttlApprox')
-})
-const ttlPercent = computed(() => {
-  if (remainingMs.value === null) return 0
-  const ratio = remainingMs.value / codexTurnStateTtlMs
-  return Math.min(100, Math.max(0, Math.round(ratio * 100)))
-})
 
 function apply(): void {
   if (!canApply.value || canonicalModels.value === null) return
@@ -145,31 +94,12 @@ function clear(): void {
             : t('group.credentials.turnState.active')
         }}
       </span>
-      <span
-        v-if="trimmed !== ''"
-        class="credential-turn-state__ttl"
-        :class="'credential-turn-state__ttl--' + ttlTone"
-        :title="ttlTitle"
-      >
-        {{ ttlText }}
-      </span>
       <span v-if="invalid" class="credential-turn-state__error">
         {{ t('group.credentials.turnState.invalid') }}
       </span>
       <span v-else class="credential-turn-state__length">
         {{ t('group.credentials.turnState.length', { count: n(trimmed.length) }) }}
       </span>
-    </p>
-    <!-- 细条只是把「还剩多少」放大成一眼可扫的形状，信息本身在上面的文字里。 -->
-    <div v-if="remainingMs !== null" class="credential-turn-state__ttl-track" aria-hidden="true">
-      <span
-        class="credential-turn-state__ttl-fill"
-        :class="'credential-turn-state__ttl-fill--' + ttlTone"
-        :style="{ width: ttlPercent + '%' }"
-      ></span>
-    </div>
-    <p v-if="expired" class="credential-turn-state__notice">
-      {{ t('group.credentials.turnState.ttlNotice') }}
     </p>
     <p class="credential-turn-state__hint">{{ t('group.credentials.turnState.modelsHint') }}</p>
     <input
@@ -283,53 +213,6 @@ function clear(): void {
 }
 .credential-turn-state__state--off {
   color: var(--color-text-faint);
-}
-.credential-turn-state__ttl {
-  font-variant-numeric: tabular-nums;
-  font-weight: 650;
-}
-.credential-turn-state__ttl--ok {
-  color: var(--color-text-muted);
-}
-.credential-turn-state__ttl--soon {
-  color: var(--color-warning);
-}
-.credential-turn-state__ttl--expired {
-  color: var(--color-danger);
-}
-.credential-turn-state__ttl--unknown {
-  color: var(--color-text-faint);
-  font-weight: inherit;
-}
-.credential-turn-state__ttl-track {
-  height: 3px;
-  border-radius: 999px;
-  background: var(--color-border-control);
-  overflow: hidden;
-}
-.credential-turn-state__ttl-fill {
-  display: block;
-  height: 100%;
-  border-radius: inherit;
-  transition: width 0.9s linear;
-}
-.credential-turn-state__ttl-fill--ok {
-  background: var(--color-info);
-}
-.credential-turn-state__ttl-fill--soon {
-  background: var(--color-warning);
-}
-.credential-turn-state__ttl-fill--expired {
-  background: var(--color-danger);
-}
-.credential-turn-state__notice {
-  margin: 0;
-  border-radius: var(--radius-control);
-  background: var(--color-danger-bg);
-  color: var(--color-danger);
-  padding: 3px 6px;
-  font-size: var(--text-label-xs);
-  line-height: 1.5;
 }
 .credential-turn-state__length {
   margin-left: auto;
