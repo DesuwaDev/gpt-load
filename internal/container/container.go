@@ -112,6 +112,9 @@ func BuildContainer() (*dig.Container, error) {
 		func(service *requestlog.Service) telemetry.RequestLogSink {
 			return service
 		},
+		func(service *requestlog.Service) gateway.AccessKeyUsageReader {
+			return service
+		},
 		func(service *requestlog.Service) control.RequestLogReader {
 			return service
 		},
@@ -171,6 +174,7 @@ func BuildContainer() (*dig.Container, error) {
 		dialect.NewOpenAIImages,
 		dialect.NewOpenAIEmbeddings,
 		dialect.NewRerank,
+		dialect.NewDecisions,
 		dialect.NewAnthropic,
 		dialect.NewGemini,
 		func(
@@ -179,10 +183,11 @@ func BuildContainer() (*dig.Container, error) {
 			openAIImages *dialect.OpenAIImages,
 			openAIEmbeddings *dialect.OpenAIEmbeddings,
 			rerank *dialect.Rerank,
+			decisions *dialect.Decisions,
 			anthropic *dialect.Anthropic,
 			gemini *dialect.Gemini,
 		) dialect.Set {
-			return dialect.NewSet(openAI, openAIResponses, openAIImages, openAIEmbeddings, rerank, anthropic, gemini)
+			return dialect.NewSet(openAI, openAIResponses, openAIImages, openAIEmbeddings, rerank, decisions, anthropic, gemini)
 		},
 		func(registry *channel.Registry) (*bifrostexecutor.RuntimeManager, error) {
 			return bifrostexecutor.NewManagedRuntime(registry)
@@ -299,6 +304,7 @@ func newProviderAdapterRegistry(
 		{ProviderKind: channel.ProviderGoogleVertex, Adapter: bifrost},
 		{ProviderKind: channel.ProviderDeepSeek, Adapter: bifrost},
 		{ProviderKind: channel.ProviderOpenRouter, Adapter: bifrost},
+		{ProviderKind: channel.ProviderJev, Adapter: bifrost},
 		{ProviderKind: channel.ProviderGroq, Adapter: bifrost},
 		{ProviderKind: channel.ProviderXAI, Adapter: bifrost},
 		{ProviderKind: channel.ProviderCodex, Adapter: cpa},

@@ -1,4 +1,7 @@
+import { zhCN as autoModel } from '../auto-model'
+
 export default {
+  autoModel,
   monitor: {
     clearKeySearch: '清除密钥搜索',
     title: '监控',
@@ -393,6 +396,7 @@ export default {
         images_edit: '编辑图片',
         embeddings_create: '创建向量',
         rerank: '文档重排序',
+        decisions_create: '创建判断',
       },
       routeRequirements: {
         any: '允许协议转换（可有损）',
@@ -1168,6 +1172,7 @@ export default {
         images_edit: '编辑图片',
         embeddings_create: '创建向量',
         rerank: '文档重排序',
+        decisions_create: '创建判断',
         list_models: '列出模型',
         probe: '健康探测',
       },

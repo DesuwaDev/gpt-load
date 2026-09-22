@@ -16,9 +16,12 @@ import (
 	"gorm.io/gorm/clause"
 
 	"gpt-load/internal/accessquota"
+	"gpt-load/internal/automodel"
+	"gpt-load/internal/catalog"
 	"gpt-load/internal/channel"
 	"gpt-load/internal/connection"
 	"gpt-load/internal/outboundproxy"
+	"gpt-load/internal/platform/canonicaljson"
 	"gpt-load/internal/platform/config"
 	"gpt-load/internal/platform/encryption"
 	"gpt-load/internal/platform/utils"
@@ -70,11 +73,12 @@ func NewWithCredentialValidation(
 }
 
 type compileRows struct {
-	settings       []models.SystemSetting
-	groups         []models.Group
-	credentials    []models.Credential
-	accessKeys     []models.AccessKey
-	costLimitRules []models.AccessKeyCostLimitRule
+	settings             []models.SystemSetting
+	groups               []models.Group
+	credentials          []models.Credential
+	accessKeys           []models.AccessKey
+	costLimitRules       []models.AccessKeyCostLimitRule
+	clientModelOverrides []models.ClientModelOverride
 }
 
 type modelDTO struct {
@@ -139,6 +143,9 @@ func NewWithAccessQuota(
 }
 
 func (l *Loader) Load(ctx context.Context) error {
+	if err := l.migrateLegacyAutoModel(ctx); err != nil {
+		return fmt.Errorf("migrate automatic model configuration: %w", err)
+	}
 	input, entries, costLimitStates, err := l.read(ctx)
 	if err != nil {
 		return fmt.Errorf("read runtime state: %w", err)
@@ -170,6 +177,45 @@ func (l *Loader) Load(ctx context.Context) error {
 		"credentials": len(entries),
 	}).Info("credential registry loaded")
 	return nil
+}
+
+func (l *Loader) migrateLegacyAutoModel(ctx context.Context) error {
+	if l == nil || l.db == nil || l.encryption == nil {
+		return nil
+	}
+	return l.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var row models.SystemSetting
+		if err := tx.Where("key = ?", automodel.SettingKey).Take(&row).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil
+			}
+			return err
+		}
+		plaintext, err := l.encryption.Decrypt(row.Value)
+		if err != nil {
+			return fmt.Errorf("decrypt legacy configuration")
+		}
+		config, legacy, err := automodel.DecodeStored([]byte(plaintext))
+		plaintext = ""
+		if err != nil {
+			return fmt.Errorf("decode persisted configuration: %w", err)
+		}
+		if !legacy {
+			return nil
+		}
+		encoded, err := json.Marshal(config)
+		if err != nil {
+			return fmt.Errorf("encode migrated configuration: %w", err)
+		}
+		ciphertext, err := l.encryption.Encrypt(string(encoded))
+		clear(encoded)
+		if err != nil {
+			return fmt.Errorf("encrypt migrated configuration")
+		}
+		return tx.Model(&models.SystemSetting{}).
+			Where("key = ?", automodel.SettingKey).
+			Update("value", ciphertext).Error
+	})
 }
 
 func (l *Loader) validatePersistedCredentials(
@@ -264,6 +310,9 @@ func queryCompileRows(ctx context.Context, db *gorm.DB) (compileRows, error) {
 		Order("access_key_id ASC, id ASC").
 		Find(&rows.costLimitRules).Error; err != nil {
 		return compileRows{}, fmt.Errorf("query access key cost limit rules: %w", err)
+	}
+	if err := db.Order("model_hash ASC").Find(&rows.clientModelOverrides).Error; err != nil {
+		return compileRows{}, fmt.Errorf("query client model overrides: %w", err)
 	}
 	return rows, nil
 }
@@ -527,6 +576,7 @@ func decodeSettingValue(raw string) (any, error) {
 
 func isIgnoredSystemSetting(key string) bool {
 	return strings.HasPrefix(key, models.InternalSystemSettingPrefix) ||
+		key == automodel.SettingKey ||
 		key == outboundproxy.SystemSettingKey ||
 		key == "contact_info" // 兼容本分支旧版本保存的已移除设置。
 }
@@ -592,11 +642,50 @@ func mapSystemAndGroups(
 	environmentProxy *outboundproxy.Config,
 ) (state.CompileInput, error) {
 	input := state.CompileInput{
-		SystemSettings:   make(config.Settings, len(rows.settings)),
-		Groups:           make([]state.GroupConfig, 0, len(rows.groups)),
-		EnvironmentProxy: environmentProxy,
+		SystemSettings:       make(config.Settings, len(rows.settings)),
+		Groups:               make([]state.GroupConfig, 0, len(rows.groups)),
+		ClientModelOverrides: make(map[string]catalog.ClientModelOverrides, len(rows.clientModelOverrides)),
+		EnvironmentProxy:     environmentProxy,
+	}
+	for _, row := range rows.clientModelOverrides {
+		if models.ClientModelHash(row.ClientModel) != row.ModelHash {
+			return state.CompileInput{}, fmt.Errorf("client model override has invalid identity")
+		}
+		var overrides catalog.ClientModelOverrides
+		canonical, err := canonicaljson.Canonicalize(row.Overrides)
+		if err != nil {
+			return state.CompileInput{}, fmt.Errorf("decode client model override %q: %w", row.ClientModel, err)
+		}
+		if err := decodeJSONDocument(models.JSON(canonical), &overrides, true); err != nil {
+			return state.CompileInput{}, fmt.Errorf("decode client model override %q: %w", row.ClientModel, err)
+		}
+		if err := overrides.Validate(); err != nil || overrides.IsEmpty() {
+			if err != nil {
+				return state.CompileInput{}, fmt.Errorf("validate client model override %q: %w", row.ClientModel, err)
+			}
+			return state.CompileInput{}, fmt.Errorf("client model override %q is empty", row.ClientModel)
+		}
+		if _, duplicate := input.ClientModelOverrides[row.ClientModel]; duplicate {
+			return state.CompileInput{}, fmt.Errorf("duplicate client model override %q", row.ClientModel)
+		}
+		input.ClientModelOverrides[row.ClientModel] = overrides
 	}
 	for _, row := range rows.settings {
+		if row.Key == automodel.SettingKey {
+			if encryptionService == nil {
+				return state.CompileInput{}, fmt.Errorf("missing automatic model encryption service")
+			}
+			plaintext, err := encryptionService.Decrypt(row.Value)
+			if err != nil {
+				return state.CompileInput{}, fmt.Errorf("decrypt automatic model configuration")
+			}
+			config, err := automodel.Decode([]byte(plaintext))
+			if err != nil {
+				return state.CompileInput{}, fmt.Errorf("decode automatic model configuration")
+			}
+			input.AutoModel = &config
+			continue
+		}
 		if row.Key == outboundproxy.SystemSettingKey {
 			config, err := decodePersistedProxy(row.Value, encryptionService)
 			if err != nil {

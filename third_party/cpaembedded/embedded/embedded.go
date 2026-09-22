@@ -166,6 +166,7 @@ type QuotaSignalObservation struct {
 }
 
 type ExecuteResponse struct {
+	StatusCode             int
 	Payload                []byte
 	Headers                http.Header
 	AppliedReasoningEffort string
@@ -392,6 +393,9 @@ func (e *CodexHTTPExecutor) Identifier() string { return ProviderCodex }
 // ExecuteCanonical runs one unary Codex request through CPA's stateless HTTP
 // executor and captures request-path, reasoning, and quota observations.
 func (e *CodexHTTPExecutor) ExecuteCanonical(ctx context.Context, credentialID string, credential CodexCredential, request ExecuteRequest) (ExecuteResponse, error) {
+	if request.RequestPath == "/v1/alpha/search" {
+		return e.executeSearchCanonical(ctx, credentialID, credential, request)
+	}
 	request.Headers = normalizedCodexHeaders(request.Headers)
 	format := sdktranslator.FromString(request.Format)
 	endpoints, err := ResolveCodexAPIEndpoints(request.BaseURL)
@@ -611,7 +615,7 @@ func ListCodexModels(ctx context.Context, credential CodexCredential, baseURL st
 		return nil, err
 	}
 	query := target.Query()
-	query.Set("client_version", codexClientVersion)
+	query.Set("client_version", CodexClientVersion)
 	target.RawQuery = query.Encode()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target.String(), nil)
 	if err != nil {
@@ -766,8 +770,8 @@ func applyCodexReadHeaders(req *http.Request, credential CodexCredential) {
 	req.Header.Set("Authorization", "Bearer "+credential.AccessToken)
 	req.Header.Set("Chatgpt-Account-Id", credential.AccountID)
 	req.Header.Set("Originator", "codex_cli_rs")
-	req.Header.Set("User-Agent", "codex_cli_rs/"+codexClientVersion)
-	req.Header.Set("Version", codexClientVersion)
+	req.Header.Set("User-Agent", "codex_cli_rs/"+CodexClientVersion)
+	req.Header.Set("Version", CodexClientVersion)
 }
 
 func (e *CodexHTTPExecutor) executionContext(

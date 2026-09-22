@@ -56,6 +56,36 @@ func TestQueryUsageMinuteReadsRollingLogsAndClampsBuckets(t *testing.T) {
 	}
 }
 
+func TestQueryUsageMinuteExcludesAttemptWithoutFinalAttribution(t *testing.T) {
+	db := openRequestLogQueryDB(t)
+	start := time.Date(2026, time.September, 18, 14, 41, 11, 0, time.UTC)
+	attributed := aggregationRow(aggregationRequestID(106), start.Add(3*time.Minute), 7, "model")
+	unattributed := aggregationRow(aggregationRequestID(107), start.Add(2*time.Minute), 0, "")
+	unattributed.ChannelID = ""
+	unattributed.CredentialID = 0
+	unattributed.Status = "error"
+	unattributed.StatusCode = 426
+	unattributed.UncachedInputTokens = 0
+	unattributed.OutputTokens = 0
+	unattributed.EstimatedCostNanoUSD = 0
+	unattributed.UsageState = "not_applicable"
+	unattributed.CostState = "not_applicable"
+	unattributed.PricingCompleteness = "not_applicable"
+	if err := db.Create(&[]models.RequestLog{attributed, unattributed}).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	report, err := newRequestLogTestService(db).QueryUsage(context.Background(), minuteUsageQuery(start))
+	if err != nil {
+		t.Fatalf("QueryUsage() error = %v", err)
+	}
+	if report.Summary.RequestCount != 1 || report.Summary.SuccessCount != 1 ||
+		report.Summary.EstimatedCostNanoUSD != attributed.EstimatedCostNanoUSD {
+		t.Fatalf("summary = %#v, want only the request with final attribution", report.Summary)
+	}
+	assertMinuteUsageReportTotals(t, report)
+}
+
 func TestQueryUsageMinuteCanIncludeThirteenPartialAndFullBuckets(t *testing.T) {
 	db := openRequestLogQueryDB(t)
 	start := time.Date(2026, time.September, 7, 13, 2, 0, 0, time.UTC)
@@ -133,7 +163,7 @@ func TestQueryUsageMinuteMatchesFrozenHourlyAccounting(t *testing.T) {
 	}
 	hourQuery := minuteUsageQuery(start)
 	hourQuery.Granularity = UsageGranularityHour
-	hourQuery.ToMS = start.Add(2 * time.Hour).UnixMilli()
+	hourQuery.ToMS = start.Add(7 * time.Hour).UnixMilli()
 	hour, err := service.QueryUsage(context.Background(), hourQuery)
 	if err != nil {
 		t.Fatalf("hour QueryUsage() error = %v", err)
@@ -182,19 +212,25 @@ func TestQueryUsageMinuteFiltersFinalAttributionAndAccessKey(t *testing.T) {
 	query.GroupID, query.ChannelID, query.CredentialID = &groupID, channel.OpenAI, &credentialID
 	query.AccessKeyID, query.UpstreamModel = &accessKeyID, "final-model"
 	query.SelfScoped = true
-	report, err := newRequestLogTestService(db).QueryUsage(context.Background(), query)
-	if err != nil {
-		t.Fatalf("QueryUsage() error = %v", err)
-	}
-	if report.Summary.RequestCount != 1 || len(report.Distributions.Group) != 0 || len(report.Distributions.AccessKey) != 0 {
-		t.Fatalf("scoped report = %#v", report)
-	}
-	assertMinuteUsageReportTotals(t, report)
-	query.GroupID, query.ChannelID, query.CredentialID = nil, "", nil
-	query.UpstreamModel = "earlier-model"
-	report, err = newRequestLogTestService(db).QueryUsage(context.Background(), query)
-	if err != nil || report.Summary.RequestCount != 0 {
-		t.Fatalf("earlier attempt filter = %#v/%v, want empty report", report, err)
+	for _, span := range []time.Duration{time.Hour, 3 * time.Hour, 6 * time.Hour} {
+		t.Run(span.String(), func(t *testing.T) {
+			input := query
+			input.ToMS = start.Add(span).UnixMilli()
+			report, err := newRequestLogTestService(db).QueryUsage(t.Context(), input)
+			if err != nil {
+				t.Fatalf("QueryUsage() error = %v", err)
+			}
+			if report.Summary.RequestCount != 1 || len(report.Distributions.Group) != 0 || len(report.Distributions.AccessKey) != 0 {
+				t.Fatalf("scoped report = %#v", report)
+			}
+			assertMinuteUsageReportTotals(t, report)
+			input.GroupID, input.ChannelID, input.CredentialID = nil, "", nil
+			input.UpstreamModel = "earlier-model"
+			report, err = newRequestLogTestService(db).QueryUsage(t.Context(), input)
+			if err != nil || report.Summary.RequestCount != 0 {
+				t.Fatalf("earlier attempt filter = %#v/%v, want empty report", report, err)
+			}
+		})
 	}
 }
 
@@ -242,7 +278,7 @@ func TestQueryUsageDerivesWidthFromTimeRange(t *testing.T) {
 		want     time.Duration
 	}{
 		{"short range", 59 * time.Minute, 5 * time.Minute, 5 * time.Minute},
-		{"long range", 61 * time.Minute, 5 * time.Minute, time.Hour},
+		{"over-six-hour range", 6*time.Hour + time.Millisecond, 5 * time.Minute, time.Hour},
 		{"caller bucket is ignored", time.Hour, time.Minute, 5 * time.Minute},
 	} {
 		t.Run(test.name, func(t *testing.T) {

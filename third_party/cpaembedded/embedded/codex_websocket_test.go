@@ -321,6 +321,56 @@ func TestCodexWSSessionPreservesUpstreamFailure(t *testing.T) {
 	}
 }
 
+func TestCodexWSSessionPreservesUsageLimitRetryAfter(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		payload string
+	}{
+		{name: "error event", payload: `{"type":"error","status":429,"error":{"type":"usage_limit_reached","message":"quota exhausted","resets_in_seconds":7200}}`},
+		{name: "failed response", payload: `{"type":"response.failed","response":{"id":"resp_failed","status":"failed","error":{"type":"usage_limit_reached","message":"quota exhausted","resets_in_seconds":7200}}}`},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				conn, err := (&websocket.Upgrader{}).Upgrade(w, r, nil)
+				if err != nil {
+					t.Error(err)
+					return
+				}
+				defer conn.Close()
+				if _, _, err := conn.ReadMessage(); err != nil {
+					return
+				}
+				_ = conn.WriteMessage(websocket.TextMessage, []byte(test.payload))
+				_, _, _ = conn.ReadMessage()
+			}))
+			defer server.Close()
+			session := wsTestSession(t, server.URL)
+			_, err := session.ExecuteTurn(context.Background(), json.RawMessage(`{"model":"gpt-5","input":"hello"}`), nil)
+			var failure *CodexWSError
+			if !errors.As(err, &failure) || failure.HTTPStatus != http.StatusTooManyRequests ||
+				failure.UpstreamType != "usage_limit_reached" || failure.RetryAfter != 2*time.Hour {
+				t.Fatalf("usage-limit metadata was lost: error=%v failure=%+v", err, failure)
+			}
+		})
+	}
+}
+
+func TestCodexWSSessionPreservesHandshakeUsageLimitRetryAfter(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusTooManyRequests)
+		_, _ = io.WriteString(w, `{"error":{"type":"usage_limit_reached","message":"quota exhausted","resets_in_seconds":7200}}`)
+	}))
+	defer server.Close()
+	session := wsTestSession(t, server.URL)
+	_, err := session.ExecuteTurn(context.Background(), json.RawMessage(`{"model":"gpt-5","input":"hello"}`), nil)
+	var failure *CodexWSError
+	if !errors.As(err, &failure) || failure.HTTPStatus != http.StatusTooManyRequests ||
+		failure.UpstreamType != "usage_limit_reached" || failure.RetryAfter != 2*time.Hour {
+		t.Fatalf("handshake usage-limit metadata was lost: error=%v failure=%+v", err, failure)
+	}
+}
+
 func TestCodexWSSessionCancellationAndBusy(t *testing.T) {
 	for _, mode := range []string{"cancel", "timeout", "close"} {
 		t.Run(mode, func(t *testing.T) {
@@ -1015,7 +1065,7 @@ func TestCodexWSSessionPreservesDoneErrorCode(t *testing.T) {
 }
 
 func TestCodexWSSessionFixedIdentity(t *testing.T) {
-	const wantUA = "codex-tui/0.153.3 (Mac OS 26.5.1; arm64) iTerm.app/3.6.11 (codex-tui; 0.153.3)"
+	const wantUA = "codex-tui/0.154.0 (Mac OS 26.5.2; arm64) iTerm.app/3.6.11 (codex-tui; 0.154.0)"
 	for _, model := range []string{"gpt-6-astra", "gpt-5.6-luna"} {
 		for _, test := range []struct {
 			name    string
@@ -1030,7 +1080,7 @@ func TestCodexWSSessionFixedIdentity(t *testing.T) {
 				var handshakes atomic.Int32
 				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					handshakes.Add(1)
-					if r.Header.Get("Version") != "0.153.3" || r.Header.Get("User-Agent") != wantUA {
+					if r.Header.Get("Version") != "0.154.0" || r.Header.Get("User-Agent") != wantUA {
 						t.Errorf("handshake identity: version=%q UA=%q", r.Header.Get("Version"), r.Header.Get("User-Agent"))
 					}
 					if r.Header.Get("Authorization") != "Bearer test-access" {

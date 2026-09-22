@@ -3,6 +3,8 @@ package scheduler
 
 import (
 	"errors"
+	"slices"
+	"strings"
 	"time"
 
 	"gpt-load/internal/channel"
@@ -71,7 +73,7 @@ type weightedCredential struct {
 }
 
 type candidatePool struct {
-	targetsByGroup map[uint]candidateTarget
+	targetsByGroup map[uint][]candidateTarget
 	groupIDsByMode map[channel.RouteMode][]uint
 }
 
@@ -125,8 +127,13 @@ func CandidateGroupIDsForQuery(snapshot *state.ConfigSnapshot, query Query) []ui
 		return []uint{}
 	}
 	groupIDs := make([]uint, 0, len(decisions))
+	seen := make(map[uint]struct{}, len(decisions))
 	for _, decision := range decisions {
 		if decision.included {
+			if _, exists := seen[decision.target.GroupID]; exists {
+				continue
+			}
+			seen[decision.target.GroupID] = struct{}{}
 			groupIDs = append(groupIDs, decision.target.GroupID)
 		}
 	}
@@ -170,15 +177,25 @@ func newWithClock(
 			pool = &iterator.storeDowngraded
 		}
 		mode := target.target.Mode
-		pool.targetsByGroup[target.target.GroupID] = target
-		pool.groupIDsByMode[mode] = append(pool.groupIDsByMode[mode], target.target.GroupID)
+		groupID := target.target.GroupID
+		pool.targetsByGroup[groupID] = append(pool.targetsByGroup[groupID], target)
+		if !slices.Contains(pool.groupIDsByMode[mode], groupID) {
+			pool.groupIDsByMode[mode] = append(pool.groupIDsByMode[mode], groupID)
+		}
+	}
+	for _, pool := range []*candidatePool{&iterator.regular, &iterator.storeDowngraded} {
+		for _, targets := range pool.targetsByGroup {
+			slices.SortFunc(targets, func(a, b candidateTarget) int {
+				return strings.Compare(a.target.UpstreamModelID, b.target.UpstreamModelID)
+			})
+		}
 	}
 	return iterator
 }
 
 func newCandidatePool() candidatePool {
 	return candidatePool{
-		targetsByGroup: make(map[uint]candidateTarget),
+		targetsByGroup: make(map[uint][]candidateTarget),
 		groupIDsByMode: make(map[channel.RouteMode][]uint),
 	}
 }
@@ -239,8 +256,14 @@ func (iterator *Iterator) weightedPoolForMode(
 
 func (iterator *Iterator) withWeightedPool(candidates *candidatePool, modes []channel.RouteMode, now time.Time, fn func([]weightedCredential)) {
 	var groupIDs []uint
+	seenGroups := make(map[uint]struct{})
 	for _, mode := range modes {
-		groupIDs = append(groupIDs, candidates.groupIDsByMode[mode]...)
+		for _, groupID := range candidates.groupIDsByMode[mode] {
+			if _, exists := seenGroups[groupID]; !exists {
+				seenGroups[groupID] = struct{}{}
+				groupIDs = append(groupIDs, groupID)
+			}
+		}
 	}
 	excluded := func(id uint) bool { _, tried := iterator.tried[id]; return tried }
 	consume := func(pool []state.CredentialMeta) {
@@ -260,26 +283,25 @@ func (iterator *Iterator) withWeightedPool(candidates *candidatePool, modes []ch
 			if _, skipped := iterator.skippedGroups[credential.GroupID]; skipped {
 				continue
 			}
-			target, ok := candidates.targetsByGroup[credential.GroupID]
-			if !ok {
-				continue
-			}
-			if modelCooldownUntil(credential.ModelCooldowns, target.target.UpstreamModelID, iterator.operation, now).After(now) {
-				continue
-			}
-			// 凭据本地限额与模型冷却并列过滤：满额凭据不进候选池，调度器自然换号。
-			// 限额按“凭据自身值优先、否则继承分组默认值”解析。
-			rpmLimit := state.EffectiveCredentialLimit(target.group.CredentialRPMLimit, credential.RPMLimit)
-			concurrencyLimit := state.EffectiveCredentialLimit(
-				target.group.CredentialConcurrencyLimit, credential.ConcurrencyLimit,
-			)
-			if iterator.limiter != nil && !iterator.limiter.Available(credential.ID, rpmLimit, concurrencyLimit) {
-				iterator.limitedSeen = true
-				continue
-			}
-			weight := effectiveWeight(target.group.WeightManual, credential.WeightManual)
-			if weight > 0 {
-				weighted = append(weighted, weightedCredential{meta: credential, weight: weight})
+			for _, target := range candidates.targetsByGroup[credential.GroupID] {
+				if !iterator.targetAvailable(target, credential, modes, now) {
+					continue
+				}
+				// 凭据本地限额与模型冷却并列过滤：满额凭据不进候选池，调度器自然换号。
+				// 限额按“凭据自身值优先、否则继承分组默认值”解析。
+				rpmLimit := state.EffectiveCredentialLimit(target.group.CredentialRPMLimit, credential.RPMLimit)
+				concurrencyLimit := state.EffectiveCredentialLimit(
+					target.group.CredentialConcurrencyLimit, credential.ConcurrencyLimit,
+				)
+				if iterator.limiter != nil && !iterator.limiter.Available(credential.ID, rpmLimit, concurrencyLimit) {
+					iterator.limitedSeen = true
+					break
+				}
+				weight := effectiveWeight(target.group.WeightManual, credential.WeightManual)
+				if weight > 0 {
+					weighted = append(weighted, weightedCredential{meta: credential, weight: weight})
+				}
+				break
 			}
 		}
 		fn(weighted)
@@ -300,18 +322,50 @@ func (iterator *Iterator) Next() (Selection, error) {
 	for _, pool := range []*candidatePool{&iterator.regular, &iterator.storeDowngraded} {
 		for _, modes := range iterator.routeModeTiers {
 			var selected state.CredentialMeta
+			var target candidateTarget
 			var found bool
-			iterator.withWeightedPool(pool, modes, iterator.now(), func(weighted []weightedCredential) {
+			now := iterator.now()
+			iterator.withWeightedPool(pool, modes, now, func(weighted []weightedCredential) {
 				selected, found = iterator.selectCredential(weighted, iterator.preferredCredentialID)
+				if !found {
+					return
+				}
+				target = iterator.selectTarget(pool, modes, selected, now)
 			})
 			if !found {
 				continue
 			}
 			iterator.tried[selected.ID] = struct{}{}
-			return newSelection(selected, pool.targetsByGroup[selected.GroupID]), nil
+			return newSelection(selected, target), nil
 		}
 	}
 	return Selection{}, ErrExhausted
+}
+
+func (iterator *Iterator) targetAvailable(target candidateTarget, credential state.CredentialMeta, modes []channel.RouteMode, now time.Time) bool {
+	return slices.Contains(modes, target.target.Mode) &&
+		!modelCooldownUntil(credential.ModelCooldowns, target.target.UpstreamModelID, iterator.operation, now).After(now)
+}
+
+// 只为已选凭据收集模型，避免每个凭据都复制完整候选列表。
+func (iterator *Iterator) selectTarget(pool *candidatePool, modes []channel.RouteMode, credential state.CredentialMeta, now time.Time) candidateTarget {
+	targets := pool.targetsByGroup[credential.GroupID]
+	models := make([]string, 0, len(targets))
+	for _, target := range targets {
+		if iterator.targetAvailable(target, credential, modes, now) {
+			models = append(models, target.target.UpstreamModelID)
+		}
+	}
+	model := models[0]
+	if iterator.query.ExternalModel != nil {
+		model = iterator.progress.SelectModel(credential.GroupID, *iterator.query.ExternalModel, models)
+	}
+	for _, target := range targets {
+		if target.target.UpstreamModelID == model {
+			return target
+		}
+	}
+	return targets[0]
 }
 
 func filterTargetsWithReason(

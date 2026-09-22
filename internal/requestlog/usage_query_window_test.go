@@ -23,10 +23,10 @@ func TestQueryUsageExactWindowBoundaries(t *testing.T) {
 		{"short across hour", 57 * time.Minute, 63 * time.Minute, 5 * time.Minute},
 		{"exact aligned hour", 0, time.Hour, 5 * time.Minute},
 		{"exact rolling hour", 17 * time.Minute, 77 * time.Minute, 5 * time.Minute},
-		{"aligned hour plus millisecond", 0, time.Hour + time.Millisecond, time.Hour},
-		{"rolling hour plus millisecond", 17 * time.Minute, 77*time.Minute + time.Millisecond, time.Hour},
-		{"full hours and boundaries", 17 * time.Minute, 190 * time.Minute, time.Hour},
-		{"aligned full hours", 0, 3 * time.Hour, time.Hour},
+		{"aligned hour plus millisecond", 0, time.Hour + time.Millisecond, 5 * time.Minute},
+		{"rolling hour plus millisecond", 17 * time.Minute, 77*time.Minute + time.Millisecond, 5 * time.Minute},
+		{"full hours and boundaries", 17 * time.Minute, 190 * time.Minute, 5 * time.Minute},
+		{"aligned full hours", 0, 3 * time.Hour, 5 * time.Minute},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			db := openRequestLogQueryDB(t)
@@ -62,6 +62,54 @@ func TestQueryUsageExactWindowBoundaries(t *testing.T) {
 	}
 }
 
+func TestQueryUsagePreservesCompletionTimeBuckets(t *testing.T) {
+	base := time.Date(2026, time.September, 18, 9, 0, 0, 0, time.UTC)
+	for _, test := range []struct {
+		name      string
+		from      time.Duration
+		span      time.Duration
+		completed time.Duration
+		width     time.Duration
+	}{
+		{"one hour", 0, time.Hour, 37 * time.Minute, 5 * time.Minute},
+		{"over one hour", 0, time.Hour + time.Millisecond, 37 * time.Minute, 5 * time.Minute},
+		{"three hours", 0, 3 * time.Hour, 37 * time.Minute, 5 * time.Minute},
+		{"six hours", 0, 6 * time.Hour, 37 * time.Minute, 5 * time.Minute},
+		{"rolling three hours", 17 * time.Minute, 3 * time.Hour, 97 * time.Minute, 5 * time.Minute},
+		{"over six hours", 0, 6*time.Hour + time.Millisecond, 37 * time.Minute, time.Hour},
+		{"one day", 0, 24 * time.Hour, 37 * time.Minute, time.Hour},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			db := openRequestLogQueryDB(t)
+			from, completed := base.Add(test.from), base.Add(test.completed)
+			row := aggregationRow(aggregationRequestID(9918), completed, 7, "model")
+			if err := (&gormBatchWriter{db: db}).WriteBatch(t.Context(), []models.RequestLog{row}); err != nil {
+				t.Fatal(err)
+			}
+			report, err := newRequestLogTestService(db).QueryUsage(t.Context(), UsageQuery{
+				FromMS: from.UnixMilli(), ToMS: from.Add(test.span).UnixMilli(),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if report.Summary.RequestCount != 1 || report.Summary.UncachedInputTokens != row.UncachedInputTokens ||
+				report.Summary.OutputTokens != row.OutputTokens || report.Summary.EstimatedCostNanoUSD != row.EstimatedCostNanoUSD ||
+				len(report.Series) != 1 {
+				t.Fatalf("usage totals changed: summary=%+v buckets=%d", report.Summary, len(report.Series))
+			}
+			start := completed.Truncate(test.width)
+			point := report.Series[0]
+			if point.BucketStartMS != start.UnixMilli() || point.BucketEndMS != start.Add(test.width).UnixMilli() {
+				t.Fatalf("completion %s mapped to %s-%s, want %s-%s", completed.Format(time.RFC3339),
+					time.UnixMilli(point.BucketStartMS).UTC().Format(time.RFC3339),
+					time.UnixMilli(point.BucketEndMS).UTC().Format(time.RFC3339),
+					start.Format(time.RFC3339), start.Add(test.width).Format(time.RFC3339))
+			}
+			assertMinuteUsageReportTotals(t, report)
+		})
+	}
+}
+
 func TestResolveUsageTimeBucket(t *testing.T) {
 	hour, day := epochms.MillisecondsPerHour, epochms.MillisecondsPerDay
 	for _, test := range []struct {
@@ -71,7 +119,8 @@ func TestResolveUsageTimeBucket(t *testing.T) {
 	}{
 		{1, UsageGranularityMinute, UsageFiveMinuteBucketMS},
 		{hour, UsageGranularityMinute, UsageFiveMinuteBucketMS},
-		{hour + 1, UsageGranularityHour, hour},
+		{6 * hour, UsageGranularityMinute, UsageFiveMinuteBucketMS},
+		{6*hour + 1, UsageGranularityHour, hour},
 		{day, UsageGranularityHour, hour},
 		{day + 1, UsageGranularityHour, 3 * hour},
 		{3 * day, UsageGranularityHour, 3 * hour},
@@ -144,7 +193,7 @@ func TestQueryUsageMergesSourcesBeforeRankingEveryDimension(t *testing.T) {
 		}
 	}
 	report, err := newRequestLogTestService(db).QueryUsage(context.Background(), UsageQuery{
-		FromMS: start.Add(-30 * time.Minute).UnixMilli(), ToMS: start.Add(90 * time.Minute).UnixMilli(),
+		FromMS: start.Add(-30 * time.Minute).UnixMilli(), ToMS: start.Add(7*time.Hour + 30*time.Minute).UnixMilli(),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -185,7 +234,7 @@ func TestQueryUsageMixedSourcesApplyAllFilters(t *testing.T) {
 			stat.Model = "other"
 		}
 		createUsageStats(t, db, stat)
-		for _, offset := range []time.Duration{-time.Minute, 61 * time.Minute} {
+		for _, offset := range []time.Duration{-time.Minute, 7*time.Hour + time.Minute} {
 			row := aggregationRow(fmt.Sprintf("filter-%d-%d", index, offset), start.Add(offset), stat.GroupID, stat.Model)
 			row.AccessKeyID, row.CredentialID, row.ChannelID = stat.AccessKeyID, stat.CredentialID, stat.ChannelID
 			if err := db.Create(&row).Error; err != nil {
@@ -195,7 +244,7 @@ func TestQueryUsageMixedSourcesApplyAllFilters(t *testing.T) {
 	}
 	groupID, credentialID, accessKeyID := uint(7), uint(11), uint(41)
 	report, err := newRequestLogTestService(db).QueryUsage(context.Background(), UsageQuery{
-		FromMS: start.Add(-30 * time.Minute).UnixMilli(), ToMS: start.Add(90 * time.Minute).UnixMilli(),
+		FromMS: start.Add(-30 * time.Minute).UnixMilli(), ToMS: start.Add(7*time.Hour + 30*time.Minute).UnixMilli(),
 		GroupID: &groupID, CredentialID: &credentialID, AccessKeyID: &accessKeyID, ChannelID: channel.OpenAI, UpstreamModel: "model",
 	})
 	if err != nil || report.Summary.RequestCount != 3 {
@@ -294,7 +343,7 @@ func TestQueryUsageMixedSourcesRejectCorruptRowsBeforeCombining(t *testing.T) {
 				t.Fatal(err)
 			}
 			if _, err := newRequestLogTestService(db).QueryUsage(context.Background(), UsageQuery{
-				FromMS: start.Add(-30 * time.Minute).UnixMilli(), ToMS: start.Add(90 * time.Minute).UnixMilli(),
+				FromMS: start.Add(-30 * time.Minute).UnixMilli(), ToMS: start.Add(7*time.Hour + 30*time.Minute).UnixMilli(),
 			}); err == nil {
 				t.Fatal("corrupt source accepted after other rows compensated its totals")
 			}

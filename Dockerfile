@@ -9,8 +9,7 @@ RUN pnpm --dir web install --frozen-lockfile
 
 # 前端构建会直接 import 这两个路由清单，它们在 web/ 之外，必须单独带进来。
 # 漏掉 modern_page_routes.json 只会在 source-build 路径炸，上游走 prebuilt 所以没暴露。
-COPY internal/webui/page_routes.json ./internal/webui/page_routes.json
-COPY internal/webui/modern_page_routes.json ./internal/webui/modern_page_routes.json
+COPY internal/webui/page_routes.json internal/webui/modern_page_routes.json ./internal/webui/
 COPY web ./web
 RUN pnpm --dir web run build
 

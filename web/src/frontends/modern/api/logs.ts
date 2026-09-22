@@ -3,6 +3,26 @@ import { ApiError, InvalidResponseError } from '@shared/http/errors'
 import { boolean, integer, list, oneOf, record, text } from './response'
 
 export const logStatuses = ['success', 'error', 'incomplete', 'canceled'] as const
+export const logOperations = [
+  'chat_completion',
+  'responses_create',
+  'responses_retrieve',
+  'responses_delete',
+  'responses_cancel',
+  'responses_input_items',
+  'responses_compact',
+  'responses_input_tokens',
+  'count_tokens',
+  'responses_passthrough',
+  'web_search',
+  'images_generate',
+  'images_edit',
+  'embeddings_create',
+  'rerank',
+  'decisions_create',
+  'list_models',
+  'probe',
+] as const
 export const logFilterNames = [
   'from_ms',
   'to_ms',
@@ -12,10 +32,12 @@ export const logFilterNames = [
   'credential_id',
   'client_model',
   'upstream_model',
+  'model_consistency',
   'access_key_id',
   'status',
   'request_id',
   'protocol',
+  'operation',
   'stream',
   'final_status_code',
   'usage_state',
@@ -46,6 +68,7 @@ export const internalLogFilters: readonly LogFilterName[] = [
   'channel_id',
   'credential_id',
   'upstream_model',
+  'model_consistency',
   'access_key_id',
   'attempt_status_code',
   'failure_category',
@@ -58,7 +81,6 @@ export const logsKey = ['modern', 'logs'] as const
 export const logDetailKey = (id: string) => ['modern', 'log-detail', id] as const
 export const logRequestPattern =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
-export const logCursorPattern = /^[A-Za-z0-9_-]{1,512}$/
 
 export interface LogReasoning {
   mode: string | null
@@ -66,6 +88,7 @@ export interface LogReasoning {
   budget_tokens: string | null
 }
 export interface LogEntry {
+  auto_decision?: LogAutoDecision
   request_id: string
   completed_at_ms: number
   access_key: { id: number; name: string | null; deleted: boolean }
@@ -86,6 +109,7 @@ export interface LogEntry {
   error_code: string
   error_summary: string
   affinity_hit: boolean
+  affinity_kind: string
   group_id: number | null
   channel_id: string | null
   credential_id: number | null
@@ -105,6 +129,31 @@ export interface LogEntry {
   cache_write_unknown_tokens: string
   output_tokens: string
   estimated_cost_nano_usd: string
+}
+
+export interface LogAutoDecision {
+  selection: { preset_name: string; target_model: string }
+  source: string
+  status: string
+  execution_phase: string
+  reason: string
+  provider: string
+  group_name: string
+  channel_name: string
+  credential_name: string
+  credential_deleted: boolean
+  requested_model: string
+  upstream_model: string
+  reported_model: string
+  duration_ms: number
+  called: boolean
+  confidence: number | null
+  input_tokens: string | null
+  output_tokens: string | null
+  estimated_cost_nano_usd: string
+  cost_state: string
+  pricing_completeness: string
+  receipt: LogReceipt | null
 }
 export interface LogPricingLine {
   code: string
@@ -165,7 +214,7 @@ export interface LogDetail extends LogEntry {
 }
 export interface LogPage {
   items: LogEntry[]
-  next_cursor: string | null
+  pagination: { page: number; page_size: number; total_items: number; total_pages: number }
 }
 export interface LogAccessKeyOption {
   id: number
@@ -256,6 +305,7 @@ function entry(value: unknown): LogEntry {
     error_code: text(row.error_code),
     error_summary: text(row.error_summary),
     affinity_hit: boolean(row.affinity_hit),
+    affinity_kind: text(row.affinity_kind),
     group_id: optionalNumber(row.group_id),
     channel_id: optionalText(row.channel_id),
     credential_id: optionalNumber(row.credential_id),
@@ -268,8 +318,13 @@ function entry(value: unknown): LogEntry {
       'missing',
       'not_applicable',
     ] as const),
-    cost_state: oneOf(row.cost_state, ['priced', 'unpriced', 'not_applicable'] as const),
-    pricing_completeness: oneOf(row.pricing_completeness, [
+    auto_decision: row.auto_decision === undefined ? undefined : autoDecision(row.auto_decision),
+    cost_state: oneOf(row.total_cost_state ?? row.cost_state, [
+      'priced',
+      'unpriced',
+      'not_applicable',
+    ] as const),
+    pricing_completeness: oneOf(row.total_pricing_completeness ?? row.pricing_completeness, [
       'complete',
       'partial',
       'unavailable',
@@ -283,25 +338,77 @@ function entry(value: unknown): LogEntry {
     cache_write_1h_tokens: count(row.cache_write_1h_tokens),
     cache_write_unknown_tokens: count(row.cache_write_unknown_tokens),
     output_tokens: count(row.output_tokens),
+    estimated_cost_nano_usd: count(
+      row.total_estimated_cost_nano_usd ?? row.estimated_cost_nano_usd,
+    ),
+  }
+}
+
+function autoDecision(value: unknown): LogAutoDecision {
+  const row = record(value),
+    selection = record(row.selection)
+  const confidence = row.confidence ?? null
+  if (
+    confidence !== null &&
+    (typeof confidence !== 'number' ||
+      !Number.isFinite(confidence) ||
+      confidence < 0 ||
+      confidence > 1)
+  )
+    throw new InvalidResponseError()
+  return {
+    selection: {
+      preset_name: text(selection.preset_name),
+      target_model: text(selection.target_model),
+    },
+    source: text(row.source),
+    status: text(row.status),
+    execution_phase: text(row.execution_phase ?? ''),
+    reason: text(row.reason ?? ''),
+    provider: text(row.provider ?? ''),
+    group_name: text(row.group_name ?? ''),
+    channel_name: text(row.channel_name ?? ''),
+    credential_name: text(row.credential_name ?? ''),
+    credential_deleted: boolean(row.credential_deleted ?? false),
+    requested_model: text(row.requested_model ?? ''),
+    upstream_model: text(row.upstream_model ?? ''),
+    reported_model: text(row.reported_model ?? ''),
+    duration_ms: integer(row.duration_ms),
+    called: boolean(row.called),
+    confidence,
+    input_tokens: row.input_tokens === undefined ? null : count(row.input_tokens),
+    output_tokens: row.output_tokens === undefined ? null : count(row.output_tokens),
     estimated_cost_nano_usd: count(row.estimated_cost_nano_usd),
+    cost_state: text(row.cost_state),
+    pricing_completeness: text(row.pricing_completeness),
+    receipt: row.receipt === undefined ? null : receipt(row.receipt),
   }
 }
 export async function getLogs(
   client: ApiClient,
   filters: LogQuery,
-  cursor: string | undefined,
+  page: number,
   signal: AbortSignal,
 ): Promise<LogPage> {
   const params = new URLSearchParams()
-  for (const key of logFilterNames) if (filters[key]) params.set(key, filters[key]!)
-  if (cursor) params.set('cursor', cursor)
+  for (const key of logFilterNames)
+    if (key !== 'limit' && filters[key]) params.set(key, filters[key]!)
+  params.set('page', String(page))
+  params.set('page_size', filters.limit ?? '20')
   const data = record(await client.request(`/api/logs?${params}`, { signal }))
-  const next = optionalText(data.next_cursor)
-  if (next !== null && !logCursorPattern.test(next)) throw new InvalidResponseError()
+  const pagination = record(data.pagination)
   const items = list(data.items).map(entry)
   if (new Set(items.map((row) => row.request_id)).size !== items.length)
     throw new InvalidResponseError()
-  return { items, next_cursor: next }
+  return {
+    items,
+    pagination: {
+      page: integer(pagination.page, 1),
+      page_size: integer(pagination.page_size, 1),
+      total_items: integer(pagination.total_items),
+      total_pages: integer(pagination.total_pages),
+    },
+  }
 }
 export async function getLogDetail(
   client: ApiClient,

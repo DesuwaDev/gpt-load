@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { dateFormatter } from '@modern/components/ui/intl-formatters'
-import { KeyRound, UserRound } from '@lucide/vue'
+import { Globe, KeyRound, UserRound } from '@lucide/vue'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { LogEntry, LogQuery } from '@modern/api/logs'
@@ -15,7 +15,7 @@ import {
   AppTooltip,
 } from '@modern/components/ui'
 import type { LogColumnId } from './log-columns'
-import { logTime } from './log-display'
+import { logOutputRate, logTime } from './log-display'
 import LogValue from './LogValue.vue'
 import LogModelWarning from './LogModelWarning.vue'
 import LogFilterLink from './LogFilterLink.vue'
@@ -29,7 +29,7 @@ const props = defineProps<{
   channels?: ReadonlyMap<string, GroupChannel>
 }>()
 const emit = defineEmits<{ open: []; filter: [filters: LogQuery] }>()
-const { t, locale } = useI18n()
+const { t, te, n, locale } = useI18n()
 const paired = computed(() => props.fields.length > 1)
 const protocolColumn = computed(() => props.fields.length === 1 && props.fields[0] === 'protocol')
 const modelColumn = computed(() => props.fields.length === 1 && props.fields[0] === 'client_model')
@@ -103,6 +103,35 @@ const date = computed(() =>
     day: '2-digit',
   }).format(props.row.completed_at_ms),
 )
+const autoDecisionPreset = computed(() => props.row.auto_decision?.selection.preset_name ?? '')
+const autoDecisionTooltip = computed(() => {
+  const decision = props.row.auto_decision
+  if (!decision) return ''
+  const key = 'autoModel.sources.' + decision.source
+  const strategy = te(key) ? t(key) : `${t('autoModel.sources.unknown')} · ${decision.source}`
+  const reasonKey = 'autoModel.reasons.' + decision.reason
+  const reason = !decision.reason
+    ? ''
+    : /^http_\d+$/u.test(decision.reason)
+      ? t('autoModel.reasons.httpError', { status: decision.reason.slice('http_'.length) })
+      : te(reasonKey)
+        ? t(reasonKey)
+        : `${t('autoModel.reasons.unknown')} · ${decision.reason}`
+  const confidence =
+    decision.confidence === null
+      ? ''
+      : `${t('autoModel.confidenceValue')} ${n(decision.confidence, { style: 'percent', maximumFractionDigits: 1 })}`
+  const duration = decision.called ? `${t('autoModel.duration')} ${n(decision.duration_ms)} ms` : ''
+  return [strategy, reason, confidence, duration].filter(Boolean).join(' · ')
+})
+const autoDecisionTone = computed(() => {
+  const decision = props.row.auto_decision
+  if (!decision) return 'passive'
+  if (decision.source === 'jev' && decision.status === 'selected') return 'selected'
+  if (['binding', 'task_cache', 'prewarm', 'single_preset'].includes(decision.source))
+    return 'passive'
+  return 'fallback'
+})
 function identityIcon(field: LogColumnId) {
   return field === 'credential_name' ? UserRound : field === 'access_key' ? KeyRound : undefined
 }
@@ -128,6 +157,8 @@ function fieldFilter(field: LogColumnId): LogQuery | undefined {
       return row.status_code ? { final_status_code: String(row.status_code) } : undefined
     case 'stream':
       return { stream: String(row.stream) }
+    case 'operation':
+      return row.operation ? { operation: row.operation } : undefined
     case 'usage_state':
       return { usage_state: row.usage_state }
     case 'cost_state':
@@ -171,6 +202,8 @@ function fieldFilterValue(field: LogColumnId): string {
       return t(row.stream ? 'logs.yes' : 'logs.no')
     case 'error_code':
       return row.error_code
+    case 'operation':
+      return row.operation ? t('logs.values.' + row.operation) : '—'
     default:
       return field
   }
@@ -224,6 +257,28 @@ function fieldFilterValue(field: LogColumnId): string {
             tabindex="0"
             :aria-label="line.label ? line.label + ' ' + line.value : undefined"
           />
+          <AppTooltip v-if="index === 0 && autoDecisionPreset" :label="autoDecisionTooltip">
+            <small
+              class="modern-log-auto-decision"
+              :class="`is-${autoDecisionTone}`"
+              tabindex="0"
+              :aria-label="autoDecisionTooltip"
+              >{{ autoDecisionPreset }}</small
+            >
+          </AppTooltip>
+          <AppTooltip
+            v-if="row.operation === 'web_search' && line.value === row.client_model"
+            :label="t('logs.standaloneSearchHint')"
+          >
+            <span
+              class="modern-log-search-indicator"
+              role="img"
+              tabindex="0"
+              :aria-label="t('logs.standaloneSearchHint')"
+            >
+              <AppIcon :icon="Globe" size="inherit" />
+            </span>
+          </AppTooltip>
           <LogModelWarning v-if="index === 0" :row="row" />
         </div>
       </template>
@@ -274,6 +329,24 @@ function fieldFilterValue(field: LogColumnId): string {
         />
       </div>
     </div>
+  </div>
+  <div v-else-if="fields.includes('duration_ms')" class="modern-log-cell-stack is-paired">
+    <div class="modern-log-cell-value">
+      <LogValue :row="row" column="duration_ms" table />
+      <template v-if="fields.includes('first_response_ms')">
+        <span aria-hidden="true">/</span>
+        <LogValue :row="row" column="first_response_ms" table />
+      </template>
+    </div>
+    <AppTooltip :label="t('logs.outputRate')">
+      <div
+        class="modern-log-cell-value modern-log-speed"
+        tabindex="0"
+        :aria-label="t('logs.outputRate') + ': ' + logOutputRate(row, locale)"
+      >
+        <AppOverflowText :text="logOutputRate(row, locale)" />
+      </div>
+    </AppTooltip>
   </div>
   <div v-else class="modern-log-cell-stack" :class="{ 'is-paired': paired }">
     <template v-for="(field, index) in fields" :key="field">
@@ -371,6 +444,34 @@ function fieldFilterValue(field: LogColumnId): string {
   gap: var(--modern-space-1-5);
   font-size: var(--modern-font-size-small);
 }
+.modern-log-auto-decision {
+  min-width: 0;
+  color: var(--modern-muted);
+  font-family: var(--modern-font-sans);
+  font-size: var(--modern-font-size-caption);
+  font-weight: var(--modern-weight-regular);
+}
+.modern-log-auto-decision.is-selected {
+  color: var(--modern-success);
+}
+.modern-log-auto-decision.is-fallback {
+  color: var(--modern-warning);
+}
+.modern-log-auto-decision:focus-visible {
+  outline: var(--modern-focus-width) solid currentColor;
+  outline-offset: var(--modern-focus-offset);
+}
+.modern-log-search-indicator {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  color: var(--modern-info);
+  cursor: help;
+}
+.modern-log-search-indicator:focus-visible {
+  outline: var(--modern-focus-width) solid var(--modern-info);
+  outline-offset: var(--modern-focus-offset);
+}
 .modern-log-identity-line {
   display: flex;
   min-width: 0;
@@ -409,6 +510,11 @@ function fieldFilterValue(field: LogColumnId): string {
 }
 .modern-log-cell-value > :last-child {
   min-width: 0;
+}
+.modern-log-speed {
+  font-family: var(--modern-font-mono);
+  font-size: var(--modern-font-size-small);
+  font-variant-numeric: tabular-nums;
 }
 .modern-log-cell-value.is-model {
   font-family: var(--modern-font-mono);

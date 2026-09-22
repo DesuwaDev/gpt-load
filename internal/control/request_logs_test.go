@@ -19,6 +19,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"gorm.io/gorm"
 
+	"gpt-load/internal/automodel"
 	"gpt-load/internal/channel"
 	"gpt-load/internal/execution"
 	"gpt-load/internal/platform/config"
@@ -251,6 +252,37 @@ func TestRequestLogEndpointAcceptsCanonicalNumericBoundaries(t *testing.T) {
 	}
 }
 
+func TestRequestLogEndpointParsesOffsetPagination(t *testing.T) {
+	t.Parallel()
+	reader := &recordingRequestLogReader{pages: []requestlog.Page{{
+		Items: []requestlog.Record{},
+		Pagination: &requestlog.Pagination{
+			Page: 2, PageSize: 20, TotalItems: 31, TotalPages: 2,
+		},
+	}}}
+	engine := newRequestLogTestEngine(t, reader)
+	recorder := performRequestLogRequest(engine, "test-auth-key", "page=2&page_size=20")
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("response = %d %s, want 200", recorder.Code, recorder.Body.String())
+	}
+	if len(reader.queries) != 1 || reader.queries[0].Page != 2 || reader.queries[0].PageSize != 20 {
+		t.Fatalf("List() queries = %#v", reader.queries)
+	}
+	var envelope struct {
+		Data struct {
+			Pagination requestLogPaginationResponse `json:"pagination"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &envelope); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if envelope.Data.Pagination != (requestLogPaginationResponse{
+		Page: 2, PageSize: 20, TotalItems: 31, TotalPages: 2,
+	}) {
+		t.Fatalf("pagination = %#v", envelope.Data.Pagination)
+	}
+}
+
 func TestRequestLogEndpointParsesAdvancedFilters(t *testing.T) {
 	t.Parallel()
 	reader := &recordingRequestLogReader{}
@@ -265,6 +297,7 @@ func TestRequestLogEndpointParsesAdvancedFilters(t *testing.T) {
 		"cache_present=true",
 		"channel_id=openai",
 		"credential_id=9",
+		"model_consistency=mismatch",
 		"attempt_status_code=429",
 		"failure_category=rate_limited",
 		"error_code=provider_rate_limit",
@@ -297,6 +330,7 @@ func TestRequestLogEndpointParsesAdvancedFilters(t *testing.T) {
 		got.CachePresent == nil || !*got.CachePresent ||
 		got.ChannelID != channel.OpenAI ||
 		got.CredentialID == nil || *got.CredentialID != 9 ||
+		got.ModelConsistency != telemetry.ModelConsistencyMismatch ||
 		got.AttemptStatusCode == nil || *got.AttemptStatusCode != 429 ||
 		got.FailureCategory != telemetry.FailureCategoryRateLimited ||
 		got.AttemptErrorCode != "provider_rate_limit" || got.RetryState != requestlog.RetryStateRetried ||
@@ -316,6 +350,25 @@ func TestRequestLogEndpointParsesAdvancedFilters(t *testing.T) {
 	}
 }
 
+func TestRequestLogEndpointAcceptsModelConsistencyMismatchFilter(t *testing.T) {
+	t.Parallel()
+	reader := &recordingRequestLogReader{}
+	recorder := performRequestLogRequest(
+		newRequestLogTestEngine(t, reader),
+		"test-auth-key",
+		"model_consistency=mismatch",
+	)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("response = %d %s, want 200", recorder.Code, recorder.Body.String())
+	}
+	if len(reader.queries) != 1 {
+		t.Fatalf("Reader calls = %d, want one", len(reader.queries))
+	}
+	if reader.queries[0].ModelConsistency != telemetry.ModelConsistencyMismatch {
+		t.Fatalf("ModelConsistency = %q, want mismatch", reader.queries[0].ModelConsistency)
+	}
+}
+
 func TestRequestLogEndpointRejectsInvalidAdvancedFilters(t *testing.T) {
 	t.Parallel()
 	tests := []string{
@@ -328,6 +381,7 @@ func TestRequestLogEndpointRejectsInvalidAdvancedFilters(t *testing.T) {
 		"cache_present=yes",
 		"channel_id=unknown",
 		"credential_id=0",
+		"model_consistency=invalid",
 		"attempt_status_code=-1",
 		"failure_category=unknown",
 		"error_code=",
@@ -1109,6 +1163,14 @@ func TestRequestLogEndpointsBindAccessKeyScopeAndRedactRoutingInternals(t *testi
 		UncachedInputTokens:   10,
 		OutputTokens:          2,
 		EstimatedCostNanoUSD:  50,
+		AutoDecision: &automodel.Decision{
+			Provider: "private-decision-provider", GroupID: 98, GroupName: "private decision group",
+			ChannelID: "private-decision-channel", ChannelName: "private decision channel",
+			CredentialID: 102, RequestedModel: "private-decision-model",
+			UpstreamModel: "private-decision-upstream", ReportedModel: "private-decision-reported",
+			RequestID: "private-decision-request",
+			Receipt:   json.RawMessage(`{"schema_version":4,"method":"unit_rate_sum","method_version":1,"currency":"USD","pricing_mode":"standard","rule":{"channel_id":"openrouter","model_id":"private-receipt-model"},"line_items":[],"total_nano_usd":0}`),
+		},
 		Attempts: []requestlog.Attempt{{
 			Sequence: 1, GroupID: 99, GroupName: "private group",
 			ChannelID: channel.OpenAI, CredentialID: 101,
@@ -1143,6 +1205,7 @@ func TestRequestLogEndpointsBindAccessKeyScopeAndRedactRoutingInternals(t *testi
 		"channel_id=openai",
 		"credential_id=101",
 		"upstream_model=private-upstream-model",
+		"model_consistency=mismatch",
 		"retry_state=retried",
 	} {
 		recorder := performRequestLogRequest(engine, current.Key, query)
@@ -1224,6 +1287,9 @@ func assertAccessKeyLogRedaction(t *testing.T, body []byte, detail bool) {
 	}
 	for _, secret := range []string{
 		"private-upstream-model", "private-reported-model", "private group",
+		"private-decision-provider", "private decision group", "private-decision-channel",
+		"private decision channel", "private-decision-model", "private-decision-upstream",
+		"private-decision-reported", "private-decision-request", "private-receipt-model",
 	} {
 		if bytes.Contains(body, []byte(secret)) {
 			t.Fatalf("AccessKey log exposes %q: %s", secret, body)
@@ -1401,12 +1467,16 @@ func TestRequestLogResponsesCarryCredentialLabels(t *testing.T) {
 		UsageState:          usage.StateComplete,
 		CostState:           pricing.CostStatePriced,
 		PricingCompleteness: pricing.CompletenessComplete,
+		AutoDecision: &automodel.Decision{
+			GroupID: 7, GroupName: "decision group", ChannelID: "jev", ChannelName: "Jev",
+			CredentialID: 43,
+		},
 		Attempts: []requestlog.Attempt{
 			{Sequence: 1, GroupID: 3, CredentialID: 41},
 			{Sequence: 2, GroupID: 3, CredentialID: 42},
 		},
 	}
-	labels := map[uint]string{41: "m***t@example.com"}
+	labels := map[uint]string{41: "m***t@example.com", 43: "s***n@example.com"}
 
 	detail, err := mapRequestLogDetailResponse(record, labels)
 	if err != nil {
@@ -1414,6 +1484,11 @@ func TestRequestLogResponsesCarryCredentialLabels(t *testing.T) {
 	}
 	if detail.CredentialName != "m***t@example.com" {
 		t.Fatalf("item credential_name = %q", detail.CredentialName)
+	}
+	if detail.AutoDecision == nil || detail.AutoDecision.CredentialName != "s***n@example.com" ||
+		detail.AutoDecision.GroupID != 0 || detail.AutoDecision.ChannelID != "" ||
+		detail.AutoDecision.CredentialID != 0 {
+		t.Fatalf("automatic decision route = %#v", detail.AutoDecision)
 	}
 	if detail.Attempts[0].CredentialName != "m***t@example.com" {
 		t.Fatalf("attempt 1 credential_name = %q", detail.Attempts[0].CredentialName)
@@ -1436,10 +1511,10 @@ func TestRequestLogResponsesCarryCredentialLabels(t *testing.T) {
 func TestRequestLogCredentialIDsCollectsItemAndAttempts(t *testing.T) {
 	t.Parallel()
 	ids := requestLogCredentialIDs([]requestlog.Record{
-		{CredentialID: 41, Attempts: []requestlog.Attempt{{CredentialID: 41}, {CredentialID: 42}}},
+		{CredentialID: 41, AutoDecision: &automodel.Decision{CredentialID: 43}, Attempts: []requestlog.Attempt{{CredentialID: 41}, {CredentialID: 42}}},
 		{CredentialID: 41},
 	})
-	want := []uint{41, 41, 42, 41}
+	want := []uint{41, 43, 41, 42, 41}
 	if len(ids) != len(want) {
 		t.Fatalf("ids = %v, want %v", ids, want)
 	}

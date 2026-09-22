@@ -20,11 +20,11 @@ const (
 	pnpmSetupActionRef        = "pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271"
 	uploadArtifactActionRef   = "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
 	downloadArtifactActionRef = "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c"
-	qemuActionRef             = "docker/setup-qemu-action@1f40c72289eff860ee54a304f1438e3cff362e0a"
-	buildxActionRef           = "docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e"
+	qemuActionRef             = "docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1"
+	buildxActionRef           = "docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069"
 	dockerLoginActionRef      = "docker/login-action@dbcb813823bdd20940b903addbd779551569679f"
 	dockerMetadataActionRef   = "docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302"
-	dockerBuildActionRef      = "docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a"
+	dockerBuildActionRef      = "docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc"
 	githubReleaseActionRef    = "softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64"
 )
 
@@ -195,7 +195,7 @@ func TestBranchAndReleaseWorkflowsRunRaceInParallelGates(t *testing.T) {
 		t,
 		workflowJobBlock(t, content, "race-tests"),
 		"Run race-enabled tests",
-		"go test -race -count=1 -timeout=15m . ./internal/...",
+		"go test -race -vet=off -count=1 -timeout=15m . ./internal/...",
 	)
 	branchCPA := workflowStepBlock(
 		t,
@@ -224,7 +224,7 @@ func TestBranchAndReleaseWorkflowsRunRaceInParallelGates(t *testing.T) {
 		t,
 		workflowJobBlock(t, releaseContent, "race-tests"),
 		"Run race-enabled tests",
-		"go test -race -count=1 -timeout=15m . ./internal/...",
+		"go test -race -vet=off -count=1 -timeout=15m . ./internal/...",
 	)
 	releaseCPA := workflowStepBlock(
 		t,
@@ -1395,7 +1395,7 @@ func TestReleaseWorkflowDeploysCurrentMajorChannelToRender(t *testing.T) {
 		"RELEASE_VERSION: ${{ needs.validate-tag.outputs.version }}",
 		"IMAGE: ghcr.io/tbphp/gpt-load:${{ needs.validate-tag.outputs.image_exact }}",
 		`RENDER_CLI_VERSION: "2.25.0"`,
-		`RENDER_CLI_SHA256: "7c4dc66ded7acc75e2f828b02d3d6901e9f2e4175d25c4fe5fd6f3aaf66b071b"`,
+		`RENDER_CLI_SHA256: "3b3f1f839ef36b81f12d84ac7288f1c96f9f7519b39c53fe6f866612f704e7cd"`,
 	} {
 		if !strings.Contains(job, required) {
 			t.Fatalf("Render deployment job does not contain %q:\n%s", required, job)
@@ -1412,7 +1412,7 @@ func TestReleaseWorkflowDeploysCurrentMajorChannelToRender(t *testing.T) {
 		"RENDER_CLI_VERSION",
 		"RENDER_CLI_SHA256",
 		"sha256sum --check",
-		"cli_${RENDER_CLI_VERSION}_linux_arm64.zip",
+		"cli_${RENDER_CLI_VERSION}_linux_amd64.zip",
 		"--retry-all-errors",
 	} {
 		if !strings.Contains(install, required) {
@@ -2145,11 +2145,11 @@ func TestReleaseWorkflowPostPublishVerifiesDraftAssetsAgainstCurrentRun(t *testi
 	// 发布前的五平台原生 smoke 仍然是必须的门禁。
 	nativeJob := workflowJobBlock(t, content, "native-artifact-smoke")
 	for _, required := range []string{
-		"[self-hosted, Linux, X64]",
-		"[self-hosted, Linux, ARM64]",
+		"ubuntu-24.04",
+		"ubuntu-24.04-arm",
 		"macos-15-intel",
-		"[self-hosted, macOS, ARM64]",
-		"[self-hosted, Windows, X64]",
+		"macos-15",
+		"windows-2025",
 		"gpt-load-linux-amd64",
 		"gpt-load-linux-arm64",
 		"gpt-load-macos-amd64",

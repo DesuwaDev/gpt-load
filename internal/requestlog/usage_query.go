@@ -38,6 +38,10 @@ func (service *Service) QueryUsage(ctx context.Context, input UsageQuery) (Usage
 		Operation:      "usage read transaction",
 	}, func(connection *gorm.DB) error {
 		scope := usageWindowScope(connection, input)
+		// 5 分钟趋势不能由小时汇总还原；总览、趋势与分布共用请求明细来源。
+		if bucketWidthMS == UsageFiveMinuteBucketMS {
+			scope = usageRequestLogScope(connection, input)
+		}
 		if err := validateUsageIntegrity(scope, 0); err != nil {
 			return err
 		}
@@ -149,7 +153,8 @@ func usageStatScope(db *gorm.DB, input UsageQuery, groupIDs ...uint) *gorm.DB {
 	if input.UpstreamModel != "" {
 		scope = scope.Where("model = ?", input.UpstreamModel)
 	}
-	return scope
+	return db.Session(&gorm.Session{NewDB: true}).Table("(? UNION ALL ?) AS usage_rows",
+		scope.Select(usageWindowColumns+", channel_id, credential_id"), decisionUsageScope(db, input, groupIDs...).Select(decisionUsageProjection))
 }
 
 func validateUsageStatIntegrity(scope *gorm.DB) error {
@@ -249,6 +254,14 @@ func queryUsageDistribution(
 	dimension UsageDistributionDimension,
 	metric UsageDistributionMetric,
 ) (UsageDistribution, error) {
+	if dimension == UsageDistributionDimensionGroup {
+		scope = scope.Where("group_id > 0")
+		var err error
+		summary, err = queryUsageSummary(scope.Session(&gorm.Session{}))
+		if err != nil {
+			return UsageDistribution{}, err
+		}
+	}
 	var rows []usageDistributionRow
 	query := scope.Session(&gorm.Session{})
 	switch dimension {

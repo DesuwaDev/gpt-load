@@ -321,6 +321,38 @@ func TestServiceListUsesStableKeysetCursor(t *testing.T) {
 	}
 }
 
+func TestServiceListUsesOffsetPaginationWithTotal(t *testing.T) {
+	db := openRequestLogQueryDB(t)
+	service := newRequestLogTestService(db)
+	completedAt := time.Date(2026, time.July, 24, 12, 0, 0, 123, time.UTC)
+	for index, requestID := range []string{
+		"00000000-0000-4000-8000-000000000110",
+		"00000000-0000-4000-8000-000000000111",
+		"00000000-0000-4000-8000-000000000112",
+		"00000000-0000-4000-8000-000000000113",
+		"00000000-0000-4000-8000-000000000114",
+	} {
+		row := requestLogQueryRow(requestID, completedAt.Add(-time.Duration(index)*time.Millisecond), 41, "client-model", nil)
+		createRequestLogQueryRow(t, db, row)
+	}
+
+	page, err := service.List(context.Background(), ListQuery{Page: 2, PageSize: 2})
+	if err != nil {
+		t.Fatalf("List() error = %v", err)
+	}
+	if got, want := requestIDs(page.Items), []string{
+		"00000000-0000-4000-8000-000000000112",
+		"00000000-0000-4000-8000-000000000113",
+	}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("second page IDs = %v, want %v", got, want)
+	}
+	if page.NextCursor != nil || page.Pagination == nil || *page.Pagination != (Pagination{
+		Page: 2, PageSize: 2, TotalItems: 5, TotalPages: 3,
+	}) {
+		t.Fatalf("page = %#v", page)
+	}
+}
+
 func TestServiceListAppliesAllFiltersAndGroupJSON(t *testing.T) {
 	db := openRequestLogQueryDB(t)
 	service := newRequestLogTestService(db)
@@ -464,6 +496,34 @@ func TestServiceListAppliesAllFiltersAndGroupJSON(t *testing.T) {
 	}
 	if len(conflictingPage.Items) != 0 {
 		t.Fatalf("request ID with conflicting AccessKey filter = %#v, want empty", conflictingPage.Items)
+	}
+}
+
+func TestServiceListFiltersModelConsistency(t *testing.T) {
+	db := openRequestLogQueryDB(t)
+	base := time.Date(2026, time.July, 24, 12, 0, 0, 0, time.UTC)
+	mismatch := requestLogQueryRow(
+		"00000000-0000-4000-8000-000000000218", base, 71, "client-model", nil,
+	)
+	mismatch.UpstreamModel = "expected-model"
+	mismatch.UpstreamReportedModel = "returned-model"
+	mismatch.ModelConsistency = string(telemetry.ModelConsistencyMismatch)
+	createRequestLogQueryRow(t, db, mismatch)
+
+	match := requestLogQueryRow(
+		"00000000-0000-4000-8000-000000000219", base.Add(time.Second), 71, "client-model", nil,
+	)
+	createRequestLogQueryRow(t, db, match)
+
+	page, err := newRequestLogTestService(db).List(context.Background(), ListQuery{
+		ModelConsistency: telemetry.ModelConsistencyMismatch,
+		Limit:            50,
+	})
+	if err != nil {
+		t.Fatalf("List() error = %v", err)
+	}
+	if got, want := requestIDs(page.Items), []string{mismatch.ID}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("mismatch IDs = %v, want %v", got, want)
 	}
 }
 

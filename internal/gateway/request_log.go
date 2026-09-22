@@ -10,6 +10,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"gpt-load/internal/automodel"
 	"gpt-load/internal/execution"
 	"gpt-load/internal/health"
 	platformheader "gpt-load/internal/platform/httpheader"
@@ -53,6 +54,7 @@ type frozenAttemptPricing struct {
 }
 
 type requestRecorder struct {
+	autoDecision         *automodel.Decision
 	sink                 telemetry.RequestLogSink
 	requestID            string
 	startedAt            time.Time
@@ -63,6 +65,7 @@ type requestRecorder struct {
 	clientModel          string
 	stream               bool
 	firstResponseMs      *int64
+	forwardStartedAt     time.Time
 	reasoning            reasoning.Config
 	usageApplicable      bool
 	requestedPricingMode pricing.Mode
@@ -133,6 +136,7 @@ func (recorder *requestRecorder) emit() {
 	}
 	reportedModel, modelConsistency := requestOutcomeModelConsistency(recorder.outcome)
 	recorder.sink.Emit(telemetry.RequestEvent{
+		AutoDecision:          recorder.autoLogDecision(),
 		RequestID:             recorder.requestID,
 		CompletedAt:           completedAt.UTC(),
 		AccessKeyID:           recorder.accessKeyID,
@@ -160,7 +164,8 @@ func (recorder *requestRecorder) emit() {
 func (recorder *requestRecorder) freezeSensitiveInputErrorSummaries() {
 	if recorder == nil ||
 		(recorder.protocol != protocol.OpenAIImages &&
-			recorder.protocol != protocol.OpenAIEmbeddings && recorder.protocol != protocol.Rerank) {
+			recorder.protocol != protocol.OpenAIEmbeddings && recorder.protocol != protocol.Rerank &&
+			recorder.protocol != protocol.Decisions) {
 		return
 	}
 	if recorder.outcome.errorCode != "" {
@@ -179,7 +184,7 @@ func (recorder *requestRecorder) estimatedCostNanoUSD() int64 {
 	if recorder == nil {
 		return 0
 	}
-	return recorder.usage.Pricing.EstimatedCostNanoUSD
+	return addDecisionCost(recorder.usage.Pricing.EstimatedCostNanoUSD, recorder.autoDecision)
 }
 
 func (recorder *requestRecorder) setAffinityHit(hit bool, kind string) {
@@ -243,6 +248,12 @@ func (recorder *requestRecorder) recordFirstResponse() {
 	}
 	value := duration.Milliseconds()
 	recorder.firstResponseMs = &value
+	if recorder.autoDecision != nil && !recorder.forwardStartedAt.IsZero() {
+		elapsed := recorder.now().Sub(recorder.forwardStartedAt).Milliseconds()
+		if elapsed >= 0 {
+			recorder.autoDecision.AnswerFirstResponseMs = &elapsed
+		}
+	}
 }
 
 func (recorder *requestRecorder) setUsageApplicable(applicable bool) {
@@ -271,7 +282,8 @@ func (recorder *requestRecorder) beforeForward() time.Time {
 		recorder.attempts[recorder.pendingRetry].WillRetry = true
 		recorder.pendingRetry = -1
 	}
-	return recorder.now()
+	recorder.forwardStartedAt = recorder.now()
+	return recorder.forwardStartedAt
 }
 
 func (recorder *requestRecorder) recordAttempt(

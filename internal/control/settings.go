@@ -8,15 +8,19 @@ import (
 	"fmt"
 	"io"
 	"sort"
+	"strings"
 	"time"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
+	"gpt-load/internal/automodel"
+	"gpt-load/internal/execution"
 	"gpt-load/internal/outboundproxy"
 	"gpt-load/internal/platform/encryption"
 	"gpt-load/internal/platform/epochms"
 	app_errors "gpt-load/internal/platform/errors"
+	"gpt-load/internal/protocol"
 	"gpt-load/internal/state"
 	"gpt-load/internal/storage/models"
 )
@@ -37,30 +41,33 @@ type CORSConfigResponse struct {
 }
 
 type SettingsValuesResponse struct {
-	FirstByteTimeout          int64               `json:"first_byte_timeout"`
-	RequestTimeout            int64               `json:"request_timeout"`
-	StreamIdleTimeout         int64               `json:"stream_idle_timeout"`
-	HeaderRules               HeaderRulesResponse `json:"header_rules"`
-	CORS                      CORSConfigResponse  `json:"cors"`
-	ResponseHeaderRules       HeaderRulesResponse `json:"response_header_rules"`
-	RetryCount                int                 `json:"retry_count"`
-	RouteStrategy             state.RouteStrategy `json:"route_strategy"`
-	BlacklistThreshold        int                 `json:"blacklist_threshold"`
-	AffinityEnabled           bool                `json:"affinity_enabled"`
-	ResponsesWebsocketEnabled bool                `json:"responses_websocket_enabled"`
-	AffinityTTL               int64               `json:"affinity_ttl"`
-	AffinityCapacity          int                 `json:"affinity_capacity"`
-	ValidationInterval        int64               `json:"validation_interval"`
-	RequestLogRetentionDays   int                 `json:"request_log_retention_days"`
-	ModelsDevAutoSyncEnabled  bool                `json:"models_dev_auto_sync_enabled"`
-	ProxyConfig               outboundproxy.View  `json:"proxy_config"`
+	AutoModel                 AutoModelSettingsView `json:"auto_model"`
+	FirstByteTimeout          int64                 `json:"first_byte_timeout"`
+	RequestTimeout            int64                 `json:"request_timeout"`
+	StreamIdleTimeout         int64                 `json:"stream_idle_timeout"`
+	HeaderRules               HeaderRulesResponse   `json:"header_rules"`
+	CORS                      CORSConfigResponse    `json:"cors"`
+	ResponseHeaderRules       HeaderRulesResponse   `json:"response_header_rules"`
+	RetryCount                int                   `json:"retry_count"`
+	RouteStrategy             state.RouteStrategy   `json:"route_strategy"`
+	BlacklistThreshold        int                   `json:"blacklist_threshold"`
+	AffinityEnabled           bool                  `json:"affinity_enabled"`
+	ResponsesWebsocketEnabled bool                  `json:"responses_websocket_enabled"`
+	AffinityTTL               int64                 `json:"affinity_ttl"`
+	AffinityCapacity          int                   `json:"affinity_capacity"`
+	ValidationInterval        int64                 `json:"validation_interval"`
+	RequestLogRetentionDays   int                   `json:"request_log_retention_days"`
+	ModelsDevAutoSyncEnabled  bool                  `json:"models_dev_auto_sync_enabled"`
+	ProxyConfig               outboundproxy.View    `json:"proxy_config"`
 }
 
 type SettingsResponse struct {
-	Revision  uint64                 `json:"-"`
-	Values    SettingsValuesResponse `json:"values"`
-	Overrides []string               `json:"overrides"`
-	ReadOnly  []string               `json:"read_only,omitempty"`
+	AutoModelTemplate automodel.Entry        `json:"auto_model_template"`
+	DecisionModels    []string               `json:"decision_models"`
+	Revision          uint64                 `json:"-"`
+	Values            SettingsValuesResponse `json:"values"`
+	Overrides         []string               `json:"overrides"`
+	ReadOnly          []string               `json:"read_only,omitempty"`
 }
 
 type SettingsUpdateRequest struct {
@@ -149,6 +156,13 @@ func (s *Service) UpdateSettings(
 	previousAutoSyncEnabled := false
 	snapshot, err := s.writeConfig(ctx, func(tx *gorm.DB) error {
 		previousAutoSyncEnabled = s.modelsDevAutoSyncEnabled()
+		if raw, exists := request.Settings[automodel.SettingKey]; exists {
+			update, err := s.normalizeAutoModelUpdate(tx, raw)
+			if err != nil {
+				return err
+			}
+			updates = append(updates, update)
+		}
 		return s.applySettingUpdates(tx, updates)
 	}, nil)
 	if err != nil {
@@ -213,6 +227,9 @@ func normalizeSettingUpdates(
 
 	updates := make([]persistedSettingUpdate, 0, len(keys))
 	for _, key := range keys {
+		if key == automodel.SettingKey {
+			continue
+		}
 		if key != outboundproxy.SystemSettingKey && !state.IsRuntimeSettingKey(key) {
 			return nil, app_errors.ErrValidation
 		}
@@ -297,7 +314,7 @@ func mapSettingsResponse(
 	overrides := make([]string, 0, len(rows))
 	var configuredProxy *outboundproxy.Config
 	for _, row := range rows {
-		if state.IsRuntimeSettingKey(row.Key) {
+		if state.IsRuntimeSettingKey(row.Key) || row.Key == automodel.SettingKey {
 			overrides = append(overrides, row.Key)
 		}
 		if row.Key == outboundproxy.SystemSettingKey {
@@ -331,8 +348,11 @@ func mapSettingsResponse(
 		readOnly = append(readOnly, state.SettingModelsDevAutoSyncEnabled)
 	}
 	return SettingsResponse{
-		Revision: snapshot.Revision,
+		AutoModelTemplate: automodel.Template(),
+		DecisionModels:    decisionModelNames(snapshot),
+		Revision:          snapshot.Revision,
 		Values: SettingsValuesResponse{
+			AutoModel:         newAutoModelSettingsView(snapshot.AutoModels),
 			FirstByteTimeout:  durationSeconds(settings.FirstByteTimeout),
 			RequestTimeout:    durationSeconds(settings.RequestTimeout),
 			StreamIdleTimeout: durationSeconds(settings.StreamIdleTimeout),
@@ -368,6 +388,22 @@ func mapSettingsResponse(
 		Overrides: overrides,
 		ReadOnly:  readOnly,
 	}, nil
+}
+
+func decisionModelNames(snapshot *state.ConfigSnapshot) []string {
+	if snapshot == nil {
+		return []string{}
+	}
+	byOperation := snapshot.ExecutionCandidates[protocol.Decisions]
+	byModel := byOperation[execution.OperationDecisionsCreate]
+	names := make([]string, 0, len(byModel))
+	for name, targets := range byModel {
+		if strings.TrimSpace(name) != "" && len(targets) > 0 {
+			names = append(names, name)
+		}
+	}
+	sort.Strings(names)
+	return names
 }
 
 func durationSeconds(value time.Duration) int64 {

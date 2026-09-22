@@ -98,6 +98,7 @@ const groupCollectionItemFields = [
 ] as const
 const groupCollectionPaginationFields = ['page', 'page_size', 'total_items', 'total_pages'] as const
 const groupOptionFields = [
+  'auto_models',
   'id',
   'name',
   'channel_id',
@@ -595,6 +596,10 @@ function projectGroupOption(value: unknown): GroupOptionDto {
   const models = projectArray(record.models, projectNonBlankString)
   if (new Set(models).size !== models.length) throw new InvalidResponseError()
   return {
+    auto_models:
+      record.auto_models === undefined
+        ? []
+        : projectArray(record.auto_models, (value) => projectString(value)),
     id: projectSafeInteger(record.id, { minimum: 1 }),
     name: projectNonBlankString(record.name),
     channel_id: projectChannelID(record.channel_id),
@@ -840,6 +845,23 @@ export async function updateGroupSettings(
     await client.request(`/api/groups/${groupID}/settings`, {
       method: 'PUT',
       json: body,
+      signal,
+    }),
+  )
+}
+
+// 切换渠道只提交目标渠道；参数由后端按目标渠道字段重新推导。
+export async function switchGroupChannel(
+  client: ApiClient,
+  groupID: number,
+  channelID: string,
+  confirmSameTarget: boolean,
+  signal?: AbortSignal,
+): Promise<GroupSettingsDto> {
+  return projectGroupSettings(
+    await client.request(`/api/groups/${groupID}/channel`, {
+      method: 'PUT',
+      json: { channel_id: channelID, confirm_same_target: confirmSameTarget },
       signal,
     }),
   )
