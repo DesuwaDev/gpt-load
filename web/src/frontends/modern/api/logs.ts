@@ -117,6 +117,8 @@ export interface LogEntry {
   // 前端内部展示标记，不读取或要求新的响应字段。
   credential_deleted: boolean
   route_mode: string | null
+  upstream_turn_state?: string | null
+  injected_turn_state?: string | null
   usage_state: 'complete' | 'partial' | 'missing' | 'not_applicable'
   cost_state: 'priced' | 'unpriced' | 'not_applicable'
   pricing_completeness: 'complete' | 'partial' | 'unavailable' | 'not_applicable'
@@ -312,6 +314,8 @@ function entry(value: unknown): LogEntry {
     credential_name: text(row.credential_name),
     credential_deleted: row.credential_id != null && row.credential_name === '',
     route_mode: optionalText(row.route_mode),
+    upstream_turn_state: optionalText(row.upstream_turn_state),
+    injected_turn_state: optionalText(row.injected_turn_state),
     usage_state: oneOf(row.usage_state, [
       'complete',
       'partial',

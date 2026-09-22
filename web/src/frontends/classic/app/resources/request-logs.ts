@@ -204,6 +204,8 @@ export interface RequestLogItemDto {
   /** 仅供前端展示，由既有名称字段推导，不属于响应字段。 */
   credential_deleted: boolean
   route_mode: RequestLogRouteMode | null
+  upstream_turn_state: string | null
+  injected_turn_state: string | null
   usage_state: RequestLogUsageState
   cost_state: RequestLogCostState
   pricing_completeness: RequestLogPricingCompleteness
@@ -339,6 +341,8 @@ const itemFields = [
   'credential_id',
   'credential_name',
   'route_mode',
+  'upstream_turn_state',
+  'injected_turn_state',
   'usage_state',
   'cost_state',
   'pricing_completeness',
@@ -693,6 +697,8 @@ function projectItemRecord(record: Record<string, unknown>): RequestLogItemDto {
     credential_name: projectString(record.credential_name, { allowEmpty: true }),
     credential_deleted: record.credential_id !== null && record.credential_name === '',
     route_mode: record.route_mode === null ? null : projectEnum(record.route_mode, routeModes),
+    upstream_turn_state: projectNullableModel(record.upstream_turn_state),
+    injected_turn_state: projectNullableModel(record.injected_turn_state),
     pricing_mode: record.pricing_mode === null ? null : projectPricingMode(record.pricing_mode),
     context_threshold_tokens:
       record.context_threshold_tokens === null

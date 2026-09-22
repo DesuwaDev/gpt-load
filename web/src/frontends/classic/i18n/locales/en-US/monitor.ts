@@ -954,6 +954,16 @@ export default {
         filteredTitle: 'No logs match the current filters',
         filteredDescription: 'Adjust or reset the filters and try again.',
       },
+      turnState: {
+        suspectBadge: '{chars} Suspect',
+        unknownBadge: '{chars} Non-Fernet',
+        normalBadge: '{chars}',
+        suspectTooltip:
+          'Turn state length is {chars} chars ({blocks} blocks), does not match normal baseline ({normal}). Suspected degradation.',
+        unknownTooltip: 'Turn state length is {chars} chars, not a valid Fernet token.',
+        normalTooltip:
+          'Turn state length is {chars} chars ({blocks} blocks), matches normal baseline ({shape}).',
+      },
       turnStatePick: {
         trigger: 'Turn State',
         triggerHint: 'Extract usable turn states (292 / 332 chars) from the last hour',

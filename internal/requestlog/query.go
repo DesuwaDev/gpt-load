@@ -263,6 +263,8 @@ func (service *Service) Get(ctx context.Context, requestID string) (Record, erro
 		records[0].Attempts = attempts
 		records[0].RouteMode = finalRouteMode(records[0], attempts)
 		records[0].UpstreamProtocol = finalUpstreamProtocol(records[0], attempts)
+		records[0].UpstreamTurnState = finalUpstreamTurnState(records[0], attempts)
+		records[0].InjectedTurnState = finalInjectedTurnState(records[0], attempts)
 		receipt := finalPricingReceipt(records[0], attempts)
 		records[0].PricingMode = pricingModeForReceipt(receipt)
 		records[0].ContextThresholdTokens = contextThresholdForReceipt(receipt)
@@ -490,7 +492,7 @@ func (service *Service) loadFinalExecutionObservations(
 
 	var attempts []models.RequestLogAttempt
 	if err := service.db.WithContext(ctx).
-		Select("request_id", "sequence", "group_id", "channel_id", "credential_id", "route_mode", "upstream_protocol", "upstream_model", "pricing_receipt").
+		Select("request_id", "sequence", "group_id", "channel_id", "credential_id", "route_mode", "upstream_protocol", "upstream_model", "upstream_turn_state", "injected_turn_state", "pricing_receipt").
 		Where("request_id IN ?", requestIDs).
 		Order("request_id ASC").
 		Order("sequence DESC").
@@ -522,6 +524,8 @@ func (service *Service) loadFinalExecutionObservations(
 				return fmt.Errorf("query request log final execution observations: invalid upstream protocol")
 			}
 			records[index].UpstreamProtocol = upstreamProtocol
+			records[index].UpstreamTurnState = attempt.UpstreamTurnState
+			records[index].InjectedTurnState = attempt.InjectedTurnState
 		}
 		if _, ok := pricingResolved[attempt.RequestID]; ok {
 			continue
@@ -558,6 +562,30 @@ func finalUpstreamProtocol(record Record, attempts []Attempt) protocol.Protocol 
 			attempt.ChannelID == record.ChannelID &&
 			attempt.CredentialID == record.CredentialID {
 			return attempt.UpstreamProtocol
+		}
+	}
+	return ""
+}
+
+func finalUpstreamTurnState(record Record, attempts []Attempt) string {
+	for index := len(attempts) - 1; index >= 0; index-- {
+		attempt := attempts[index]
+		if attempt.GroupID == record.GroupID &&
+			attempt.ChannelID == record.ChannelID &&
+			attempt.CredentialID == record.CredentialID {
+			return attempt.UpstreamTurnState
+		}
+	}
+	return ""
+}
+
+func finalInjectedTurnState(record Record, attempts []Attempt) string {
+	for index := len(attempts) - 1; index >= 0; index-- {
+		attempt := attempts[index]
+		if attempt.GroupID == record.GroupID &&
+			attempt.ChannelID == record.ChannelID &&
+			attempt.CredentialID == record.CredentialID {
+			return attempt.InjectedTurnState
 		}
 	}
 	return ""

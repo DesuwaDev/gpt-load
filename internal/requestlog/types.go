@@ -162,6 +162,8 @@ type Record struct {
 	CacheWriteUnknownTokens int64
 	OutputTokens            int64
 	EstimatedCostNanoUSD    int64
+	UpstreamTurnState       string
+	InjectedTurnState       string
 }
 
 type Page struct {

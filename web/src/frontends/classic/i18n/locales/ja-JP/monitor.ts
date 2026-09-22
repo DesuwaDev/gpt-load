@@ -948,6 +948,16 @@ export default {
         filteredTitle: '現在のフィルターに一致するログはありません',
         filteredDescription: 'フィルターを調整またはリセットして、再試行してください。',
       },
+      turnState: {
+        suspectBadge: '{chars} 劣化の疑い',
+        unknownBadge: '{chars} 非 Fernet',
+        normalBadge: '{chars}',
+        suspectTooltip:
+          'ターン状態の長さは {chars} 文字（{blocks} ブロック）で、正常基準（{normal}）に一致しません。劣化の疑いがあります。',
+        unknownTooltip: 'ターン状態の長さは {chars} 文字で、有効な Fernet トークンではありません。',
+        normalTooltip:
+          'ターン状態の長さは {chars} 文字（{blocks} ブロック）で、正常基準（{shape}）に一致しています。',
+      },
       turnStatePick: {
         trigger: '状態取得',
         triggerHint: '直近 1 時間のログから有効なターン状態（292 / 332 文字）を抽出',

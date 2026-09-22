@@ -162,6 +162,8 @@ type requestLogItemResponse struct {
 	CredentialID              *uint                        `json:"credential_id"`
 	CredentialName            string                       `json:"credential_name"`
 	RouteMode                 *channel.RouteMode           `json:"route_mode"`
+	UpstreamTurnState         *string                      `json:"upstream_turn_state"`
+	InjectedTurnState         *string                      `json:"injected_turn_state"`
 	UsageState                usage.State                  `json:"usage_state"`
 	CostState                 pricing.CostState            `json:"cost_state"`
 	PricingCompleteness       pricing.Completeness         `json:"pricing_completeness"`
@@ -398,6 +400,8 @@ func sanitizeAccessKeyRequestLog(record requestlog.Record) requestlog.Record {
 	record.CredentialID = 0
 	record.RouteMode = ""
 	record.UpstreamProtocol = ""
+	record.UpstreamTurnState = ""
+	record.InjectedTurnState = ""
 	record.Attempts = []requestlog.Attempt{}
 	if record.AutoDecision != nil {
 		copy := *record.AutoDecision
@@ -1134,6 +1138,8 @@ func mapRequestLogItemResponse(
 		CredentialID:            usageCost.credentialID,
 		CredentialName:          credentialLabelFor(credentialLabels, usageCost.credentialID),
 		RouteMode:               routeMode,
+		UpstreamTurnState:       nullableRequestLogModel(record.UpstreamTurnState),
+		InjectedTurnState:       nullableRequestLogModel(record.InjectedTurnState),
 		UsageState:              record.UsageState,
 		CostState:               record.CostState,
 		PricingCompleteness:     record.PricingCompleteness,

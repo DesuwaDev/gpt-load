@@ -918,6 +918,15 @@ export default {
         filteredTitle: '没有匹配当前筛选条件的日志',
         filteredDescription: '调整或重置筛选条件后重试。',
       },
+      turnState: {
+        suspectBadge: '{chars} 疑似降智',
+        unknownBadge: '{chars} 非 Fernet',
+        normalBadge: '{chars}',
+        suspectTooltip:
+          '轮次状态长度 {chars} 字符（{blocks} 块），未匹配正常基线（{normal}），疑似降智。',
+        unknownTooltip: '轮次状态长度 {chars} 字符，非有效 Fernet 结构。',
+        normalTooltip: '轮次状态长度 {chars} 字符（{blocks} 块），符合正常基线（{shape}）。',
+      },
       turnStatePick: {
         trigger: '取状态',
         triggerHint: '从最近 1 小时日志中提取可用轮次状态（292 / 332 字符）',
