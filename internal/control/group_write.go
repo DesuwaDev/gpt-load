@@ -343,6 +343,24 @@ func credentialValidationReasonCode(reason string) string {
 
 func credentialInputEntries(_ channel.ID, raw string) []string {
 	trimmed := strings.TrimSpace(raw)
+	if strings.HasPrefix(trimmed, "[") && json.Valid([]byte(trimmed)) {
+		var list []json.RawMessage
+		if err := json.Unmarshal([]byte(trimmed), &list); err == nil {
+			entries := make([]string, 0, len(list))
+			for _, item := range list {
+				itemStr := strings.TrimSpace(string(item))
+				if strings.HasPrefix(itemStr, "\"") {
+					var unquoted string
+					if json.Unmarshal(item, &unquoted) == nil {
+						entries = append(entries, unquoted)
+						continue
+					}
+				}
+				entries = append(entries, itemStr)
+			}
+			return entries
+		}
+	}
 	if !strings.HasPrefix(trimmed, "{") || !json.Valid([]byte(trimmed)) {
 		return strings.Split(raw, "\n")
 	}
@@ -368,15 +386,56 @@ func encodeCredentialEntry(channelID channel.ID, plaintext string) (json.RawMess
 	if _, wrapped := object["service_account_json"]; wrapped {
 		return encoded, nil
 	}
+	if saJSON, ok := extractVertexServiceAccountJSON(object, plaintext); ok {
+		wrapped, err := json.Marshal(map[string]string{"service_account_json": saJSON})
+		if err != nil {
+			return nil, app_errors.ErrInternalServer
+		}
+		return wrapped, nil
+	}
+	return encoded, nil
+}
+
+func extractVertexServiceAccountJSON(object map[string]json.RawMessage, plaintext string) (string, bool) {
 	var credentialType string
-	if json.Unmarshal(object["type"], &credentialType) != nil || credentialType != "service_account" {
-		return encoded, nil
+	if json.Unmarshal(object["type"], &credentialType) == nil && credentialType == "service_account" {
+		return plaintext, true
 	}
-	wrapped, err := json.Marshal(map[string]string{"service_account_json": plaintext})
-	if err != nil {
-		return nil, app_errors.ErrInternalServer
+
+	for _, key := range []string{"service_account", "service_account_key", "credentials", "credential", "key"} {
+		raw, exists := object[key]
+		if !exists {
+			continue
+		}
+		var nestedObj map[string]json.RawMessage
+		if json.Unmarshal(raw, &nestedObj) == nil && nestedObj != nil {
+			var nestedType string
+			if json.Unmarshal(nestedObj["type"], &nestedType) == nil && nestedType == "service_account" {
+				return string(raw), true
+			}
+			if nestedObj["private_key"] != nil && nestedObj["client_email"] != nil {
+				return string(raw), true
+			}
+		}
+		var nestedStr string
+		if json.Unmarshal(raw, &nestedStr) == nil {
+			trimmed := strings.TrimSpace(nestedStr)
+			if strings.HasPrefix(trimmed, "{") {
+				var strObj map[string]json.RawMessage
+				if json.Unmarshal([]byte(trimmed), &strObj) == nil && strObj != nil {
+					var strType string
+					if json.Unmarshal(strObj["type"], &strType) == nil && strType == "service_account" {
+						return trimmed, true
+					}
+					if strObj["private_key"] != nil && strObj["client_email"] != nil {
+						return trimmed, true
+					}
+				}
+			}
+		}
 	}
-	return wrapped, nil
+
+	return "", false
 }
 
 func (s *Service) persistCredentials(

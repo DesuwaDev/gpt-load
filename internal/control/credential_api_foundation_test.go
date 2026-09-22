@@ -289,6 +289,84 @@ func TestVertexCredentialImportAcceptsOneRawServiceAccountPerLine(t *testing.T) 
 	}
 }
 
+func TestVertexCredentialImportAcceptsExportedBundleJSON(t *testing.T) {
+	t.Parallel()
+	fixture := newServiceFixture(t)
+	rawBundle := `{
+  "disabled": false,
+  "email": "vertex-express@project-ba582ba5.iam.gserviceaccount.com",
+  "label": "project-ba582ba5 (vertex-express@project-ba582ba5.iam.gserviceaccount.com)",
+  "location": "global",
+  "project_id": "project-ba582ba5",
+  "service_account": {
+    "type": "service_account",
+    "project_id": "project-ba582ba5",
+    "client_email": "vertex-express@project-ba582ba5.iam.gserviceaccount.com",
+    "private_key": "bundle-private-secret"
+  },
+  "type": "vertex"
+}`
+	created, err := fixture.service.CreateGroup(t.Context(), GroupCreateRequest{
+		Name: stringPointer("vertex bundle credential"), ChannelID: channel.GoogleVertex,
+		Params: json.RawMessage(`{"location":"us-central1"}`),
+		Models: optionalGroupModels{Set: true}, Credentials: rawBundle, ConnectionType: "api_key",
+	})
+	if err != nil {
+		t.Fatalf("CreateGroup() error = %v", err)
+	}
+	if created.CredentialsAdded != 1 || created.CredentialsDuplicated != 0 {
+		t.Fatalf("create result = %#v", created)
+	}
+	var row models.Credential
+	if err := fixture.db.Where("group_id = ?", created.GroupID).Take(&row).Error; err != nil {
+		t.Fatal(err)
+	}
+	plaintext, err := fixture.encryption.Decrypt(row.Data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `{"service_account_json":"{\"client_email\":\"vertex-express@project-ba582ba5.iam.gserviceaccount.com\",\"private_key\":\"bundle-private-secret\",\"project_id\":\"project-ba582ba5\",\"type\":\"service_account\"}"}`
+	if plaintext != want {
+		t.Fatalf("stored credential = %s, want %s", plaintext, want)
+	}
+}
+
+func TestVertexCredentialImportAcceptsJSONArray(t *testing.T) {
+	t.Parallel()
+	fixture := newServiceFixture(t)
+	rawArray := `[
+  {
+    "type": "vertex",
+    "service_account": {
+      "type": "service_account",
+      "project_id": "project-one",
+      "client_email": "first@example.iam.gserviceaccount.com",
+      "private_key": "first-secret"
+    }
+  },
+  {
+    "type": "vertex",
+    "service_account": {
+      "type": "service_account",
+      "project_id": "project-two",
+      "client_email": "second@example.iam.gserviceaccount.com",
+      "private_key": "second-secret"
+    }
+  }
+]`
+	created, err := fixture.service.CreateGroup(t.Context(), GroupCreateRequest{
+		Name: stringPointer("vertex array credential"), ChannelID: channel.GoogleVertex,
+		Params: json.RawMessage(`{"location":"us-central1"}`),
+		Models: optionalGroupModels{Set: true}, Credentials: rawArray, ConnectionType: "api_key",
+	})
+	if err != nil {
+		t.Fatalf("CreateGroup() error = %v", err)
+	}
+	if created.CredentialsAdded != 2 || created.CredentialsDuplicated != 0 {
+		t.Fatalf("create result = %#v", created)
+	}
+}
+
 func TestGroupCredentialMutationsPreserveRuntimeIdentityAndHealthContracts(t *testing.T) {
 	t.Parallel()
 	fixture := newServiceFixture(t)
