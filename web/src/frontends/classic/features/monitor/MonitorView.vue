@@ -37,7 +37,6 @@ import {
 } from './monitor-route'
 import { parseAppliedUsageFilters } from './usage-filters'
 
-const DegradationTab = lazySurface(() => import('./DegradationTab.vue'))
 const InspectorTab = lazySurface(() => import('./InspectorTab.vue'))
 const LogsTab = lazySurface(() => import('./LogsTab.vue'))
 const UsageTab = lazySurface(() => import('./UsageTab.vue'))
@@ -88,7 +87,6 @@ const items = computed<AppTabItem[]>(() => {
         { value: 'health', label: t('monitor.tabs.health') },
         ...shared,
         { value: 'inspector', label: t('monitor.tabs.inspector') },
-        { value: 'degradation', label: t('monitor.tabs.degradation') },
       ]
 })
 const routeUsageFilters = computed(() => parseAppliedUsageFilters(route.query))
@@ -417,9 +415,6 @@ function applyTimeRange(from: number, to: number, preset?: DateTimePreset): void
           <div v-else-if="activeTab === 'inspector'" class="monitor-panel">
             <InspectorTab />
           </div>
-          <div v-else class="monitor-panel">
-            <DegradationTab />
-          </div>
         </template>
       </AppTabs>
     </LedgerSheet>
@@ -507,10 +502,9 @@ function applyTimeRange(from: number, to: number, preset?: DateTimePreset): void
     flex-basis: 100%;
   }
 
-  /* 取状态按钮自己占一行：它的结果浮层按 left: 0 展开，占满整行才能保证左缘对齐容器，
-     不会在折行以后从右边界溢出去。 */
-  .monitor-data-actions :deep(.turn-state-pick) {
-    flex-basis: 100%;
+  .monitor-data-actions :deep(.turn-state-pick),
+  .monitor-data-actions :deep(.turn-state-pick .app-popover) {
+    flex-basis: auto;
   }
 }
 

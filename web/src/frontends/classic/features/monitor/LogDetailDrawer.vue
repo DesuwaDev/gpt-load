@@ -1158,7 +1158,7 @@ function toggleAttemptErrorMessage(sequence: number): void {
   border: 1px solid var(--color-border-subtle);
   border-radius: var(--radius-card);
   background: var(--color-surface-sunken);
-  padding: 10px 12px;
+  padding: 8px 10px;
 }
 
 .log-turn-state--suspect {
@@ -1299,14 +1299,21 @@ function toggleAttemptErrorMessage(sequence: number): void {
   margin-left: auto;
 }
 
-/* 轮次状态是要整串复制走的，所以按字符换行而不是省略号截断。 */
+/* 轮次状态是要整串复制走的，有复制按钮，值本身设最大高度避免占满整屏。 */
 .log-turn-state__value {
+  display: block;
+  max-height: 2.8em;
+  overflow-y: auto;
   overflow-wrap: anywhere;
-  color: var(--color-text);
+  color: var(--color-text-muted);
   font-family: var(--font-mono);
   font-size: var(--text-label-xs);
-  line-height: 1.5;
+  line-height: 1.4;
   word-break: break-all;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-subtle);
 }
 
 .log-detail__attempt-section {

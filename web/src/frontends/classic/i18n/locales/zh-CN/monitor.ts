@@ -12,7 +12,6 @@ export default {
       logs: '请求日志',
       usage: '用量与成本',
       inspector: '路由检查',
-      degradation: '降智检测',
     },
     health: {
       refresh: '刷新',
@@ -557,7 +556,8 @@ export default {
     },
     degradation: {
       title: '降智检测',
-      description: '定时用固定题目探测上游实际返回的模型，归因概率不达标就在这里标记降智；不会改动分组里的凭据标记。',
+      description:
+        '定时用固定题目探测上游实际返回的模型，归因概率不达标就在这里标记降智；不会改动分组里的凭据标记。',
       configure: '检测设置',
       add: '添加监控',
       refresh: '刷新',
@@ -724,7 +724,8 @@ export default {
         save: '保存设置',
         invalid: '有字段填写不合法，请按提示修正。',
         saveFailed: '保存设置失败。',
-        methodHint: '归因方法：{method}。推荐采样 {recommended} 次，指纹库基于 {calibrated} 次采样标定。',
+        methodHint:
+          '归因方法：{method}。推荐采样 {recommended} 次，指纹库基于 {calibrated} 次采样标定。',
         sections: {
           schedule: '排期',
           verdict: '判定',
@@ -914,6 +915,13 @@ export default {
         filteredDescription: '调整或重置筛选条件后重试。',
       },
       turnStatePick: {
+        trigger: '取状态',
+        triggerHint: '从最近 1 小时日志中提取可用轮次状态（292 / 332 字符）',
+        menuTitle: '提取轮次状态',
+        menuHint: '取上游回带、未过期的正常状态用于凭据注入',
+        individualDesc: '个人账号基线',
+        teamDesc: 'Team 账号基线',
+        toastCopied: '已复制 {shape}（{chars} 字符）轮次状态，剩余 {duration}',
         shape: {
           individual: '个人号',
           team: 'team 号',

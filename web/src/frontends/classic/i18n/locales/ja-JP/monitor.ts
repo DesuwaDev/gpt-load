@@ -12,7 +12,6 @@ export default {
       logs: 'リクエストログ',
       usage: '使用量とコスト',
       inspector: 'ルート検査',
-      degradation: '劣化検査',
     },
     health: {
       refresh: '更新',
@@ -846,7 +845,8 @@ export default {
         clearCredentials: '選択を解除',
         loadingCredentials: '認証情報を読み込み中…',
         noCredentials: 'このグループに一致する認証情報がありません。',
-        credentialTruncated: '全 {total} 件のうち先頭 {shown} 件のみ表示中。検索で絞り込んでください。',
+        credentialTruncated:
+          '全 {total} 件のうち先頭 {shown} 件のみ表示中。検索で絞り込んでください。',
         credentialStatus: {
           available: '利用可能',
           cooldown: 'クールダウン中',
@@ -945,6 +945,13 @@ export default {
         filteredDescription: 'フィルターを調整またはリセットして、再試行してください。',
       },
       turnStatePick: {
+        trigger: '状態取得',
+        triggerHint: '直近 1 時間のログから有効なターン状態（292 / 332 文字）を抽出',
+        menuTitle: 'ターン状態の抽出',
+        menuHint: 'クレデンシャル注入用に未期限切れの正常状態を取得',
+        individualDesc: '個人アカウント基準',
+        teamDesc: 'Team アカウント基準',
+        toastCopied: '{shape}（{chars} 文字）のターン状態をコピーしました（残り {duration}）',
         shape: {
           individual: '個人アカウント',
           team: 'team アカウント',

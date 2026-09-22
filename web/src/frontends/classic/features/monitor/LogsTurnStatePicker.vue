@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Pipette, X } from '@lucide/vue'
+import { ChevronDown, Pipette, X } from '@lucide/vue'
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
@@ -10,9 +10,11 @@ import {
   type RequestLogDetailDto,
   type RequestLogFilters,
 } from '@/app/resources/request-logs'
+import { useToast } from '@/app/toast'
 import { useAbortControllerPool } from '@/app/use-abort-controller-pool'
 import { useClipboardCopy } from '@/app/use-clipboard-copy'
 import AppButton from '@/components/ui/AppButton.vue'
+import AppPopover from '@/components/ui/AppPopover.vue'
 import CopyFallbackDialog from '@/components/ui/CopyFallbackDialog.vue'
 import {
   codexTurnStateShapeOrder,
@@ -35,8 +37,10 @@ const batchSize = 6
 
 const client = useApiClient()
 const pool = useAbortControllerPool()
+const toast = useToast()
 const { copy, fallbackText, pending, reset } = useClipboardCopy()
 const { t } = useI18n()
+const menuOpen = ref(false)
 const scanning = ref<CodexTurnStateShape | null>(null)
 const feedback = ref<{ tone: 'ok' | 'warn' | 'error'; lines: string[] } | null>(null)
 
@@ -67,6 +71,10 @@ async function pick(shape: CodexTurnStateShape): Promise<void> {
     const items = page.items.slice(0, scanLimit)
     if (items.length === 0) {
       feedback.value = { tone: 'warn', lines: [t('monitor.logs.turnStatePick.noLogs')] }
+      toast.show({
+        message: t('monitor.logs.turnStatePick.noLogs'),
+        tone: 'warning',
+      })
       return
     }
     const details: RequestLogDetailDto[] = []
@@ -84,16 +92,22 @@ async function pick(shape: CodexTurnStateShape): Promise<void> {
     }
     const best = candidates[0]
     if (best === undefined) {
+      const msg = t('monitor.logs.turnStatePick.none', {
+        scanned: details.length,
+        chars,
+        shape: shapeLabel(shape),
+      })
       feedback.value = {
         tone: 'warn',
-        lines: [
-          t('monitor.logs.turnStatePick.none', {
-            scanned: details.length,
-            chars,
-            shape: shapeLabel(shape),
-          }),
-        ],
+        lines: [msg],
       }
+      toast.show({
+        message: t('monitor.logs.turnStatePick.toastNone', {
+          shape: shapeLabel(shape),
+          chars,
+        }),
+        tone: 'warning',
+      })
       return
     }
     const result = await copy(best.value)
@@ -116,9 +130,21 @@ async function pick(shape: CodexTurnStateShape): Promise<void> {
       lines.push(t('monitor.logs.turnStatePick.spread', { total: candidates.length, credentials }))
     }
     feedback.value = { tone: 'ok', lines }
+    if (result === 'success') {
+      toast.show({
+        message: t('monitor.logs.turnStatePick.toastCopied', {
+          shape: shapeLabel(shape),
+          chars,
+          duration: formatCodexTurnStateDuration(best.remainingMs),
+        }),
+        tone: 'success',
+      })
+    }
   } catch {
     if (controller.signal.aborted) return
-    feedback.value = { tone: 'error', lines: [t('monitor.logs.turnStatePick.failed')] }
+    const failMsg = t('monitor.logs.turnStatePick.failed')
+    feedback.value = { tone: 'error', lines: [failMsg] }
+    toast.show({ message: failMsg, tone: 'danger' })
   } finally {
     pool.release(controller)
     scanning.value = null
@@ -128,67 +154,193 @@ async function pick(shape: CodexTurnStateShape): Promise<void> {
 
 <template>
   <span class="turn-state-pick">
-    <!-- 两种形态分开取：个人号和 team 号的状态不能互换着注入，合成一个按钮只会让人误用。 -->
-    <AppButton
-      v-for="shape in codexTurnStateShapeOrder"
-      :key="shape"
-      variant="secondary"
-      size="compact"
-      :busy="scanning === shape || (pending && scanning === null)"
-      :disabled="scanning !== null && scanning !== shape"
-      :title="
-        t('monitor.logs.turnStatePick.hint', {
-          chars: codexTurnStateShapes[shape].chars,
-          blocks: codexTurnStateShapes[shape].blocks,
-          shape: shapeLabel(shape),
-        })
-      "
-      @click="pick(shape)"
-    >
-      <Pipette :size="14" aria-hidden="true" />
-      {{ t('monitor.logs.turnStatePick.button', { chars: codexTurnStateShapes[shape].chars }) }}
-    </AppButton>
-    <span
-      v-if="feedback"
-      class="turn-state-pick__feedback"
-      :class="`turn-state-pick__feedback--${feedback.tone}`"
-      role="status"
-      aria-live="polite"
-      aria-atomic="true"
-    >
-      <span class="turn-state-pick__lines">
-        <span v-for="line in feedback.lines" :key="line">{{ line }}</span>
-      </span>
-      <button
-        type="button"
-        class="turn-state-pick__dismiss"
-        :aria-label="t('monitor.logs.turnStatePick.dismiss')"
-        @click="feedback = null"
-      >
-        <X :size="14" aria-hidden="true" />
-      </button>
-    </span>
+    <AppPopover v-model:open="menuOpen" align="end" content-class="turn-state-pick__popover">
+      <template #trigger>
+        <AppButton
+          class="turn-state-pick__trigger"
+          variant="secondary"
+          size="compact"
+          :busy="scanning !== null || (pending && scanning === null)"
+          :title="t('monitor.logs.turnStatePick.triggerHint')"
+        >
+          <Pipette :size="14" aria-hidden="true" />
+          <span>{{
+            scanning !== null
+              ? t('monitor.logs.turnStatePick.scanning')
+              : t('monitor.logs.turnStatePick.trigger')
+          }}</span>
+          <ChevronDown :size="12" class="turn-state-pick__chevron" aria-hidden="true" />
+        </AppButton>
+      </template>
+
+      <div class="turn-state-pick__menu">
+        <div class="turn-state-pick__menu-header">
+          <span class="turn-state-pick__menu-title">{{
+            t('monitor.logs.turnStatePick.menuTitle')
+          }}</span>
+          <span class="turn-state-pick__menu-hint">{{
+            t('monitor.logs.turnStatePick.menuHint')
+          }}</span>
+        </div>
+
+        <div class="turn-state-pick__options">
+          <button
+            v-for="shape in codexTurnStateShapeOrder"
+            :key="shape"
+            type="button"
+            class="turn-state-pick__option"
+            :disabled="scanning !== null"
+            @click="pick(shape)"
+          >
+            <div class="turn-state-pick__option-main">
+              <span class="turn-state-pick__option-name">{{ shapeLabel(shape) }}</span>
+              <span class="turn-state-pick__option-chars"
+                >{{ codexTurnStateShapes[shape].chars }} 字符</span
+              >
+            </div>
+            <div class="turn-state-pick__option-desc">
+              {{ codexTurnStateShapes[shape].blocks }} 块密文 ·
+              {{
+                shape === 'individual'
+                  ? t('monitor.logs.turnStatePick.individualDesc')
+                  : t('monitor.logs.turnStatePick.teamDesc')
+              }}
+            </div>
+          </button>
+        </div>
+
+        <div
+          v-if="feedback"
+          class="turn-state-pick__feedback"
+          :class="`turn-state-pick__feedback--${feedback.tone}`"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          <div class="turn-state-pick__lines">
+            <span v-for="line in feedback.lines" :key="line">{{ line }}</span>
+          </div>
+          <button
+            type="button"
+            class="turn-state-pick__dismiss"
+            :aria-label="t('monitor.logs.turnStatePick.dismiss')"
+            @click="feedback = null"
+          >
+            <X :size="14" aria-hidden="true" />
+          </button>
+        </div>
+      </div>
+    </AppPopover>
+
     <CopyFallbackDialog v-if="fallbackText !== undefined" :value="fallbackText" @close="reset" />
   </span>
 </template>
 
 <style scoped>
 .turn-state-pick {
-  position: relative;
   display: inline-flex;
+}
+
+.turn-state-pick__trigger {
+  display: inline-flex;
+  align-items: center;
   gap: var(--space-1);
 }
-/* 结果有两三句话，撑不进一行徽章，所以做成一张跟着这组按钮左缘展开的浮层。两个按钮共用
-   一块结果区——同时只会有一次扫描在跑，分成两块只是把同一条消息挪来挪去。不像普通的
-   复制反馈那样几秒后自动消失：这里要读的信息量足够大，留到下次扫描或手动关掉为止。 */
-.turn-state-pick__feedback {
-  position: absolute;
-  z-index: var(--z-popover);
-  top: calc(100% + var(--space-1));
-  left: 0;
+
+.turn-state-pick__chevron {
+  opacity: 0.7;
+}
+
+:global(.turn-state-pick__popover) {
+  width: 270px;
+  max-width: min(320px, calc(100vw - 2 * var(--space-3)));
+  padding: var(--space-3);
+}
+
+.turn-state-pick__menu {
   display: flex;
-  width: max-content;
-  max-width: min(360px, calc(100vw - 2 * var(--space-4)));
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.turn-state-pick__menu-header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.turn-state-pick__menu-title {
+  font-size: var(--text-sm);
+  font-weight: 650;
+  color: var(--color-text);
+}
+
+.turn-state-pick__menu-hint {
+  font-size: var(--text-xs);
+  color: var(--color-text-faint);
+  line-height: 1.3;
+}
+
+.turn-state-pick__options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.turn-state-pick__option {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-2);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+  color: var(--color-text);
+  cursor: pointer;
+  text-align: left;
+  transition: all var(--duration-fast) var(--easing-standard);
+}
+
+.turn-state-pick__option:hover:not(:disabled) {
+  background: var(--color-surface-hover);
+  border-color: var(--color-border);
+}
+
+.turn-state-pick__option:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.turn-state-pick__option-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.turn-state-pick__option-name {
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.turn-state-pick__option-chars {
+  font-size: var(--text-label-xs);
+  font-family: var(--font-mono);
+  padding: 1px 6px;
+  border-radius: var(--radius-tag);
+  background: var(--color-action-soft);
+  color: var(--color-action);
+  font-weight: 600;
+}
+
+.turn-state-pick__option-desc {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.turn-state-pick__feedback {
+  display: flex;
   align-items: flex-start;
   gap: var(--space-2);
   border: 1px solid var(--color-border-subtle);
@@ -196,25 +348,36 @@ async function pick(shape: CodexTurnStateShape): Promise<void> {
   background: var(--color-surface);
   color: var(--color-text);
   padding: var(--space-2);
-  box-shadow: var(--shadow-card);
-  font-size: 0.75rem;
-  line-height: 1.5;
+  font-size: var(--text-xs);
+  line-height: 1.4;
   text-align: left;
-  white-space: normal;
 }
+
+.turn-state-pick__feedback--ok {
+  border-color: var(--color-success);
+  background: var(--color-success-bg, var(--color-surface));
+  color: var(--color-success);
+}
+
 .turn-state-pick__feedback--warn {
   border-color: var(--color-warning);
+  background: var(--color-warning-bg, var(--color-surface));
   color: var(--color-warning);
 }
+
 .turn-state-pick__feedback--error {
   border-color: var(--color-danger);
+  background: var(--color-danger-bg, var(--color-surface));
   color: var(--color-danger);
 }
+
 .turn-state-pick__lines {
   display: grid;
   gap: 2px;
   overflow-wrap: anywhere;
+  flex: 1;
 }
+
 .turn-state-pick__dismiss {
   display: inline-flex;
   flex-shrink: 0;
@@ -226,16 +389,5 @@ async function pick(shape: CodexTurnStateShape): Promise<void> {
   color: inherit;
   padding: 2px;
   cursor: pointer;
-}
-@media (max-width: 560px) {
-  /* 竖屏里这一排按钮会折行，浮层靠视口宽度收口才不会越过右边界；关闭键也要够拇指点。 */
-  .turn-state-pick__feedback {
-    max-width: calc(100vw - 2 * var(--space-3));
-  }
-  .turn-state-pick__dismiss {
-    min-width: var(--touch-target);
-    min-height: var(--touch-target);
-    margin: calc(-1 * var(--space-1)) calc(-1 * var(--space-1)) 0 0;
-  }
 }
 </style>
