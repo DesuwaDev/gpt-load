@@ -127,6 +127,9 @@ func (*codexProviderBridge) openWebsocket(spec execution.AttemptSpec, credential
 	if !ok {
 		return nil, errors.New("invalid websocket credential")
 	}
+	if strings.TrimSpace(value.value.BaseURL) != "" {
+		baseURL = strings.TrimSpace(value.value.BaseURL)
+	}
 	s, err := codex.NewWSSession(codex.WSSessionOptions{
 		CredentialID: strconv.FormatUint(uint64(spec.Credential.ID), 10), Credential: value.value,
 		BaseURL: baseURL, ProxyURL: proxyURL, TurnTimeout: spec.Timeouts.Request,

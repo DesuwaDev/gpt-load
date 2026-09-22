@@ -35,6 +35,7 @@ type Credential struct {
 	Email        string `json:"email,omitempty"`
 	Expire       string `json:"expired,omitempty"`
 	LastRefresh  string `json:"last_refresh,omitempty"`
+	BaseURL      string `json:"base_url,omitempty"`
 }
 
 // ParseCredentialJSON validates and normalizes one CPA-compatible Codex auth
@@ -439,6 +440,7 @@ func credentialFromBridge(value cpaembedded.CodexCredential) Credential {
 		Email:        value.Email,
 		Expire:       value.Expire,
 		LastRefresh:  value.LastRefresh,
+		BaseURL:      value.BaseURL,
 	}
 }
 
@@ -452,6 +454,7 @@ func credentialToBridge(value Credential) cpaembedded.CodexCredential {
 		Email:        value.Email,
 		Expire:       value.Expire,
 		LastRefresh:  value.LastRefresh,
+		BaseURL:      value.BaseURL,
 	}
 }
 

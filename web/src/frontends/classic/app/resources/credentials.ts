@@ -84,6 +84,7 @@ export interface CredentialPatch {
   /** 注入的模型名单，逗号分隔；'' 表示不限模型。 */
   codex_turn_state_models?: string
   proxy?: ProxyMutation
+  base_url?: string | null
 }
 
 export interface CredentialBatchRequest {
@@ -211,7 +212,7 @@ const authStates = ['ready', 'refreshing', 'reauthorization_required', 'outcome_
 const observationStates = ['fresh', 'stale', 'refreshing', 'error', 'unavailable'] as const
 const quotaStates = ['available', 'exhausted', 'unknown'] as const
 const planLevels = ['free', 'standard', 'premium', 'elite'] as const
-const accountFields = ['email', 'email_mask', 'expires_at_ms', 'last_refresh_at_ms'] as const
+const accountFields = ['email', 'email_mask', 'expires_at_ms', 'last_refresh_at_ms', 'base_url'] as const
 const observationFields = [
   'state',
   'snapshot',
@@ -365,6 +366,7 @@ function projectAccount(
   if (connectionType === 'api_key' && (email !== undefined || emailMask !== undefined)) {
     invalidResponse()
   }
+  const baseURL = record.base_url === undefined ? undefined : projectString(record.base_url)
   return {
     ...(email === undefined ? {} : { email }),
     ...(emailMask === undefined ? {} : { email_mask: emailMask }),
@@ -374,6 +376,7 @@ function projectAccount(
     ...(record.last_refresh_at_ms === undefined
       ? {}
       : { last_refresh_at_ms: projectEpochMilliseconds(record.last_refresh_at_ms) }),
+    ...(baseURL === undefined ? {} : { base_url: baseURL }),
   }
 }
 
@@ -750,6 +753,7 @@ function normalizePatch(patch: CredentialPatch): CredentialPatch {
     'codex_turn_state',
     'codex_turn_state_models',
     'proxy',
+    'base_url',
   ])
   if (keys.length === 0 || keys.some((key) => !allowed.has(key))) {
     throw new Error('INVALID_CREDENTIAL_PATCH')
@@ -818,6 +822,13 @@ function normalizePatch(patch: CredentialPatch): CredentialPatch {
     const proxy = patch.proxy
     if (proxy === undefined) throw new Error('INVALID_CREDENTIAL_PROXY')
     body.proxy = proxy
+  }
+  if (Object.prototype.hasOwnProperty.call(patch, 'base_url')) {
+    const raw = patch.base_url
+    if (raw === undefined || (raw !== null && typeof raw !== 'string')) {
+      throw new Error('INVALID_CREDENTIAL_BASE_URL')
+    }
+    body.base_url = raw === null ? '' : raw.trim()
   }
   return body
 }

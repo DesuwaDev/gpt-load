@@ -6,6 +6,7 @@ import {
   Download,
   Ellipsis,
   Gauge,
+  Globe,
   KeyRound,
   LoaderCircle,
   PencilLine,
@@ -41,6 +42,7 @@ import { formatEstimatedCost, formatLocalInstant, formatTokens } from '@/lib/for
 import { quotaProgressTone } from '@/lib/quota-progress'
 
 import { presentCredentialFailureCategory } from './credential-failure-presenter'
+import CredentialBaseUrlEditor from './CredentialBaseUrlEditor.vue'
 import CredentialLimitsPanel from './CredentialLimitsPanel.vue'
 import CredentialMarkIndicator from './CredentialMarkIndicator.vue'
 import CredentialMarkPicker from './CredentialMarkPicker.vue'
@@ -58,12 +60,14 @@ const props = withDefaults(
     detailError: string
     channelIcon?: string
     channelMark?: string
+    channelId?: string
     capabilities: ChannelCapabilitiesDto
     saveProxy: (value: ProxyMutation) => Promise<void>
   }>(),
   {
     channelIcon: undefined,
     channelMark: undefined,
+    channelId: undefined,
   },
 )
 const emit = defineEmits<{
@@ -84,6 +88,12 @@ const emit = defineEmits<{
       item: CredentialItemDto
       codex_turn_state: string
       codex_turn_state_models: string
+    },
+  ]
+  'base-url': [
+    payload: {
+      item: CredentialItemDto
+      base_url: string
     },
   ]
 }>()
@@ -630,6 +640,13 @@ function applyTurnState(payload: {
   emit('turn-state', { item: props.item, ...payload })
 }
 
+const isCodex = computed(() => props.channelId === 'codex' || Boolean(props.item.account.base_url))
+
+function applyBaseURL(payload: { base_url: string }): void {
+  menuOpen.value = false
+  emit('base-url', { item: props.item, ...payload })
+}
+
 function runMenuAction(
   action: 'download' | 'refresh-credential' | 'toggle' | 'restore' | 'remove',
 ): void {
@@ -820,6 +837,16 @@ function runMenuAction(
               clickable
               @activate="editProxy"
             />
+            <StatusBadge
+              v-if="item.account.base_url"
+              class="subscription-account__custom-gateway"
+              tone="info"
+              size="compact"
+              :title="item.account.base_url"
+            >
+              <Globe :size="12" aria-hidden="true" />
+              <span>{{ t('group.credentials.subscription.customGateway') }}</span>
+            </StatusBadge>
           </div>
           <div class="subscription-account__actions">
             <span
@@ -885,6 +912,14 @@ function runMenuAction(
                   @apply="applyTurnState"
                 />
                 <div class="subscription-account__menu-divider"></div>
+                <template v-if="isCodex">
+                  <CredentialBaseUrlEditor
+                    :value="item.account.base_url ?? ''"
+                    :disabled="busy"
+                    @apply="applyBaseURL"
+                  />
+                  <div class="subscription-account__menu-divider"></div>
+                </template>
                 <button type="button" :disabled="busy" @click="runMenuAction('download')">
                   <Download :size="15" aria-hidden="true" />{{
                     t('group.credentials.subscription.download')
@@ -1325,6 +1360,10 @@ function runMenuAction(
             <dl>
               <dt>{{ t('group.credentials.subscription.lastError') }}</dt>
               <dd>{{ observationErrorLabel(observation?.last_error_code) }}</dd>
+            </dl>
+            <dl v-if="item.account.base_url">
+              <dt>{{ t('group.credentials.subscription.customBaseURL') }}</dt>
+              <dd class="subscription-account__custom-base-url">{{ item.account.base_url }}</dd>
             </dl>
             <dl>
               <dt>{{ t('group.credentials.subscription.lastTokenRefresh') }}</dt>
@@ -2286,10 +2325,15 @@ function runMenuAction(
   .subscription-account__quota-fill {
     transition: none;
   }
-  .subscription-account__detail-spinner,
-  .subscription-account__sync-icon--spinning {
+  .subscription-account__skeleton-title,
+  .subscription-account__skeleton-value {
     animation: none;
   }
+}
+.subscription-account__custom-base-url {
+  font-family: var(--font-mono);
+  font-size: var(--text-label-xs);
+  word-break: break-all;
 }
 </style>
 

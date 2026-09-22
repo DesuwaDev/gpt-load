@@ -67,6 +67,7 @@ type CredentialStageAccount struct {
 	EmailMask       string `json:"email_mask,omitempty"`
 	ExpiresAtMS     *int64 `json:"expires_at_ms,omitempty"`
 	LastRefreshAtMS *int64 `json:"last_refresh_at_ms,omitempty"`
+	BaseURL         string `json:"base_url,omitempty"`
 }
 
 type CredentialStageResult struct {
@@ -1703,7 +1704,10 @@ func maskEmail(email string) string {
 
 func subscriptionCredentialAccount(credential subscriptionruntime.Credential) CredentialStageAccount {
 	metadata := credential.Account()
-	account := CredentialStageAccount{EmailMask: maskEmail(metadata.Email)}
+	account := CredentialStageAccount{
+		EmailMask: maskEmail(metadata.Email),
+		BaseURL:   strings.TrimSpace(metadata.BaseURL),
+	}
 	if metadata.ExpiresAtKnown {
 		value := metadata.ExpiresAt.UTC().UnixMilli()
 		account.ExpiresAtMS = &value

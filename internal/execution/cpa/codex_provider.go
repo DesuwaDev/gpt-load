@@ -304,13 +304,17 @@ func (bridge *codexProviderBridge) Execute(
 	if !ok || bridge == nil || bridge.executor == nil {
 		return providerResponse{}, errors.New("Codex provider bridge credential mismatch")
 	}
+	baseURL := request.BaseURL
+	if strings.TrimSpace(codexCredential.value.BaseURL) != "" {
+		baseURL = strings.TrimSpace(codexCredential.value.BaseURL)
+	}
 	response, err := bridge.executor.Execute(ctx, credentialID, codexCredential.value, codex.ExecuteRequest{
 		Model: request.Model, Payload: append([]byte(nil), request.Payload...), Format: request.Format,
 		ContinuityKey: request.ContinuityKey,
 		RequestPath:   request.RequestPath,
 		Headers:       request.Headers.Clone(), OriginalRequest: append([]byte(nil), request.OriginalRequest...),
 		ConfiguredHeaders: append([]string(nil), request.ConfiguredHeaders...),
-		BaseURL:           request.BaseURL, ProxyURL: request.ProxyURL, ProxyFromEnvironment: request.ProxyFromEnvironment,
+		BaseURL:           baseURL, ProxyURL: request.ProxyURL, ProxyFromEnvironment: request.ProxyFromEnvironment,
 	})
 	return providerResponse{
 		StatusCode: response.StatusCode,
@@ -334,13 +338,17 @@ func (bridge *codexProviderBridge) ExecuteStream(
 	if !ok || bridge == nil || bridge.executor == nil {
 		return nil, errors.New("Codex provider bridge credential mismatch")
 	}
+	baseURL := request.BaseURL
+	if strings.TrimSpace(codexCredential.value.BaseURL) != "" {
+		baseURL = strings.TrimSpace(codexCredential.value.BaseURL)
+	}
 	response, err := bridge.executor.ExecuteStream(ctx, credentialID, codexCredential.value, codex.ExecuteRequest{
 		Model: request.Model, Payload: append([]byte(nil), request.Payload...), Format: request.Format,
 		ContinuityKey: request.ContinuityKey,
 		RequestPath:   request.RequestPath,
 		Headers:       request.Headers.Clone(), OriginalRequest: append([]byte(nil), request.OriginalRequest...),
 		ConfiguredHeaders: append([]string(nil), request.ConfiguredHeaders...),
-		BaseURL:           request.BaseURL, ProxyURL: request.ProxyURL, ProxyFromEnvironment: request.ProxyFromEnvironment,
+		BaseURL:           baseURL, ProxyURL: request.ProxyURL, ProxyFromEnvironment: request.ProxyFromEnvironment,
 	})
 	if response == nil {
 		return nil, err

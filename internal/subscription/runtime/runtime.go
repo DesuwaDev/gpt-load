@@ -45,6 +45,7 @@ type Account struct {
 	ExpiresAtKnown   bool
 	LastRefresh      time.Time
 	LastRefreshKnown bool
+	BaseURL          string
 }
 
 func NewCredential(canonical []byte, identity string, account Account, expiresAt time.Time, expires bool, secrets []string) Credential {

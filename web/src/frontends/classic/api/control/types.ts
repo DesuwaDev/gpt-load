@@ -175,6 +175,7 @@ export interface CredentialAccountDto {
   email_mask?: string
   expires_at_ms?: number
   last_refresh_at_ms?: number
+  base_url?: string
 }
 
 export interface CredentialQuotaWindowDto {

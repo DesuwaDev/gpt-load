@@ -43,6 +43,7 @@ type CredentialUpdateRequest struct {
 	CodexTurnState       optionalField[string]               `json:"codex_turn_state"`
 	CodexTurnStateModels optionalField[string]               `json:"codex_turn_state_models"`
 	Proxy                optionalField[outboundproxy.Config] `json:"proxy"`
+	BaseURL              optionalField[string]               `json:"base_url"`
 }
 
 // 凭据的人工模型状态标记。空串表示未标记；其余取值只用于呈现，不参与调度。
@@ -98,6 +99,7 @@ type CredentialAccountResponse struct {
 	EmailMask       string `json:"email_mask,omitempty"`
 	ExpiresAtMS     *int64 `json:"expires_at_ms,omitempty"`
 	LastRefreshAtMS *int64 `json:"last_refresh_at_ms,omitempty"`
+	BaseURL         string `json:"base_url,omitempty"`
 }
 
 type CredentialItemResponse struct {
@@ -238,6 +240,7 @@ func (s *Service) credentialPresentation(
 		account := CredentialAccountResponse{
 			Email: strings.TrimSpace(credential.Account().Email), EmailMask: stagedAccount.EmailMask,
 			ExpiresAtMS: stagedAccount.ExpiresAtMS, LastRefreshAtMS: stagedAccount.LastRefreshAtMS,
+			BaseURL: stagedAccount.BaseURL,
 		}
 		mask := account.EmailMask
 		if mask == "" {

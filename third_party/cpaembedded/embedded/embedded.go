@@ -81,6 +81,7 @@ type CodexCredential struct {
 	Email        string `json:"email,omitempty"`
 	Expire       string `json:"expired,omitempty"`
 	LastRefresh  string `json:"last_refresh,omitempty"`
+	BaseURL      string `json:"base_url,omitempty"`
 }
 
 // BrowserAuthorization contains the public authorization challenge and the
@@ -268,6 +269,7 @@ func RefreshCodexCredentialOnce(ctx context.Context, current CodexCredential, op
 	if refreshed.Email == "" {
 		refreshed.Email = current.Email
 	}
+	refreshed.BaseURL = current.BaseURL
 	if refreshed.AccountID != current.AccountID {
 		return CodexCredential{}, ErrCredentialIdentityChanged
 	}
@@ -300,6 +302,22 @@ func ParseCodexCredentialJSON(raw []byte) (CodexCredential, error) {
 	var credential CodexCredential
 	if err := json.Unmarshal(raw, &credential); err != nil {
 		return CodexCredential{}, fmt.Errorf("decode credential: %w", err)
+	}
+	if credential.BaseURL == "" {
+		if rawURL, ok := fields["openai_base_url"]; ok {
+			var u string
+			if err := json.Unmarshal(rawURL, &u); err == nil {
+				credential.BaseURL = strings.TrimSpace(u)
+			}
+		}
+	}
+	credential.BaseURL = strings.TrimSpace(credential.BaseURL)
+	if credential.BaseURL != "" {
+		parsed, err := url.Parse(credential.BaseURL)
+		if err != nil || parsed == nil || !strings.EqualFold(parsed.Scheme, "https") || parsed.Host == "" || parsed.Opaque != "" || parsed.User != nil || parsed.RawQuery != "" || parsed.ForceQuery || strings.Contains(credential.BaseURL, "#") {
+			return CodexCredential{}, fmt.Errorf("credential base_url must be an absolute HTTPS URL without credentials, query parameters, or fragments")
+		}
+		credential.BaseURL = strings.TrimRight(parsed.String(), "/")
 	}
 	credential.Type = strings.ToLower(strings.TrimSpace(credential.Type))
 	credential.AccessToken = strings.TrimSpace(credential.AccessToken)

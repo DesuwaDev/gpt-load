@@ -25,6 +25,7 @@ const fields = computed(() => {
     ],
     ['expiresAt', credentialTime(row.expiresAt, locale.value)],
     ['lastRefresh', credentialTime(row.lastRefresh, locale.value)],
+    ['baseURL', row.baseURL],
     [
       'quotaUpdated',
       observation?.observedAt ? credentialTime(observation.observedAt, locale.value) : undefined,

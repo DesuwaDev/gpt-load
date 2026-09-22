@@ -5,6 +5,7 @@ import {
   CircleCheck,
   CircleOff,
   Ellipsis,
+  Globe,
   PencilLine,
   RotateCcw,
   Trash2,
@@ -26,6 +27,7 @@ import ModelCooldownDetails from '@/components/ui/ModelCooldownDetails.vue'
 import { formatLocalInstant } from '@/lib/format'
 
 import { presentCredentialFailureCategory } from './credential-failure-presenter'
+import CredentialBaseUrlEditor from './CredentialBaseUrlEditor.vue'
 import CredentialLimitsPanel from './CredentialLimitsPanel.vue'
 import CredentialMarkIndicator from './CredentialMarkIndicator.vue'
 import CredentialMarkPicker from './CredentialMarkPicker.vue'
@@ -41,6 +43,7 @@ const props = defineProps<{
   resolveCopyValue: (id: number) => Promise<string>
   saveProxy: (value: ProxyMutation) => Promise<void>
   proxySupported: boolean
+  channelId?: string
 }>()
 const emit = defineEmits<{
   'update:selected': [selected: boolean]
@@ -55,6 +58,12 @@ const emit = defineEmits<{
       item: CredentialItemDto
       codex_turn_state: string
       codex_turn_state_models: string
+    },
+  ]
+  'base-url': [
+    payload: {
+      item: CredentialItemDto
+      base_url: string
     },
   ]
   toggle: [item: CredentialItemDto]
@@ -138,6 +147,13 @@ function applyTurnState(payload: {
   emit('turn-state', { item: props.item, ...payload })
 }
 
+const isCodex = computed(() => props.channelId === 'codex' || Boolean(props.item.account?.base_url))
+
+function applyBaseURL(payload: { base_url: string }): void {
+  menuOpen.value = false
+  emit('base-url', { item: props.item, ...payload })
+}
+
 function runMenuAction(action: 'test' | 'toggle' | 'restore' | 'remove'): void {
   menuOpen.value = false
   if (action === 'test') emit('test', props.item)
@@ -185,6 +201,16 @@ function runMenuAction(action: 'test' | 'toggle' | 'restore' | 'remove'): void {
             :resolve-value="() => resolveCopyValue(item.credential_id)"
           />
           <ProxyScopeIndicator v-if="proxySupported" :view="item.proxy" />
+          <StatusBadge
+            v-if="item.account?.base_url"
+            class="group-credential-record__custom-gateway"
+            tone="info"
+            size="compact"
+            :title="item.account.base_url"
+          >
+            <Globe :size="12" aria-hidden="true" />
+            <span>{{ t('group.credentials.subscription.customGateway') }}</span>
+          </StatusBadge>
         </span>
       </div>
 
@@ -273,6 +299,14 @@ function runMenuAction(action: 'test' | 'toggle' | 'restore' | 'remove'): void {
               @apply="applyTurnState"
             />
             <div class="group-credential-record__menu-divider"></div>
+            <template v-if="isCodex">
+              <CredentialBaseUrlEditor
+                :value="item.account?.base_url ?? ''"
+                :disabled="busy"
+                @apply="applyBaseURL"
+              />
+              <div class="group-credential-record__menu-divider"></div>
+            </template>
             <button type="button" :disabled="busy" @click="runMenuAction('test')">
               <Activity :size="15" aria-hidden="true" />{{ t('group.credentials.test.action') }}
             </button>

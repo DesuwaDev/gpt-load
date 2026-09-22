@@ -147,6 +147,9 @@ func (*codexDriver) DiscoverModels(ctx context.Context, credential subscriptionr
 	if err != nil {
 		return nil, err
 	}
+	if strings.TrimSpace(value.BaseURL) != "" {
+		baseURL = strings.TrimSpace(value.BaseURL)
+	}
 	models, err := ListModels(ctx, value, baseURL)
 	if err != nil {
 		var upstream *UpstreamHTTPError
@@ -172,6 +175,9 @@ func (*codexDriver) Observe(ctx context.Context, credential subscriptionruntime.
 	baseURL, err := target.BaseURL()
 	if err != nil {
 		return subscriptionruntime.Observation{}, err
+	}
+	if strings.TrimSpace(value.BaseURL) != "" {
+		baseURL = strings.TrimSpace(value.BaseURL)
 	}
 	observed, err := ObserveAccount(ctx, value, baseURL)
 	if err != nil {
@@ -203,6 +209,9 @@ func (*codexDriver) Consume(ctx context.Context, credential subscriptionruntime.
 	baseURL, err := target.BaseURL()
 	if err != nil {
 		return subscriptionruntime.ResetCreditResult{}, err
+	}
+	if strings.TrimSpace(value.BaseURL) != "" {
+		baseURL = strings.TrimSpace(value.BaseURL)
 	}
 	result, err := ConsumeResetCredit(ctx, value, baseURL, requestID)
 	if err != nil {
@@ -262,7 +271,12 @@ func (codexResetCreditAction) ID() spec.ActionID { return modules.CodexResetCred
 
 func codexRuntimeCredential(value Credential, canonical []byte) subscriptionruntime.Credential {
 	expiresAt, expires := CredentialExpiresAt(value)
-	account := subscriptionruntime.Account{Email: strings.TrimSpace(value.Email), ExpiresAt: expiresAt, ExpiresAtKnown: expires}
+	account := subscriptionruntime.Account{
+		Email:            strings.TrimSpace(value.Email),
+		ExpiresAt:        expiresAt,
+		ExpiresAtKnown:   expires,
+		BaseURL:          strings.TrimSpace(value.BaseURL),
+	}
 	if refreshed, err := time.Parse(time.RFC3339, strings.TrimSpace(value.LastRefresh)); err == nil {
 		account.LastRefresh, account.LastRefreshKnown = refreshed, true
 	}

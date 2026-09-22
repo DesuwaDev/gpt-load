@@ -1256,12 +1256,13 @@ function clearDeletedRouteState(ids: readonly number[]): void {
 
 async function mutateItem(
   item: CredentialItemDto,
-  action: 'weight' | 'toggle' | 'restore' | 'limits' | 'mark' | 'turn-state',
+  action: 'weight' | 'toggle' | 'restore' | 'limits' | 'mark' | 'turn-state' | 'base-url',
   value?:
     | string
     | { rpm_limit: number; concurrency_limit: number }
     | { mark: CredentialMark; mark_note: string }
-    | { codex_turn_state: string; codex_turn_state_models: string },
+    | { codex_turn_state: string; codex_turn_state_models: string }
+    | { base_url: string },
 ): Promise<void> {
   if (batchBusy.value || pending(item.credential_id)) return
   feedback.value = ''
@@ -1277,7 +1278,10 @@ async function mutateItem(
             item.credential_id,
             action === 'weight'
               ? { weight_manual: Number(value) }
-              : (action === 'limits' || action === 'mark' || action === 'turn-state') &&
+              : (action === 'limits' ||
+                  action === 'mark' ||
+                  action === 'turn-state' ||
+                  action === 'base-url') &&
                   typeof value === 'object'
                 ? value
                 : { status: item.configured_status === 'active' ? 'disabled' : 'active' },
@@ -1841,6 +1845,7 @@ async function runBatch(
               :observation-error="observationError(item.credential_id)"
               :channel-icon="channelDescriptor?.icon"
               :channel-mark="channelDescriptor?.mark"
+              :channel-id="channelId"
               :capabilities="channelCapabilities"
               :save-proxy="(value) => saveCredentialProxy(item, value)"
               @update:selected="setSelected(item.credential_id, $event)"
@@ -1865,6 +1870,7 @@ async function runBatch(
                   codex_turn_state_models: $event.codex_turn_state_models,
                 })
               "
+              @base-url="mutateItem($event.item, 'base-url', { base_url: $event.base_url })"
               @refresh="refreshObservation"
               @load-details="loadCredentialUsage"
               @reset="openResetCreditDialog"
@@ -1908,6 +1914,7 @@ async function runBatch(
             :resolve-copy-value="resolveCopyValue"
             :save-proxy="(value) => saveCredentialProxy(item, value)"
             :proxy-supported="channelCapabilities.outbound_proxy"
+            :channel-id="channelId"
             @update:selected="setSelected(item.credential_id, $event)"
             @update:expanded="setExpanded(item.credential_id, $event)"
             @update:weight-editor-open="setWeightEditor(item.credential_id, $event)"
@@ -1931,6 +1938,7 @@ async function runBatch(
                 codex_turn_state_models: $event.codex_turn_state_models,
               })
             "
+            @base-url="mutateItem($event.item, 'base-url', { base_url: $event.base_url })"
             @test="openCredentialTest"
             @toggle="mutateItem($event, 'toggle')"
             @restore="mutateItem($event, 'restore')"

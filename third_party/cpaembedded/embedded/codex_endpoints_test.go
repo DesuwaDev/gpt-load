@@ -66,3 +66,49 @@ func TestResolveCodexAPIEndpoints(t *testing.T) {
 		})
 	}
 }
+
+func TestParseCodexCredentialWithCustomBaseURL(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		raw     string
+		wantURL string
+		wantErr bool
+	}{
+		{
+			name:    "with base_url",
+			raw:     `{"type":"codex","access_token":"at","refresh_token":"rt","account_id":"acc","base_url":"https://custom-gateway.example/backend-api/codex"}`,
+			wantURL: "https://custom-gateway.example/backend-api/codex",
+		},
+		{
+			name:    "with openai_base_url",
+			raw:     `{"type":"codex","access_token":"at","refresh_token":"rt","account_id":"acc","openai_base_url":"https://custom-gateway.example/backend-api/codex/"}`,
+			wantURL: "https://custom-gateway.example/backend-api/codex",
+		},
+		{
+			name:    "without base_url",
+			raw:     `{"type":"codex","access_token":"at","refresh_token":"rt","account_id":"acc"}`,
+			wantURL: "",
+		},
+		{
+			name:    "invalid http base_url",
+			raw:     `{"type":"codex","access_token":"at","refresh_token":"rt","account_id":"acc","base_url":"http://insecure.example"}`,
+			wantErr: true,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			cred, err := ParseCodexCredentialJSON([]byte(test.raw))
+			if test.wantErr {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if cred.BaseURL != test.wantURL {
+				t.Errorf("BaseURL = %q, want %q", cred.BaseURL, test.wantURL)
+			}
+		})
+	}
+}

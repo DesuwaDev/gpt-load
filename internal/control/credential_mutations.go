@@ -13,12 +13,14 @@ import (
 	"gorm.io/gorm"
 
 	"gpt-load/internal/channel"
+	"gpt-load/internal/channel/spec"
 	"gpt-load/internal/health"
 	"gpt-load/internal/platform/encryption"
 	"gpt-load/internal/platform/epochms"
 	app_errors "gpt-load/internal/platform/errors"
 	"gpt-load/internal/state"
 	"gpt-load/internal/storage/models"
+	"gpt-load/internal/subscription/providers/codex"
 )
 
 // credentialLimitUpdate 描述一次凭据本地限额的可选修改；nil 表示未提交该字段。
@@ -47,6 +49,8 @@ type credentialUpdatePlan struct {
 	codexTurnStateModels *string
 	proxy                *string
 	proxySet             bool
+	baseURL              *string
+	baseURLSet           bool
 }
 
 func normalizeCredentialUpdate(
@@ -56,7 +60,8 @@ func normalizeCredentialUpdate(
 	var plan credentialUpdatePlan
 	if !request.Status.Set && !request.WeightManual.Set && !request.RPMLimit.Set &&
 		!request.ConcurrencyLimit.Set && !request.Mark.Set && !request.MarkNote.Set &&
-		!request.CodexTurnState.Set && !request.CodexTurnStateModels.Set && !request.Proxy.Set {
+		!request.CodexTurnState.Set && !request.CodexTurnStateModels.Set && !request.Proxy.Set &&
+		!request.BaseURL.Set {
 		return plan, app_errors.ErrBadRequest
 	}
 	if request.Status.Set {
@@ -108,6 +113,19 @@ func normalizeCredentialUpdate(
 	plan.proxy, plan.proxySet, err = normalizeProxyOverride(request.Proxy, encryptionService)
 	if err != nil {
 		return plan, err
+	}
+	if request.BaseURL.Set {
+		plan.baseURLSet = true
+		if !request.BaseURL.Null && strings.TrimSpace(request.BaseURL.Value) != "" {
+			normalized, err := spec.NormalizeHTTPSBaseURL(request.BaseURL.Value)
+			if err != nil {
+				return plan, app_errors.ErrValidation
+			}
+			plan.baseURL = &normalized
+		} else {
+			empty := ""
+			plan.baseURL = &empty
+		}
 	}
 	return plan, nil
 }
@@ -454,6 +472,39 @@ func (s *Service) UpdateGroupCredential(
 			committed.ProxyConfig = plan.proxy
 			updates["proxy_config"] = plan.proxy
 		}
+		if plan.baseURLSet {
+			if group.ChannelID != string(channel.Codex) {
+				return app_errors.ErrValidation
+			}
+			decrypted, err := s.encryption.Decrypt(committed.Data)
+			if err != nil {
+				return app_errors.ErrInternalServer
+			}
+			cred, err := codex.ParseCredentialJSON([]byte(decrypted))
+			if err != nil {
+				return app_errors.ErrInternalServer
+			}
+			baseURL := ""
+			if plan.baseURL != nil {
+				baseURL = *plan.baseURL
+			}
+			cred.BaseURL = baseURL
+			canonical, err := codex.MarshalCredential(cred)
+			if err != nil {
+				return app_errors.ErrInternalServer
+			}
+			ciphertext, err := s.encryption.Encrypt(string(canonical))
+			if err != nil {
+				clear(canonical)
+				return app_errors.ErrInternalServer
+			}
+			fingerprint := s.encryption.Hash(string(canonical))
+			clear(canonical)
+			committed.Data = ciphertext
+			committed.Fingerprint = fingerprint
+			updates["data"] = committed.Data
+			updates["fingerprint"] = committed.Fingerprint
+		}
 		committed.UpdatedAtMS = updatedAtMS
 		committedProxy, committedProxyFingerprint, err = storedProxyIdentity(s.encryption, committed.ProxyConfig)
 		if err != nil {
@@ -488,7 +539,7 @@ func (s *Service) UpdateGroupCredential(
 		entry.CodexTurnStateModels = committed.CodexTurnStateModels
 		return s.registry.RestoreGroupCredentialEntriesExact(groupID, []state.CredentialEntry{entry})
 	})
-	if committedProxyUpdate {
+	if committedProxyUpdate || plan.baseURLSet {
 		s.retireCredentialRuntime(credentialID)
 	}
 	if err != nil {

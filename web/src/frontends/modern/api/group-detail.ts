@@ -259,6 +259,7 @@ export interface CredentialRow {
     at: number | null
   }
   proxy: { mode: 'inherit' | 'direct' | 'custom'; source: string; display: string }
+  baseURL?: string
   observation?: CredentialObservation
 }
 export interface CredentialCollection {
@@ -326,6 +327,7 @@ export function readCredential(value: unknown): CredentialRow {
       source: text(proxy.effective_source),
       display: proxy.display_url === undefined ? '' : text(proxy.display_url),
     },
+    baseURL: account?.base_url === undefined ? undefined : text(account.base_url),
     observation: readObservation(row.observation),
   }
 }

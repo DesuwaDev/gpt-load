@@ -27,6 +27,7 @@ export interface CredentialStageAccount {
   email_mask?: string
   expires_at_ms?: number
   last_refresh_at_ms?: number
+  base_url?: string
 }
 
 export interface CredentialStage {
@@ -85,7 +86,7 @@ const stageFields = [
   'expires_at_ms',
   'error_code',
 ] as const
-const accountFields = ['email_mask', 'expires_at_ms', 'last_refresh_at_ms'] as const
+const accountFields = ['email_mask', 'expires_at_ms', 'last_refresh_at_ms', 'base_url'] as const
 const stageStatuses = [
   'pending_authorization',
   'exchanging',
@@ -112,6 +113,7 @@ function projectAccount(value: unknown): CredentialStageAccount {
   const record = projectRecord(value)
   assertNoSecretLikeFields(record, accountFields)
   const emailMask = record.email_mask === undefined ? undefined : projectString(record.email_mask)
+  const baseURL = record.base_url === undefined ? undefined : projectString(record.base_url)
   return {
     ...(emailMask === undefined ? {} : { email_mask: emailMask }),
     ...(record.expires_at_ms === undefined
@@ -120,6 +122,7 @@ function projectAccount(value: unknown): CredentialStageAccount {
     ...(record.last_refresh_at_ms === undefined
       ? {}
       : { last_refresh_at_ms: projectEpochMilliseconds(record.last_refresh_at_ms) }),
+    ...(baseURL === undefined ? {} : { base_url: baseURL }),
   }
 }
 
