@@ -1,3 +1,4 @@
+import { readAuditResult, type AuditResult } from './experimental'
 import { keepPreviousData, queryOptions } from '@tanstack/vue-query'
 import { computed, toValue, type MaybeRefOrGetter } from 'vue'
 
@@ -79,6 +80,8 @@ export interface RequestLogFilters {
   upstream_model?: string
   access_key_id?: number
   status?: RequestLogStatus
+  audit_status?: 'warned' | 'blocked' | 'incomplete'
+  audit_rule?: string
   request_id?: string
   protocol?: AccessProtocol
   stream?: boolean
@@ -174,6 +177,7 @@ export interface RequestLogReasoningDto {
 }
 
 export interface RequestLogItemDto {
+  request_audit?: AuditResult
   auto_decision?: AutoDecisionDto
   request_id: string
   completed_at_ms: number
@@ -311,6 +315,7 @@ const receiptCodes = [
 ] as const
 const receiptLineStates = ['priced', 'unpriced'] as const
 const itemFields = [
+  'request_audit',
   'auto_decision',
   'total_estimated_cost_nano_usd',
   'total_cost_state',
@@ -705,6 +710,8 @@ function projectItemRecord(record: Record<string, unknown>): RequestLogItemDto {
         ? null
         : projectNonNegativeInt64String(record.context_threshold_tokens),
     ...projectUsageCost(record),
+    request_audit:
+      record.request_audit === undefined ? undefined : readAuditResult(record.request_audit),
     auto_decision:
       record.auto_decision === undefined ? undefined : projectAutoDecision(record.auto_decision),
     estimated_cost_nano_usd: projectNonNegativeInt64String(

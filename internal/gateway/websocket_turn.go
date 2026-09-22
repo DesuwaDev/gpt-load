@@ -426,6 +426,10 @@ func (s *websocketConnection) executeTurn(turn websocketTurn) {
 			}
 			admission.admitted = true
 		}
+		if failure := h.checkRequestAudit(requestCtx, snapshot, key, payload, recorder, func() *reason { return h.admitAutoQuota(snapshot, &admission) }); failure != nil {
+			reject(*failure)
+			return
+		}
 		recorder.setReasoning(effective.metadata.Reasoning)
 		recorder.setUsageApplicable(effective.metadata.ObserveUsage)
 		recorder.setPricingMode(effective.metadata.PricingMode)
