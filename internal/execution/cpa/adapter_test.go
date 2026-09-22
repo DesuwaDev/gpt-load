@@ -1630,3 +1630,80 @@ func validSpec(t *testing.T, row models.Credential, keyService encryption.Servic
 		row.IdentityFingerprint, "codex", "subscription", json.RawMessage(`{}`))
 	return execution.NewAttemptSpec(execution.AttemptSpec{RequestID: "request-1", AttemptID: "attempt-1", Sequence: 1, ChannelID: "codex", RouteMode: execution.RouteNative, ClientProtocol: protocol.OpenAIResponses, Operation: execution.OperationResponsesCreate, ClientModel: "gpt-5", UpstreamModel: "gpt-5", Method: http.MethodPost, Path: "/v1/responses", Body: []byte(`{"model":"gpt-5","input":"hi"}`), TargetConfig: json.RawMessage(`{}`), Credential: execution.NewCredentialSnapshot(row.ID, row.SecretVersion, identityGeneration, []byte(plaintext))})
 }
+
+func TestStreamModelObserverSniffing(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		chunks   [][]byte
+		expected string
+	}{
+		{
+			name: "openai chat completions chunk",
+			chunks: [][]byte{
+				[]byte("data: {\"id\":\"chatcmpl-1\",\"object\":\"chat.completion.chunk\",\"model\":\"gpt-5.6-luna\",\"choices\":[]}\n\n"),
+			},
+			expected: "gpt-5.6-luna",
+		},
+		{
+			name: "anthropic message_start event",
+			chunks: [][]byte{
+				[]byte("event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"id\":\"msg-1\",\"model\":\"claude-3-7-sonnet-20250219\"}}\n\n"),
+			},
+			expected: "claude-3-7-sonnet-20250219",
+		},
+		{
+			name: "openai responses api terminal override",
+			chunks: [][]byte{
+				[]byte("event: response.created\ndata: {\"response\":{\"id\":\"resp-1\",\"model\":\"gpt-5-mini\"}}\n\n"),
+				[]byte("event: response.completed\ndata: {\"response\":{\"id\":\"resp-1\",\"model\":\"gpt-5.6-luna\"}}\n\n"),
+			},
+			expected: "gpt-5.6-luna",
+		},
+		{
+			name: "gemini raw json chunk with modelVersion",
+			chunks: [][]byte{
+				[]byte("{\"candidates\":[{\"finishReason\":\"STOP\"}],\"modelVersion\":\"gemini-2.0-flash\"}"),
+			},
+			expected: "gemini-2.0-flash",
+		},
+		{
+			name: "done marker ignored",
+			chunks: [][]byte{
+				[]byte("data: [DONE]\n\n"),
+			},
+			expected: "",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			observer := &streamModelObserver{}
+			for _, chunk := range tc.chunks {
+				observer.observe(chunk)
+			}
+			if got := observer.result(); got != tc.expected {
+				t.Fatalf("observer.result() = %q, want %q", got, tc.expected)
+			}
+		})
+	}
+}
+
+func TestSuccessfulStreamTerminalUsesObservedModel(t *testing.T) {
+	t.Parallel()
+
+	spec := execution.AttemptSpec{
+		UpstreamModel: "gpt-6-astra",
+	}
+
+	resMismatch := successfulStreamTerminal(protocol.OpenAIResponses, spec, nil, nil, "gpt-5.6-luna")
+	if resMismatch.Model != "gpt-5.6-luna" {
+		t.Fatalf("successfulStreamTerminal() Model = %q, want gpt-5.6-luna", resMismatch.Model)
+	}
+
+	resFallback := successfulStreamTerminal(protocol.OpenAIResponses, spec, nil, nil, "")
+	if resFallback.Model != "gpt-6-astra" {
+		t.Fatalf("successfulStreamTerminal() fallback Model = %q, want gpt-6-astra", resFallback.Model)
+	}
+}

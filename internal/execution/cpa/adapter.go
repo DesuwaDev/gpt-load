@@ -28,6 +28,8 @@ import (
 	providerobservation "gpt-load/internal/subscription/providers/observation"
 	subscriptionruntime "gpt-load/internal/subscription/runtime"
 	"gpt-load/internal/usage"
+
+	"github.com/tidwall/gjson"
 )
 
 var subscriptionResponseHeaderNames = [...]string{
@@ -317,7 +319,11 @@ func (a *Adapter) ExecuteStream(
 	spec = execution.NewAttemptSpec(spec)
 	// 与 Execute 同理：终局 StreamResult 有十余个返回点，回填比逐个透传参数可靠。
 	var turnState string
+	streamModel := &streamModelObserver{}
 	defer func() {
+		if result.Model == "" && streamModel.result() != "" {
+			result.Model = streamModel.result()
+		}
 		normalizeCPAImagesStreamResult(spec, &result)
 		if result.UpstreamTurnState == "" {
 			result.UpstreamTurnState = turnState
@@ -489,7 +495,7 @@ func (a *Adapter) ExecuteStream(
 					return streamConsumerStopped(upstreamProtocol, headers, applied, ready)
 				}
 			}
-			return successfulStreamTerminal(upstreamProtocol, spec, headers, applied)
+			return successfulStreamTerminal(upstreamProtocol, spec, headers, applied, streamModel.result())
 		}
 		if chunk.Err != nil {
 			return streamExecutionError(streamCtx, provider, upstreamProtocol, headers, chunk.Err, credential, applied, ready)
@@ -500,6 +506,7 @@ func (a *Adapter) ExecuteStream(
 		if len(chunk.Payload) > 0 {
 			firstByte.stop()
 			upstreamStarted = true
+			streamModel.observe(chunk.Payload)
 		}
 		if err := context.Cause(streamCtx); err != nil {
 			return streamExecutionError(streamCtx, provider, upstreamProtocol, headers, err, credential, applied, false)
@@ -913,11 +920,16 @@ func successfulStreamTerminal(
 	spec execution.AttemptSpec,
 	headers http.Header,
 	applied *reasoning.Config,
+	observedModel string,
 ) execution.StreamResult {
+	model := observedModel
+	if model == "" {
+		model = spec.UpstreamModel
+	}
 	return execution.StreamResult{
 		DispatchState: execution.DispatchMaybeSent, ResponseStarted: true,
 		UpstreamProtocol: upstreamProtocol, AppliedReasoning: applied, StatusCode: http.StatusOK,
-		Header: headers, UpstreamRequestID: upstreamRequestID(headers), Model: spec.UpstreamModel,
+		Header: headers, UpstreamRequestID: upstreamRequestID(headers), Model: model,
 	}
 }
 
@@ -1036,25 +1048,117 @@ func isGeminiTerminal(payload []byte) bool {
 }
 
 func responseModel(body []byte, fallback string) string {
-	var value struct {
-		Model        string `json:"model"`
-		ModelVersion string `json:"modelVersion"`
-		Response     struct {
-			Model string `json:"model"`
-		} `json:"response"`
-	}
-	if json.Unmarshal(body, &value) == nil {
-		if strings.TrimSpace(value.Model) != "" {
-			return strings.TrimSpace(value.Model)
-		}
-		if strings.TrimSpace(value.Response.Model) != "" {
-			return strings.TrimSpace(value.Response.Model)
-		}
-		if strings.TrimSpace(value.ModelVersion) != "" {
-			return strings.TrimSpace(value.ModelVersion)
+	if candidate := firstValidTrimmedGJSONString(body, "model", "response.model", "message.model", "modelVersion", "response.modelVersion"); candidate != "" {
+		if normalized := normalizeObservedUpstreamResponseModel(candidate); normalized != "" {
+			return normalized
 		}
 	}
 	return fallback
+}
+
+type streamModelObserver struct {
+	first    string
+	terminal string
+}
+
+func (o *streamModelObserver) observe(payload []byte) {
+	if o == nil || len(payload) == 0 {
+		return
+	}
+	trimmed := bytes.TrimSpace(payload)
+	if len(trimmed) == 0 {
+		return
+	}
+	if trimmed[0] == '{' {
+		o.inspectJSON(trimmed, "")
+		return
+	}
+	var eventType string
+	for _, line := range bytes.Split(trimmed, []byte("\n")) {
+		line = bytes.TrimSpace(line)
+		if bytes.HasPrefix(line, []byte("event:")) {
+			eventType = strings.TrimSpace(string(bytes.TrimPrefix(line, []byte("event:"))))
+			continue
+		}
+		if bytes.HasPrefix(line, []byte("data:")) {
+			data := bytes.TrimSpace(bytes.TrimPrefix(line, []byte("data:")))
+			if len(data) > 0 && !bytes.Equal(data, []byte("[DONE]")) && data[0] == '{' {
+				o.inspectJSON(data, eventType)
+			}
+		}
+	}
+}
+
+func (o *streamModelObserver) inspectJSON(data []byte, eventType string) {
+	model := firstValidTrimmedGJSONString(data, "model", "response.model", "message.model", "modelVersion", "response.modelVersion")
+	if model == "" {
+		return
+	}
+	model = normalizeObservedUpstreamResponseModel(model)
+	if model == "" {
+		return
+	}
+	if isTerminalSSEEvent(eventType, data) {
+		o.terminal = model
+		return
+	}
+	if o.first == "" {
+		o.first = model
+	}
+}
+
+func isTerminalSSEEvent(eventType string, data []byte) bool {
+	switch strings.TrimSpace(eventType) {
+	case "response.completed", "response.done", "response.failed", "response.incomplete", "response.cancelled", "response.canceled":
+		return true
+	}
+	jsonType := gjson.GetBytes(data, "type").String()
+	switch strings.TrimSpace(jsonType) {
+	case "response.completed", "response.done", "response.failed", "response.incomplete", "response.cancelled", "response.canceled":
+		return true
+	}
+	return false
+}
+
+func firstValidTrimmedGJSONString(payload []byte, paths ...string) string {
+	if len(payload) == 0 {
+		return ""
+	}
+	for _, path := range paths {
+		value := gjson.GetBytes(payload, path)
+		if !value.Exists() || value.Type != gjson.String {
+			continue
+		}
+		if text := strings.TrimSpace(value.String()); text != "" {
+			if !gjson.ValidBytes(payload) {
+				return ""
+			}
+			return text
+		}
+	}
+	return ""
+}
+
+func normalizeObservedUpstreamResponseModel(model string) string {
+	model = strings.ToValidUTF8(strings.TrimSpace(model), "")
+	if model == "" {
+		return ""
+	}
+	runes := []rune(model)
+	if len(runes) > 200 {
+		model = string(runes[:200])
+	}
+	return model
+}
+
+func (o *streamModelObserver) result() string {
+	if o == nil {
+		return ""
+	}
+	if o.terminal != "" {
+		return o.terminal
+	}
+	return o.first
 }
 
 func usageEvidence(clientProtocol protocol.Protocol, body []byte) *execution.UsageEvidence {

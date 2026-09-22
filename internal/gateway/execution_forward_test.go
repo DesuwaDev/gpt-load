@@ -1948,3 +1948,35 @@ func TestStreamErrorFailureHintDoesNotTreatGenericForbiddenAsInvalidCredential(t
 		})
 	}
 }
+
+func TestBaseExecutionResultModelMismatch(t *testing.T) {
+	t.Parallel()
+
+	input := ForwardInput{
+		UpstreamModelID: "gpt-6-astra",
+	}
+
+	// Mismatch case
+	mismatchResult := baseExecutionResult(input, execution.DispatchMaybeSent, true, 200, http.Header{}, "gpt-5.6-luna", "req-1", nil, nil)
+	if mismatchResult.UpstreamReportedModel != "gpt-5.6-luna" {
+		t.Fatalf("UpstreamReportedModel = %q, want gpt-5.6-luna", mismatchResult.UpstreamReportedModel)
+	}
+	if !mismatchResult.ResponseModelObserved {
+		t.Fatal("ResponseModelObserved = false, want true")
+	}
+	if !mismatchResult.ResponseModelMismatch {
+		t.Fatal("ResponseModelMismatch = false, want true")
+	}
+
+	// Match case
+	matchResult := baseExecutionResult(input, execution.DispatchMaybeSent, true, 200, http.Header{}, "gpt-6-astra", "req-1", nil, nil)
+	if matchResult.UpstreamReportedModel != "gpt-6-astra" {
+		t.Fatalf("UpstreamReportedModel = %q, want gpt-6-astra", matchResult.UpstreamReportedModel)
+	}
+	if !matchResult.ResponseModelObserved {
+		t.Fatal("ResponseModelObserved = false, want true")
+	}
+	if matchResult.ResponseModelMismatch {
+		t.Fatal("ResponseModelMismatch = true, want false")
+	}
+}

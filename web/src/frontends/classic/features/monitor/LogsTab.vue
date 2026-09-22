@@ -910,6 +910,7 @@ function logTurnStateSummary(log: RequestLogItemDto): LogTurnStateSummary {
           class="ledger-record-list__record logs-list__record"
           :class="{
             'logs-list__record--suspect-turn-state': logTurnStateSummary(log).isSuspect,
+            'logs-list__record--model-mismatch': log.model_consistency === 'mismatch',
           }"
           role="row"
           :aria-rowindex="index + 2"
@@ -1008,7 +1009,17 @@ function logTurnStateSummary(log: RequestLogItemDto): LogTurnStateSummary {
                 </button>
               </AppTooltip>
               <AppTooltip
-                v-if="log.model_consistency === 'unknown' || log.model_consistency === 'mismatch'"
+                v-if="log.model_consistency === 'mismatch' && log.upstream_reported_model"
+                :content="modelConsistencyTooltip(log)"
+              >
+                <span class="logs-list__model-mismatch-badge">
+                  <TriangleAlert :size="11" aria-hidden="true" />
+                  <span class="logs-list__model-mismatch-arrow">↳</span>
+                  <span class="logs-list__model-mismatch-text">{{ log.upstream_reported_model }}</span>
+                </span>
+              </AppTooltip>
+              <AppTooltip
+                v-else-if="log.model_consistency === 'unknown' || log.model_consistency === 'mismatch'"
                 :content="modelConsistencyTooltip(log)"
               >
                 <button
@@ -1466,6 +1477,55 @@ function logTurnStateSummary(log: RequestLogItemDto): LogTurnStateSummary {
 
 .logs-list__record--suspect-turn-state:hover {
   background: color-mix(in srgb, var(--color-warning-bg) 85%, transparent);
+}
+
+/* 模型不一致/降级行：左侧警示色竖条 + 柔和高亮底色，列表扫视时极醒目 */
+.logs-list__record--model-mismatch {
+  background: color-mix(in srgb, var(--color-warning-bg) 65%, transparent);
+}
+
+.logs-list__record--model-mismatch::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background-color: var(--color-warning);
+  border-radius: 2px 0 0 2px;
+}
+
+.logs-list__record--model-mismatch:hover {
+  background: color-mix(in srgb, var(--color-warning-bg) 85%, transparent);
+}
+
+.logs-list__model-mismatch-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 6px;
+  border-radius: var(--radius-tag);
+  background: var(--color-warning-bg);
+  border: 1px solid var(--color-warning);
+  color: var(--color-warning);
+  font-size: var(--text-label-xs);
+  font-weight: 600;
+  font-family: var(--font-mono);
+  cursor: help;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.logs-list__model-mismatch-arrow {
+  opacity: 0.85;
+  font-weight: 700;
+}
+
+.logs-list__model-mismatch-text {
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .logs-list__turn-state {
