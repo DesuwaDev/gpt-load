@@ -8,6 +8,7 @@ import {
   Gauge,
   Globe,
   KeyRound,
+  Layers,
   LoaderCircle,
   PencilLine,
   RefreshCw,
@@ -42,11 +43,9 @@ import { formatEstimatedCost, formatLocalInstant, formatTokens } from '@/lib/for
 import { quotaProgressTone } from '@/lib/quota-progress'
 
 import { presentCredentialFailureCategory } from './credential-failure-presenter'
-import CredentialBaseUrlEditor from './CredentialBaseUrlEditor.vue'
 import CredentialLimitsPanel from './CredentialLimitsPanel.vue'
 import CredentialMarkIndicator from './CredentialMarkIndicator.vue'
 import CredentialMarkPicker from './CredentialMarkPicker.vue'
-import CredentialTurnStateEditor from './CredentialTurnStateEditor.vue'
 
 const props = withDefaults(
   defineProps<{
@@ -83,6 +82,8 @@ const emit = defineEmits<{
   weight: [payload: { item: CredentialItemDto; value: string }]
   limits: [payload: { item: CredentialItemDto; rpm_limit: number; concurrency_limit: number }]
   mark: [payload: { item: CredentialItemDto; mark: CredentialMark; mark_note: string }]
+  'edit-base-url': [item: CredentialItemDto]
+  'edit-turn-state': [item: CredentialItemDto]
   'turn-state': [
     payload: {
       item: CredentialItemDto
@@ -632,23 +633,17 @@ function applyMark(payload: { mark: CredentialMark; mark_note: string }): void {
   emit('mark', { item: props.item, ...payload })
 }
 
-function applyTurnState(payload: {
-  codex_turn_state: string
-  codex_turn_state_models: string
-}): void {
-  menuOpen.value = false
-  emit('turn-state', { item: props.item, ...payload })
-}
-
 const isCodex = computed(() => props.channelId === 'codex' || Boolean(props.item.account.base_url))
 
-function applyBaseURL(payload: { base_url: string }): void {
-  menuOpen.value = false
-  emit('base-url', { item: props.item, ...payload })
-}
-
 function runMenuAction(
-  action: 'download' | 'refresh-credential' | 'toggle' | 'restore' | 'remove',
+  action:
+    | 'download'
+    | 'refresh-credential'
+    | 'toggle'
+    | 'restore'
+    | 'remove'
+    | 'custom-gateway'
+    | 'turn-state',
 ): void {
   menuOpen.value = false
   switch (action) {
@@ -666,6 +661,13 @@ function runMenuAction(
       return
     case 'remove':
       emit('remove', props.item)
+      return
+    case 'custom-gateway':
+      emit('edit-base-url', props.item)
+      return
+    case 'turn-state':
+      emit('edit-turn-state', props.item)
+      return
   }
 }
 </script>
@@ -839,13 +841,31 @@ function runMenuAction(
             />
             <StatusBadge
               v-if="item.account.base_url"
-              class="subscription-account__custom-gateway"
+              class="subscription-account__custom-gateway subscription-account__badge--clickable"
               tone="info"
               size="compact"
               :title="item.account.base_url"
+              role="button"
+              tabindex="0"
+              @click="emit('edit-base-url', item)"
+              @keydown.enter="emit('edit-base-url', item)"
             >
               <Globe :size="12" aria-hidden="true" />
               <span>{{ t('group.credentials.subscription.customGateway') }}</span>
+            </StatusBadge>
+            <StatusBadge
+              v-if="item.codex_turn_state"
+              class="subscription-account__turn-state subscription-account__badge--clickable"
+              tone="warning"
+              size="compact"
+              :title="t('group.credentials.turnState.active')"
+              role="button"
+              tabindex="0"
+              @click="emit('edit-turn-state', item)"
+              @keydown.enter="emit('edit-turn-state', item)"
+            >
+              <Layers :size="12" aria-hidden="true" />
+              <span>{{ t('group.credentials.turnState.active') }}</span>
             </StatusBadge>
           </div>
           <div class="subscription-account__actions">
@@ -853,6 +873,7 @@ function runMenuAction(
               v-if="supportsQuotaObservation && observation?.observed_at_ms != null"
               class="subscription-account__sync-age"
             >
+              {{ t('group.credentials.subscription.syncAgePrefix') }}
               <AppRelativeTime
                 :instant="observation.observed_at_ms"
                 :locale="locale"
@@ -863,19 +884,18 @@ function runMenuAction(
             </span>
             <AppTooltip
               v-if="supportsQuotaObservation"
-              :content="t('group.credentials.subscription.sync')"
+              :content="t('group.credentials.subscription.refreshQuotaTooltip')"
             >
               <IconButton
-                class="subscription-account__sync-button"
-                size="compact"
                 variant="ghost"
-                :label="t('group.credentials.subscription.sync')"
-                :busy="refreshingObservation"
+                size="compact"
+                :label="t('group.credentials.subscription.refreshQuotaTooltip')"
                 :disabled="busy || observationRefreshBlocked"
+                :busy="refreshingObservation"
                 @click="emit('refresh', item)"
               >
                 <RefreshCw
-                  :class="{ 'subscription-account__sync-icon--spinning': refreshingObservation }"
+                  :class="{ 'subscription-account__spin': refreshingObservation }"
                   :size="15"
                   aria-hidden="true"
                 />
@@ -904,20 +924,27 @@ function runMenuAction(
                   @apply="applyMark"
                 />
                 <div class="subscription-account__menu-divider"></div>
-                <CredentialTurnStateEditor
-                  :value="item.codex_turn_state"
-                  :models="item.codex_turn_state_models"
-                  :set-at-ms="item.codex_turn_state_set_at_ms"
-                  :disabled="busy"
-                  @apply="applyTurnState"
-                />
-                <div class="subscription-account__menu-divider"></div>
                 <template v-if="isCodex">
-                  <CredentialBaseUrlEditor
-                    :value="item.account.base_url ?? ''"
-                    :disabled="busy"
-                    @apply="applyBaseURL"
-                  />
+                  <button type="button" :disabled="busy" @click="runMenuAction('custom-gateway')">
+                    <Globe :size="15" aria-hidden="true" />
+                    <span>{{ t('group.credentials.customGateway.title') }}</span>
+                    <span
+                      v-if="item.account.base_url"
+                      class="subscription-account__menu-chip"
+                    >
+                      {{ t('group.credentials.customGateway.active') }}
+                    </span>
+                  </button>
+                  <button type="button" :disabled="busy" @click="runMenuAction('turn-state')">
+                    <Layers :size="15" aria-hidden="true" />
+                    <span>{{ t('group.credentials.turnState.title') }}</span>
+                    <span
+                      v-if="item.codex_turn_state"
+                      class="subscription-account__menu-chip"
+                    >
+                      {{ t('group.credentials.turnState.active') }}
+                    </span>
+                  </button>
                   <div class="subscription-account__menu-divider"></div>
                 </template>
                 <button type="button" :disabled="busy" @click="runMenuAction('download')">
@@ -2334,6 +2361,27 @@ function runMenuAction(
   font-family: var(--font-mono);
   font-size: var(--text-label-xs);
   word-break: break-all;
+}
+
+.subscription-account__menu-chip {
+  margin-left: auto;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--color-action) 12%, transparent);
+  color: var(--color-action);
+  padding: 1px 6px;
+  font-size: var(--text-label-xs);
+  font-weight: 560;
+  line-height: 1.2;
+}
+
+.subscription-account__badge--clickable {
+  cursor: pointer;
+  user-select: none;
+  transition: opacity var(--duration-fast) var(--easing-standard);
+}
+
+.subscription-account__badge--clickable:hover {
+  opacity: 0.85;
 }
 </style>
 

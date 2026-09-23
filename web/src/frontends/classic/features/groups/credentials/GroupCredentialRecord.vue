@@ -6,6 +6,7 @@ import {
   CircleOff,
   Ellipsis,
   Globe,
+  Layers,
   PencilLine,
   RotateCcw,
   Trash2,
@@ -27,11 +28,9 @@ import ModelCooldownDetails from '@/components/ui/ModelCooldownDetails.vue'
 import { formatLocalInstant } from '@/lib/format'
 
 import { presentCredentialFailureCategory } from './credential-failure-presenter'
-import CredentialBaseUrlEditor from './CredentialBaseUrlEditor.vue'
 import CredentialLimitsPanel from './CredentialLimitsPanel.vue'
 import CredentialMarkIndicator from './CredentialMarkIndicator.vue'
 import CredentialMarkPicker from './CredentialMarkPicker.vue'
-import CredentialTurnStateEditor from './CredentialTurnStateEditor.vue'
 
 const props = defineProps<{
   item: CredentialItemDto
@@ -53,6 +52,8 @@ const emit = defineEmits<{
   weight: [payload: { item: CredentialItemDto; value: string }]
   limits: [payload: { item: CredentialItemDto; rpm_limit: number; concurrency_limit: number }]
   mark: [payload: { item: CredentialItemDto; mark: CredentialMark; mark_note: string }]
+  'edit-base-url': [item: CredentialItemDto]
+  'edit-turn-state': [item: CredentialItemDto]
   'turn-state': [
     payload: {
       item: CredentialItemDto
@@ -139,27 +140,18 @@ function applyMark(payload: { mark: CredentialMark; mark_note: string }): void {
   emit('mark', { item: props.item, ...payload })
 }
 
-function applyTurnState(payload: {
-  codex_turn_state: string
-  codex_turn_state_models: string
-}): void {
-  menuOpen.value = false
-  emit('turn-state', { item: props.item, ...payload })
-}
-
 const isCodex = computed(() => props.channelId === 'codex' || Boolean(props.item.account?.base_url))
 
-function applyBaseURL(payload: { base_url: string }): void {
-  menuOpen.value = false
-  emit('base-url', { item: props.item, ...payload })
-}
-
-function runMenuAction(action: 'test' | 'toggle' | 'restore' | 'remove'): void {
+function runMenuAction(
+  action: 'test' | 'toggle' | 'restore' | 'remove' | 'custom-gateway' | 'turn-state',
+): void {
   menuOpen.value = false
   if (action === 'test') emit('test', props.item)
   else if (action === 'toggle') emit('toggle', props.item)
   else if (action === 'restore') emit('restore', props.item)
-  else emit('remove', props.item)
+  else if (action === 'remove') emit('remove', props.item)
+  else if (action === 'custom-gateway') emit('edit-base-url', props.item)
+  else if (action === 'turn-state') emit('edit-turn-state', props.item)
 }
 </script>
 
@@ -203,13 +195,31 @@ function runMenuAction(action: 'test' | 'toggle' | 'restore' | 'remove'): void {
           <ProxyScopeIndicator v-if="proxySupported" :view="item.proxy" />
           <StatusBadge
             v-if="item.account?.base_url"
-            class="group-credential-record__custom-gateway"
+            class="group-credential-record__custom-gateway group-credential-record__badge--clickable"
             tone="info"
             size="compact"
             :title="item.account.base_url"
+            role="button"
+            tabindex="0"
+            @click="emit('edit-base-url', item)"
+            @keydown.enter="emit('edit-base-url', item)"
           >
             <Globe :size="12" aria-hidden="true" />
             <span>{{ t('group.credentials.subscription.customGateway') }}</span>
+          </StatusBadge>
+          <StatusBadge
+            v-if="item.codex_turn_state"
+            class="group-credential-record__turn-state group-credential-record__badge--clickable"
+            tone="warning"
+            size="compact"
+            :title="t('group.credentials.turnState.active')"
+            role="button"
+            tabindex="0"
+            @click="emit('edit-turn-state', item)"
+            @keydown.enter="emit('edit-turn-state', item)"
+          >
+            <Layers :size="12" aria-hidden="true" />
+            <span>{{ t('group.credentials.turnState.active') }}</span>
           </StatusBadge>
         </span>
       </div>
@@ -291,20 +301,27 @@ function runMenuAction(action: 'test' | 'toggle' | 'restore' | 'remove'): void {
               @apply="applyMark"
             />
             <div class="group-credential-record__menu-divider"></div>
-            <CredentialTurnStateEditor
-              :value="item.codex_turn_state"
-              :models="item.codex_turn_state_models"
-              :set-at-ms="item.codex_turn_state_set_at_ms"
-              :disabled="busy"
-              @apply="applyTurnState"
-            />
-            <div class="group-credential-record__menu-divider"></div>
             <template v-if="isCodex">
-              <CredentialBaseUrlEditor
-                :value="item.account?.base_url ?? ''"
-                :disabled="busy"
-                @apply="applyBaseURL"
-              />
+              <button type="button" :disabled="busy" @click="runMenuAction('custom-gateway')">
+                <Globe :size="15" aria-hidden="true" />
+                <span>{{ t('group.credentials.customGateway.title') }}</span>
+                <span
+                  v-if="item.account?.base_url"
+                  class="group-credential-record__menu-chip"
+                >
+                  {{ t('group.credentials.customGateway.active') }}
+                </span>
+              </button>
+              <button type="button" :disabled="busy" @click="runMenuAction('turn-state')">
+                <Layers :size="15" aria-hidden="true" />
+                <span>{{ t('group.credentials.turnState.title') }}</span>
+                <span
+                  v-if="item.codex_turn_state"
+                  class="group-credential-record__menu-chip"
+                >
+                  {{ t('group.credentials.turnState.active') }}
+                </span>
+              </button>
               <div class="group-credential-record__menu-divider"></div>
             </template>
             <button type="button" :disabled="busy" @click="runMenuAction('test')">
@@ -734,6 +751,27 @@ function runMenuAction(action: 'test' | 'toggle' | 'restore' | 'remove'): void {
 
 .group-credential-record__menu button.group-credential-record__menu-danger:hover:not(:disabled) {
   background: var(--color-danger-bg);
+}
+
+.group-credential-record__menu-chip {
+  margin-left: auto;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--color-action) 12%, transparent);
+  color: var(--color-action);
+  padding: 1px 6px;
+  font-size: var(--text-label-xs);
+  font-weight: 560;
+  line-height: 1.2;
+}
+
+.group-credential-record__badge--clickable {
+  cursor: pointer;
+  user-select: none;
+  transition: opacity var(--duration-fast) var(--easing-standard);
+}
+
+.group-credential-record__badge--clickable:hover {
+  opacity: 0.85;
 }
 
 :global(.app-popover__content.app-popover__content--credential-menu) {

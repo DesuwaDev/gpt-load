@@ -77,8 +77,10 @@ import { presentSubscriptionErrorKey } from '@/features/subscription-error-prese
 import { createUUID } from '@/lib/uuid'
 
 import CredentialBatchBar from './GroupCredentialBatchBar.vue'
+import CredentialBaseUrlDialog from './CredentialBaseUrlDialog.vue'
 import CredentialRecord from './GroupCredentialRecord.vue'
 import CredentialTestDialog from './CredentialTestDialog.vue'
+import CredentialTurnStateDialog from './CredentialTurnStateDialog.vue'
 import SubscriptionAccountCard from './SubscriptionAccountCard.vue'
 import {
   constrainCredentialSearch,
@@ -147,6 +149,8 @@ const credentialTestResult = ref<CredentialTestResultDto>()
 const credentialTestRequestFailed = ref(false)
 const credentialTestRestoreBlocked = ref(false)
 const credentialTestRestoreError = ref<CredentialTestRestoreError>()
+const baseUrlTarget = ref<CredentialItemDto>()
+const turnStateTarget = ref<CredentialItemDto>()
 const resetOperationKeys = new Map<number, string>()
 const connectionWorkspaceOpen = ref(false)
 const fullActionsOpen = ref(false)
@@ -1480,6 +1484,21 @@ async function confirmTestedCredentialRestore(): Promise<void> {
   resetCredentialTestState()
 }
 
+function applyDialogBaseUrl(payload: { base_url: string }): void {
+  if (!baseUrlTarget.value) return
+  mutateItem(baseUrlTarget.value, 'base-url', payload)
+  baseUrlTarget.value = undefined
+}
+
+function applyDialogTurnState(payload: {
+  codex_turn_state: string
+  codex_turn_state_models: string
+}): void {
+  if (!turnStateTarget.value) return
+  mutateItem(turnStateTarget.value, 'turn-state', payload)
+  turnStateTarget.value = undefined
+}
+
 async function saveCredentialProxy(item: CredentialItemDto, value: ProxyMutation): Promise<void> {
   if (batchBusy.value || pending(item.credential_id)) {
     throw new Error('CREDENTIAL_PROXY_UNAVAILABLE')
@@ -1871,6 +1890,8 @@ async function runBatch(
                 })
               "
               @base-url="mutateItem($event.item, 'base-url', { base_url: $event.base_url })"
+              @edit-base-url="baseUrlTarget = $event"
+              @edit-turn-state="turnStateTarget = $event"
               @refresh="refreshObservation"
               @load-details="loadCredentialUsage"
               @reset="openResetCreditDialog"
@@ -1939,6 +1960,8 @@ async function runBatch(
               })
             "
             @base-url="mutateItem($event.item, 'base-url', { base_url: $event.base_url })"
+            @edit-base-url="baseUrlTarget = $event"
+            @edit-turn-state="turnStateTarget = $event"
             @test="openCredentialTest"
             @toggle="mutateItem($event, 'toggle')"
             @restore="mutateItem($event, 'restore')"
@@ -1978,6 +2001,24 @@ async function runBatch(
       @update:protocol="setCredentialTestProtocol"
       @update:model="setCredentialTestModel"
       @test="runCredentialTest"
+    />
+    <CredentialBaseUrlDialog
+      :open="baseUrlTarget !== undefined"
+      :mask="baseUrlTarget?.account?.email ?? baseUrlTarget?.mask ?? ''"
+      :value="baseUrlTarget?.account?.base_url ?? ''"
+      :busy="baseUrlTarget !== undefined && pending(baseUrlTarget.credential_id)"
+      @update:open="!$event && (baseUrlTarget = undefined)"
+      @apply="applyDialogBaseUrl"
+    />
+    <CredentialTurnStateDialog
+      :open="turnStateTarget !== undefined"
+      :mask="turnStateTarget?.account?.email ?? turnStateTarget?.mask ?? ''"
+      :value="turnStateTarget?.codex_turn_state ?? ''"
+      :models="turnStateTarget?.codex_turn_state_models ?? ''"
+      :set-at-ms="turnStateTarget?.codex_turn_state_set_at_ms"
+      :busy="turnStateTarget !== undefined && pending(turnStateTarget.credential_id)"
+      @update:open="!$event && (turnStateTarget = undefined)"
+      @apply="applyDialogTurnState"
     />
     <AppConfirmDialog
       appearance="ledger"
