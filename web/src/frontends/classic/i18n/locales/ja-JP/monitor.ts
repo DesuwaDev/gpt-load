@@ -951,40 +951,19 @@ export default {
         filteredDescription: 'フィルターを調整またはリセットして、再試行してください。',
       },
       turnState: {
-        suspectBadge: '{chars} 劣化の疑い',
-        unknownBadge: '{chars} 非 Fernet',
-        normalBadge: '{chars}',
-        suspectTooltip:
-          'ターン状態の長さは {chars} 文字（{blocks} ブロック）で、正常基準（{normal}）に一致しません。劣化の疑いがあります。',
-        unknownTooltip: 'ターン状態の長さは {chars} 文字で、有効な Fernet トークンではありません。',
-        normalTooltip:
-          'ターン状態の長さは {chars} 文字（{blocks} ブロック）で、正常基準（{shape}）に一致しています。',
+        tooltip: 'ターン状態の長さは {chars} 文字（{blocks} ブロック）',
+        tooltipRaw: 'ターン状態の長さは {chars} 文字',
       },
       turnStatePick: {
         trigger: '状態取得',
-        triggerHint: '直近のログから有効なターン状態（292 / 332 文字）を抽出',
-        menuTitle: 'ターン状態の抽出',
-        menuHint: 'クレデンシャル注入用に正常な状態を取得',
-        individualDesc: '個人アカウント基準',
-        teamDesc: 'Team アカウント基準',
-        toastCopied: '{shape}（{chars} 文字）のターン状態をコピーしました',
-        shape: {
-          individual: '個人アカウント',
-          team: 'team アカウント',
-        },
-        button: '{chars} を取得',
-        hint: '直近のリクエストログから、上流が返した {shape} の正常形態（暗号文 {blocks} ブロック、約 {chars} 文字）のターン状態を探してコピーします。形態は厳密に一致させます。個人アカウントと team アカウントの状態は入れ替えて注入できないため、ボタンを分けています。',
-        copied: '最も新しく発行された {shape} の有効なターン状態（{chars} 文字）をコピーしました。',
-        found:
-          '{shape} の有効なターン状態（{chars} 文字）が見つかりましたが、クリップボードを利用できません。ダイアログから手動でコピーしてください。',
-        detail:
-          '認証情報 {credential}・直近 {scanned} 件を走査し {total} 件が該当。',
-        spread:
-          '該当した {total} 件は {credentials} 個の認証情報にまたがっています。コピーしたのは最も新しく発行されたものです。特定のアカウントを指定するには、絞り込みで認証情報を選んでからもう一度実行してください。',
-        none: '直近の {scanned} 件のログに、{shape} の正常形態（{chars} 文字）のターン状態はありませんでした。',
+        scanning: 'スキャン中...',
+        triggerHint: '直近のログから上流が返した最新のターン状態を抽出してコピー',
+        toastCopied: '最新のターン状態をコピーしました（{chars} 文字 · {credential}）',
+        toastCopiedSpread:
+          '最新のターン状態をコピーしました（{chars} 文字 · {credential}、計 {total} 件 / {credentials} 個の認証情報）',
+        none: '直近 {scanned} 件のログに上流が返したターン状態は見つかりませんでした。',
         noLogs: '現在の絞り込み条件に一致するリクエストログがありません。',
         failed: '走査に失敗しました。しばらくしてから再試行してください。',
-        dismiss: '閉じる',
         unknownCredential: '不明な認証情報',
       },
       options: {
@@ -1313,29 +1292,8 @@ export default {
           length: '{count} 文字',
           blocks: '暗号文 {count} ブロック',
           blocksHint:
-            'Fernet 全体で {total} バイト = ヘッダ 9 + IV 16 + 暗号文 {cipher} + HMAC 32。AES-CBC は 16 バイト単位で PKCS7 パディングするため、平文は {min}〜{max} バイトの範囲です。ブロックが 1 つ増えたのは平文が 16 バイト境界を越えたという意味で、内容がちょうど 16 バイト増えたわけではありません。',
-          notFernet: 'Fernet 構造ではないためサイズを読めず、判定できません。',
-          verdict: {
-            normal: '正常',
-            suspect: '劣化の疑い',
-            unknown: '判定不可',
-          },
-          shape: {
-            individual: '個人アカウント',
-            team: 'team アカウント',
-          },
-          shapeSummary: '{shape} {blocks} ブロック / {chars} 文字',
-          shapeJoin: '、',
-          verdictHint: {
-            normal: '暗号文 {blocks} ブロックで、正常形態 {shape}（{chars} 文字）に一致します。',
-            suspect:
-              '暗号文のブロック数が既知の正常形態（{normal}）のいずれにも一致せず、劣化した要求と同じです。',
-            unknown: 'Fernet 構造ではないため、サイズからは判断できません。',
-          },
-          suspectAlert:
-            '今回のターン状態は既知の正常形態（{normal}）のいずれにも一致せず、劣化の疑いです。',
-          suspectNote:
-            '暗号文 {blocks} ブロックで、平文は {min}〜{max} バイトに収まります。既知の正常形態は {normal} です。劣化した値はそれぞれの基準にちょうど 1 ブロック多く、{degraded} 文字になります。ブロック数は平文を 16 バイトの幅にしか絞れないため、これは疑いであって確証ではありません。',
+            'Fernet 全体で {total} バイト = ヘッダ 9 + IV 16 + 暗号文 {cipher} + HMAC 32。AES-CBC は 16 バイト単位で PKCS7 パディングするため、平文は {min}〜{max} バイトの範囲です。',
+          notFernet: '有効な Fernet 構造ではありません。',
           copy: 'ターン状態をコピー',
         },
         usage: {

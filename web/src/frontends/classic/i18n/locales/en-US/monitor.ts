@@ -957,40 +957,19 @@ export default {
         filteredDescription: 'Adjust or reset the filters and try again.',
       },
       turnState: {
-        suspectBadge: '{chars} Suspect',
-        unknownBadge: '{chars} Non-Fernet',
-        normalBadge: '{chars}',
-        suspectTooltip:
-          'Turn state length is {chars} chars ({blocks} blocks), does not match normal baseline ({normal}). Suspected degradation.',
-        unknownTooltip: 'Turn state length is {chars} chars, not a valid Fernet token.',
-        normalTooltip:
-          'Turn state length is {chars} chars ({blocks} blocks), matches normal baseline ({shape}).',
+        tooltip: 'Turn state length is {chars} chars ({blocks} blocks)',
+        tooltipRaw: 'Turn state length is {chars} chars',
       },
       turnStatePick: {
-        trigger: 'Turn State',
-        triggerHint: 'Extract usable turn states (292 / 332 chars)',
-        menuTitle: 'Extract Turn State',
-        menuHint: 'Copy normal turn state for credential injection',
-        individualDesc: 'Individual account baseline',
-        teamDesc: 'Team account baseline',
-        toastCopied: 'Copied {shape} ({chars} chars) turn state',
-        shape: {
-          individual: 'individual',
-          team: 'team',
-        },
-        button: 'Grab {chars}',
-        hint: 'Scans recent request logs for a turn state returned by upstream that matches the normal {shape} shape ({blocks} cipher blocks, ~{chars} characters), then copies it. The shape is matched exactly — individual and team states are not interchangeable for injection, so each gets its own button.',
-        copied: 'Copied the most recently issued usable {shape} turn state ({chars} chars).',
-        found:
-          'Found a usable {shape} turn state ({chars} chars), but the clipboard is unavailable; copy it manually from the dialog.',
-        detail:
-          'from credential {credential} · scanned the {scanned} most recent logs, {total} usable.',
-        spread:
-          'Those {total} span {credentials} credentials; the one copied was issued most recently. To target a specific account, pick a credential in the filters and try again.',
-        none: 'None of the {scanned} recent logs carry a normal {shape} turn state ({chars} chars).',
+        trigger: 'Pick State',
+        scanning: 'Scanning...',
+        triggerHint: 'Extract and copy the latest upstream turn state from recent logs',
+        toastCopied: 'Copied latest turn state ({chars} chars · {credential})',
+        toastCopiedSpread:
+          'Copied latest turn state ({chars} chars · {credential}, {total} found across {credentials} credentials)',
+        none: 'None of the {scanned} recent logs carry an upstream turn state.',
         noLogs: 'No request logs match the current filters.',
         failed: 'Scan failed; try again in a moment.',
-        dismiss: 'Dismiss',
         unknownCredential: 'unknown credential',
       },
       options: {
@@ -1318,29 +1297,8 @@ export default {
           length: '{count} characters',
           blocks: '{count} cipher blocks',
           blocksHint:
-            'The Fernet envelope is {total} bytes = 9 header + 16 IV + {cipher} ciphertext + 32 HMAC. AES-CBC works in 16-byte blocks with PKCS7 padding, so the plaintext is between {min} and {max} bytes. One extra block only means the plaintext crossed a 16-byte boundary, not that it grew by exactly 16 bytes.',
-          notFernet: 'Not a Fernet envelope, so its size cannot be read or judged.',
-          verdict: {
-            normal: 'Normal',
-            suspect: 'Possibly degraded',
-            unknown: 'Cannot tell',
-          },
-          shape: {
-            individual: 'individual',
-            team: 'team',
-          },
-          shapeSummary: '{shape} {blocks} blocks / {chars} chars',
-          shapeJoin: ', ',
-          verdictHint: {
-            normal: '{blocks} cipher blocks — matches the {shape} shape ({chars} chars).',
-            suspect:
-              'The cipher block count matches none of the known normal shapes ({normal}), so it lines up with degraded requests.',
-            unknown: 'Not a Fernet envelope, so size tells us nothing here.',
-          },
-          suspectAlert:
-            'This turn state matches none of the known normal shapes ({normal}) — possibly a degraded request.',
-          suspectNote:
-            '{blocks} cipher blocks, plaintext between {min} and {max} bytes. The known normal shapes are {normal}; a degraded state adds exactly one block to whichever baseline applies, landing at {degraded} chars. Block count only brackets the plaintext to a 16-byte window, so treat this as a suspicion, not proof.',
+            'The Fernet envelope is {total} bytes = 9 header + 16 IV + {cipher} ciphertext + 32 HMAC. AES-CBC works in 16-byte blocks with PKCS7 padding, so the plaintext is between {min} and {max} bytes.',
+          notFernet: 'Not a valid Fernet envelope.',
           copy: 'Copy turn state',
         },
         usage: {

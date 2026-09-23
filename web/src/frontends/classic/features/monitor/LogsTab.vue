@@ -46,14 +46,6 @@ import {
   type LogFilterDraft,
   type LogFilterErrors,
 } from './log-filters'
-import {
-  codexTurnStateShapeOf,
-  codexTurnStateShapeOrder,
-  codexTurnStateShapes,
-  codexTurnStateVerdict,
-  type CodexTurnStateShape,
-  type CodexTurnStateVerdict,
-} from '@/lib/codex-turn-state'
 import { parseFernetToken } from '@/lib/fernet'
 import { formatCacheHitRate } from '@/lib/cache-rate'
 import {
@@ -699,28 +691,9 @@ function costLabel(log: RequestLogItemDto): string {
   return '—'
 }
 
-function turnStateShapeLabel(shape: CodexTurnStateShape): string {
-  return t(`monitor.logs.drawer.turnState.shape.${shape}`)
-}
-
-const turnStateNormalSummary = computed(() =>
-  codexTurnStateShapeOrder
-    .map((shape) =>
-      t('monitor.logs.drawer.turnState.shapeSummary', {
-        shape: turnStateShapeLabel(shape),
-        blocks: codexTurnStateShapes[shape].blocks,
-        chars: codexTurnStateShapes[shape].chars,
-      }),
-    )
-    .join(t('monitor.logs.drawer.turnState.shapeJoin')),
-)
-
 interface LogTurnStateSummary {
   hasTurnState: boolean
-  isSuspect: boolean
-  isNormal: boolean
   chars: number
-  label: string
   tooltip: string
 }
 
@@ -731,82 +704,20 @@ function logTurnStateSummary(log: RequestLogItemDto): LogTurnStateSummary {
   if (!primaryValue) {
     return {
       hasTurnState: false,
-      isSuspect: false,
-      isNormal: false,
       chars: 0,
-      label: '',
       tooltip: '',
     }
   }
 
-  const upstreamToken = upstreamValue ? parseFernetToken(upstreamValue) : null
-  const injectedToken = injectedValue ? parseFernetToken(injectedValue) : null
-
-  const upstreamVerdict = upstreamValue ? codexTurnStateVerdict(upstreamToken) : null
-  const injectedVerdict = injectedValue ? codexTurnStateVerdict(injectedToken) : null
-
-  let activeVerdict: CodexTurnStateVerdict = 'normal'
-  let activeValue = upstreamValue || injectedValue!
-  let activeToken = upstreamToken || injectedToken
-
-  if (upstreamVerdict === 'suspect' || injectedVerdict === 'suspect') {
-    activeVerdict = 'suspect'
-    if (upstreamVerdict === 'suspect') {
-      activeValue = upstreamValue!
-      activeToken = upstreamToken
-    } else {
-      activeValue = injectedValue!
-      activeToken = injectedToken
-    }
-  } else if (upstreamVerdict === 'unknown' || injectedVerdict === 'unknown') {
-    activeVerdict = 'unknown'
-    if (upstreamVerdict === 'unknown') {
-      activeValue = upstreamValue!
-      activeToken = upstreamToken
-    } else {
-      activeValue = injectedValue!
-      activeToken = injectedToken
-    }
-  } else {
-    activeVerdict = 'normal'
-    activeValue = upstreamValue || injectedValue!
-    activeToken = upstreamToken || injectedToken
-  }
-
-  const chars = activeValue.length
-  const shape = codexTurnStateShapeOf(activeToken)
-  const isSuspect = activeVerdict === 'suspect' || activeVerdict === 'unknown'
-  const isNormal = activeVerdict === 'normal'
-
-  let label = ''
-  let tooltip = ''
-
-  if (activeVerdict === 'suspect') {
-    label = t('monitor.logs.turnState.suspectBadge', { chars })
-    tooltip = t('monitor.logs.turnState.suspectTooltip', {
-      chars,
-      blocks: activeToken?.blocks ?? '—',
-      normal: turnStateNormalSummary.value,
-    })
-  } else if (activeVerdict === 'unknown') {
-    label = t('monitor.logs.turnState.unknownBadge', { chars })
-    tooltip = t('monitor.logs.turnState.unknownTooltip', { chars })
-  } else {
-    label = String(chars)
-    const shapeText = shape ? turnStateShapeLabel(shape) : ''
-    tooltip = t('monitor.logs.turnState.normalTooltip', {
-      chars,
-      blocks: activeToken?.blocks ?? '—',
-      shape: shapeText,
-    })
-  }
+  const chars = primaryValue.length
+  const token = parseFernetToken(primaryValue)
+  const tooltip = token
+    ? t('monitor.logs.turnState.tooltip', { chars, blocks: token.blocks })
+    : t('monitor.logs.turnState.tooltipRaw', { chars })
 
   return {
     hasTurnState: true,
-    isSuspect,
-    isNormal,
     chars,
-    label,
     tooltip,
   }
 }
@@ -909,7 +820,6 @@ function logTurnStateSummary(log: RequestLogItemDto): LogTurnStateSummary {
           :key="log.request_id"
           class="ledger-record-list__record logs-list__record"
           :class="{
-            'logs-list__record--suspect-turn-state': logTurnStateSummary(log).isSuspect,
             'logs-list__record--model-mismatch': log.model_consistency === 'mismatch',
           }"
           role="row"
@@ -1027,11 +937,15 @@ function logTurnStateSummary(log: RequestLogItemDto): LogTurnStateSummary {
                 <span class="logs-list__model-mismatch-badge">
                   <TriangleAlert :size="11" aria-hidden="true" />
                   <span class="logs-list__model-mismatch-arrow">↳</span>
-                  <span class="logs-list__model-mismatch-text">{{ log.upstream_reported_model }}</span>
+                  <span class="logs-list__model-mismatch-text">{{
+                    log.upstream_reported_model
+                  }}</span>
                 </span>
               </AppTooltip>
               <AppTooltip
-                v-else-if="log.model_consistency === 'unknown' || log.model_consistency === 'mismatch'"
+                v-else-if="
+                  log.model_consistency === 'unknown' || log.model_consistency === 'mismatch'
+                "
                 :content="modelConsistencyTooltip(log)"
               >
                 <button
@@ -1058,22 +972,10 @@ function logTurnStateSummary(log: RequestLogItemDto): LogTurnStateSummary {
                 :client-protocol="log.protocol"
                 :upstream-protocol="log.upstream_protocol"
               />
-              <span
-                v-if="logTurnStateSummary(log).hasTurnState"
-                class="logs-list__turn-state"
-                :class="{
-                  'logs-list__turn-state--suspect': logTurnStateSummary(log).isSuspect,
-                  'logs-list__turn-state--normal': logTurnStateSummary(log).isNormal,
-                }"
-              >
+              <span v-if="logTurnStateSummary(log).hasTurnState" class="logs-list__turn-state">
                 <AppTooltip :content="logTurnStateSummary(log).tooltip">
                   <span class="logs-list__turn-state-badge">
-                    <TriangleAlert
-                      v-if="logTurnStateSummary(log).isSuspect"
-                      :size="12"
-                      aria-hidden="true"
-                    />
-                    {{ logTurnStateSummary(log).label }}
+                    {{ logTurnStateSummary(log).chars }}
                   </span>
                 </AppTooltip>
               </span>
@@ -1471,26 +1373,6 @@ function logTurnStateSummary(log: RequestLogItemDto): LogTurnStateSummary {
   justify-self: end;
 }
 
-/* 疑似降智行：左侧警示色竖条 + 柔和高亮底色，列表扫视时极醒目 */
-.logs-list__record--suspect-turn-state {
-  background: color-mix(in srgb, var(--color-warning-bg) 65%, transparent);
-}
-
-.logs-list__record--suspect-turn-state::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 4px;
-  background-color: var(--color-warning);
-  border-radius: 2px 0 0 2px;
-}
-
-.logs-list__record--suspect-turn-state:hover {
-  background: color-mix(in srgb, var(--color-warning-bg) 85%, transparent);
-}
-
 /* 模型不一致/降级行：左侧警示色竖条 + 柔和高亮底色，列表扫视时极醒目 */
 .logs-list__record--model-mismatch {
   background: color-mix(in srgb, var(--color-warning-bg) 65%, transparent);
@@ -1549,23 +1431,6 @@ function logTurnStateSummary(log: RequestLogItemDto): LogTurnStateSummary {
 .logs-list__turn-state-badge {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
-  cursor: help;
-  line-height: 1.2;
-}
-
-.logs-list__turn-state--suspect .logs-list__turn-state-badge {
-  border-radius: var(--radius-tag);
-  background: var(--color-warning-bg);
-  border: 1px solid var(--color-warning);
-  color: var(--color-warning);
-  font-size: var(--text-label-xs);
-  font-weight: 700;
-  padding: 1px 6px;
-  font-family: var(--font-mono);
-}
-
-.logs-list__turn-state--normal .logs-list__turn-state-badge {
   border-radius: var(--radius-tag);
   background: var(--color-surface-raised);
   color: var(--color-text-muted);
@@ -1573,6 +1438,8 @@ function logTurnStateSummary(log: RequestLogItemDto): LogTurnStateSummary {
   font-weight: 500;
   padding: 0 5px;
   font-family: var(--font-mono);
+  cursor: help;
+  line-height: 1.2;
 }
 
 .logs-tab :deep(.status-badge) {

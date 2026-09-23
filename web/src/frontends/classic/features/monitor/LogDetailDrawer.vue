@@ -23,14 +23,6 @@ import OverflowTooltip from '@/components/ui/OverflowTooltip.vue'
 import QueryFeedback from '@/components/ui/QueryFeedback.vue'
 import SkeletonSurface from '@/components/ui/SkeletonSurface.vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
-import {
-  codexTurnStateShapeOf,
-  codexTurnStateShapeOrder,
-  codexTurnStateShapes,
-  codexTurnStateVerdict,
-  type CodexTurnStateShape,
-  type CodexTurnStateVerdict,
-} from '@/lib/codex-turn-state'
 import { parseFernetToken, type FernetToken } from '@/lib/fernet'
 import { formatEstimatedCost, formatExactNanoUSD, formatPercent } from '@/lib/format'
 
@@ -85,12 +77,7 @@ const turnStates = computed(() => {
     kind: 'injected' | 'observed'
     value: string
     sequences: number[]
-    // 密文体积是这段值里唯一不用密钥就能比较的形状。块数变了说明上游塞进去的内容跨过
-    // 了一次 16 字节边界，是个可以横向比对的线索，所以顺手标出来。
     fernet: FernetToken | null
-    /** 命中的正常形态（个人号 / team 号）；对不上任何一种就是 null。 */
-    shape: CodexTurnStateShape | null
-    verdict: CodexTurnStateVerdict
   }[] = []
   function collect(kind: 'injected' | 'observed'): void {
     for (const attempt of log.value?.attempts ?? []) {
@@ -107,8 +94,6 @@ const turnStates = computed(() => {
         value,
         sequences: [attempt.sequence],
         fernet,
-        shape: codexTurnStateShapeOf(fernet),
-        verdict: codexTurnStateVerdict(fernet),
       })
     }
   }
@@ -116,49 +101,9 @@ const turnStates = computed(() => {
   collect('observed')
   return groups
 })
-function turnStateShapeLabel(shape: CodexTurnStateShape): string {
-  return t(`monitor.logs.drawer.turnState.shape.${shape}`)
-}
-// 说明文案里要把两种正常形态一起列出来，别让人以为只有 292 那一种算正常。
-const turnStateNormalSummary = computed(() =>
-  codexTurnStateShapeOrder
-    .map((shape) =>
-      t('monitor.logs.drawer.turnState.shapeSummary', {
-        shape: turnStateShapeLabel(shape),
-        blocks: codexTurnStateShapes[shape].blocks,
-        chars: codexTurnStateShapes[shape].chars,
-      }),
-    )
-    .join(t('monitor.logs.drawer.turnState.shapeJoin')),
-)
-const turnStateDegradedSummary = computed(() =>
-  codexTurnStateShapeOrder
-    .map((shape) => String(codexTurnStateShapes[shape].degradedChars))
-    .join(t('monitor.logs.drawer.turnState.shapeJoin')),
-)
-function turnStateVerdictHint(entry: {
-  verdict: CodexTurnStateVerdict
-  shape: CodexTurnStateShape | null
-  fernet: FernetToken | null
-}): string {
-  if (entry.verdict === 'normal' && entry.shape !== null && entry.fernet !== null) {
-    return t('monitor.logs.drawer.turnState.verdictHint.normal', {
-      blocks: entry.fernet.blocks,
-      shape: turnStateShapeLabel(entry.shape),
-      chars: codexTurnStateShapes[entry.shape].chars,
-    })
-  }
-  return t(`monitor.logs.drawer.turnState.verdictHint.${entry.verdict}`, {
-    normal: turnStateNormalSummary.value,
-  })
-}
 function turnStateSources(sequences: number[]): string {
   return sequences.map((sequence) => `#${sequence}`).join(' · ')
 }
-// 整段只要有一条超出基线就在小节顶部挑明，省得抽屉拉长以后把那条徽章翻漏了。
-const turnStateSuspect = computed(() =>
-  turnStates.value.some((entry) => entry.verdict === 'suspect'),
-)
 const mainErrorMessage = computed(() => log.value?.error_summary ?? '')
 const mainErrorCode = computed(() => log.value?.error_code ?? '')
 const drawerDescription = computed(() =>
@@ -830,29 +775,10 @@ function toggleAttemptErrorMessage(sequence: number): void {
       >
         <h3>{{ t('monitor.logs.drawer.turnState.title') }}</h3>
         <p class="log-turn-state__hint">{{ t('monitor.logs.drawer.turnState.hint') }}</p>
-        <p v-if="turnStateSuspect" class="log-turn-state__alert">
-          {{ t('monitor.logs.drawer.turnState.suspectAlert', { normal: turnStateNormalSummary }) }}
-        </p>
-        <div
-          v-for="entry in turnStates"
-          :key="entry.kind + entry.value"
-          class="log-turn-state"
-          :class="`log-turn-state--${entry.verdict}`"
-        >
+        <div v-for="entry in turnStates" :key="entry.kind + entry.value" class="log-turn-state">
           <div class="log-turn-state__head">
             <span class="log-turn-state__kind" :class="`log-turn-state__kind--${entry.kind}`">
               {{ t(`monitor.logs.drawer.turnState.${entry.kind}`) }}
-            </span>
-            <span
-              class="log-turn-state__verdict"
-              :class="`log-turn-state__verdict--${entry.verdict}`"
-              :title="turnStateVerdictHint(entry)"
-            >
-              {{ t(`monitor.logs.drawer.turnState.verdict.${entry.verdict}`) }}
-            </span>
-            <!-- 正常也分两种，把命中的那种标出来，省得 team 号的状态被当成异常体积。 -->
-            <span v-if="entry.shape !== null" class="log-turn-state__shape">
-              {{ turnStateShapeLabel(entry.shape) }}
             </span>
             <span
               v-if="entry.fernet !== null"
@@ -885,22 +811,7 @@ function toggleAttemptErrorMessage(sequence: number): void {
               :failure-label="t('common.copyFailed')"
             />
           </div>
-          <!-- 判据与它的边界写在一起：徽章给结论，这行给出结论是怎么来的、有多硬。 -->
-          <p
-            v-if="entry.verdict === 'suspect' && entry.fernet !== null"
-            class="log-turn-state__note log-turn-state__note--suspect"
-          >
-            {{
-              t('monitor.logs.drawer.turnState.suspectNote', {
-                blocks: entry.fernet.blocks,
-                min: entry.fernet.plaintextMinBytes,
-                max: entry.fernet.plaintextMaxBytes,
-                normal: turnStateNormalSummary,
-                degraded: turnStateDegradedSummary,
-              })
-            }}
-          </p>
-          <p v-else-if="entry.verdict === 'unknown'" class="log-turn-state__note">
+          <p v-if="entry.fernet === null" class="log-turn-state__note">
             {{ t('monitor.logs.drawer.turnState.notFernet') }}
           </p>
           <code class="log-turn-state__value">{{ entry.value }}</code>
@@ -1265,11 +1176,6 @@ function toggleAttemptErrorMessage(sequence: number): void {
   padding: 8px 10px;
 }
 
-.log-turn-state--suspect {
-  border-color: var(--color-warning);
-  background: var(--color-warning-bg);
-}
-
 .log-turn-state__head {
   display: flex;
   flex-wrap: wrap;
@@ -1282,21 +1188,9 @@ function toggleAttemptErrorMessage(sequence: number): void {
 .log-turn-state__length {
   color: var(--color-text-muted);
   font-size: var(--text-sm);
-  /* 重试多了以后来源会列出一长串序号，窄屏里得允许它从中间断开。 */
   overflow-wrap: anywhere;
 }
 
-/* 形态标签跟判定徽章并排，但压低音量——它是补充说明，不是结论。 */
-.log-turn-state__shape {
-  border-radius: var(--radius-tag);
-  background: var(--color-surface-raised);
-  color: var(--color-text-muted);
-  padding: 1px 8px;
-  font-size: var(--text-label-xs);
-  font-weight: 650;
-}
-
-/* 块数是要横向比对的数字，等宽 + 加重，方便在几条记录之间一眼扫出差异。 */
 .log-turn-state__blocks {
   color: var(--color-text);
   font-family: var(--font-mono);
@@ -1305,39 +1199,11 @@ function toggleAttemptErrorMessage(sequence: number): void {
   cursor: help;
 }
 
-/* 判定与「注入 / 回带」并排，共用徽章形状——一个说方向，一个说结论。 */
-.log-turn-state__verdict {
-  border-radius: var(--radius-tag);
-  padding: 1px 8px;
-  font-size: var(--text-label-xs);
-  font-weight: 650;
-  cursor: help;
-}
-
-.log-turn-state__verdict--normal {
-  background: var(--color-success-bg);
-  color: var(--color-success);
-}
-
-.log-turn-state__verdict--suspect {
-  background: var(--color-danger-bg);
-  color: var(--color-danger);
-}
-
-.log-turn-state__verdict--unknown {
-  background: var(--color-surface-raised);
-  color: var(--color-text-faint);
-}
-
 .log-turn-state__note {
   margin: 0;
   color: var(--color-text-muted);
   font-size: var(--text-sm);
   line-height: 1.55;
-}
-
-.log-turn-state__note--suspect {
-  color: var(--color-warning);
 }
 
 /* 「注入 / 回带」是这一段最先要读到的信息，用徽章把两个方向拉开距离。 */

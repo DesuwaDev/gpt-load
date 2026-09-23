@@ -1,5 +1,4 @@
 import type { RequestLogDetailDto } from '@/app/resources/request-logs'
-import { codexTurnStateShapeOf, type CodexTurnStateShape } from '@/lib/codex-turn-state'
 import { parseFernetToken } from '@/lib/fernet'
 
 export interface TurnStateCandidate {
@@ -12,14 +11,12 @@ export interface TurnStateCandidate {
 }
 
 /**
- * 从日志详情里挑出可用的轮次状态。门槛：
+ * 从日志详情里挑出可用的轮次状态。
  * 只看上游回带的值——注入值是我们自己塞进去的，复制它等于把旧值再抄一遍；
- * 必须能读出 Fernet 封装；块数要正好命中 shape 指定的那种正常形态。
- * 形态是精确匹配而不是「不降智就行」：个人号和 team 号的状态不能互换着注入。
+ * 必须能读出 Fernet 封装。按签发时刻从新到旧排，排在最前的那条是最新签发的。
  */
 export function collectTurnStateCandidates(
   logs: readonly RequestLogDetailDto[],
-  shape: CodexTurnStateShape,
 ): TurnStateCandidate[] {
   const seen = new Set<string>()
   const candidates: TurnStateCandidate[] = []
@@ -28,7 +25,7 @@ export function collectTurnStateCandidates(
       const value = attempt.upstream_turn_state
       if (!value || seen.has(value)) continue
       const token = parseFernetToken(value)
-      if (token === null || codexTurnStateShapeOf(token) !== shape) continue
+      if (token === null) continue
       seen.add(value)
       candidates.push({
         value,

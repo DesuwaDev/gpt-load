@@ -921,39 +921,19 @@ export default {
         filteredDescription: '调整或重置筛选条件后重试。',
       },
       turnState: {
-        suspectBadge: '{chars} 疑似降智',
-        unknownBadge: '{chars} 非 Fernet',
-        normalBadge: '{chars}',
-        suspectTooltip:
-          '轮次状态长度 {chars} 字符（{blocks} 块），未匹配正常基线（{normal}），疑似降智。',
-        unknownTooltip: '轮次状态长度 {chars} 字符，非有效 Fernet 结构。',
-        normalTooltip: '轮次状态长度 {chars} 字符（{blocks} 块），符合正常基线（{shape}）。',
+        tooltip: '轮次状态长度 {chars} 字符（{blocks} 块密文）',
+        tooltipRaw: '轮次状态长度 {chars} 字符',
       },
       turnStatePick: {
         trigger: '取状态',
-        triggerHint: '从最近日志中提取可用轮次状态（292 / 332 字符）',
-        menuTitle: '提取轮次状态',
-        menuHint: '取上游回带的正常状态用于凭据注入',
-        individualDesc: '个人账号基线',
-        teamDesc: 'Team 账号基线',
-        toastCopied: '已复制 {shape}（{chars} 字符）轮次状态',
-        shape: {
-          individual: '个人号',
-          team: 'team 号',
-        },
-        button: '取 {chars}',
-        hint: '扫描最近的请求日志，找出上游回带的 {shape} 正常轮次状态（{blocks} 块密文、{chars} 字符）并复制。形态是精确匹配：个人号和 team 号的状态不能互换着注入，所以两种各有一个按钮。',
-        copied: '已复制签发最新的那条 {shape} 可用轮次状态（{chars} 字符）。',
-        found:
-          '找到了 {shape} 的可用轮次状态（{chars} 字符），但剪贴板用不了；请在弹窗里手动复制。',
-        detail:
-          '来自凭据 {credential} · 翻了最近 {scanned} 条日志，命中 {total} 条。',
-        spread:
-          '这 {total} 条分属 {credentials} 个凭据，复制的是签发最新的那条。要指定账号，先在筛选里选定凭据再点一次。',
-        none: '最近的 {scanned} 条日志里，没有找到 {shape} 正常轮次状态（{chars} 字符）。',
+        scanning: '正在扫描...',
+        triggerHint: '从最近日志中提取上游回带的最新轮次状态并复制',
+        toastCopied: '已复制最新轮次状态（{chars} 字符 · {credential}）',
+        toastCopiedSpread:
+          '已复制最新轮次状态（{chars} 字符 · {credential}，共命中 {total} 条，分布在 {credentials} 个凭据）',
+        none: '最近的 {scanned} 条日志里，未找到上游回带的可用轮次状态。',
         noLogs: '没有符合当前筛选的请求日志。',
         failed: '扫描失败，稍后再试。',
-        dismiss: '关闭提示',
         unknownCredential: '未知凭据',
       },
       options: {
@@ -1283,27 +1263,8 @@ export default {
           length: '{count} 字符',
           blocks: '密文 {count} 块',
           blocksHint:
-            'Fernet 封装共 {total} 字节 = 9 头部 + 16 IV + {cipher} 密文 + 32 HMAC。AES-CBC 按 16 字节分块、PKCS7 填充，所以明文在 {min}–{max} 字节之间；块数多一块只说明明文跨过了一次 16 字节边界，不等于内容正好多 16 字节。',
-          notFernet: '非 Fernet 结构，读不出体积，无法判定。',
-          verdict: {
-            normal: '正常',
-            suspect: '疑似降智',
-            unknown: '无法判定',
-          },
-          shape: {
-            individual: '个人号',
-            team: 'team 号',
-          },
-          shapeSummary: '{shape} {blocks} 块 / {chars} 字符',
-          shapeJoin: '、',
-          verdictHint: {
-            normal: '密文 {blocks} 块，命中正常形态：{shape}（{chars} 字符）。',
-            suspect: '密文块数不在已知的正常形态里（{normal}），体积与降智请求一致。',
-            unknown: '读不出 Fernet 结构，没法从体积上判断。',
-          },
-          suspectAlert: '本次的轮次状态块数不在已知的正常形态里（{normal}），疑似降智。',
-          suspectNote:
-            '密文 {blocks} 块，明文落在 {min}–{max} 字节。已知的正常形态是 {normal}；降智的那条在各自基线上恰好多一块，也就是 {degraded} 字符。块数只能把明文框进 16 字节的窗口，所以这是疑似判据，不是确证。',
+            'Fernet 封装共 {total} 字节 = 9 头部 + 16 IV + {cipher} 密文 + 32 HMAC。AES-CBC 按 16 字节分块、PKCS7 填充，所以明文在 {min}–{max} 字节之间。',
+          notFernet: '非有效 Fernet 结构。',
           copy: '复制轮次状态',
         },
         usage: {
