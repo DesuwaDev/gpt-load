@@ -876,6 +876,7 @@ type streamGatewayGroup struct {
 	alias       string
 	firstByte   time.Duration
 	streamIdle  time.Duration
+	emptyRetry  bool
 }
 
 func newStreamingGatewayEngine(t *testing.T, groups ...streamGatewayGroup) (*gin.Engine, *state.CredentialRegistry) {
@@ -921,6 +922,7 @@ func newStreamingGatewayEngine(t *testing.T, groups ...streamGatewayGroup) (*gin
 		if group.streamIdle > 0 {
 			view.Timeouts.StreamIdle = group.streamIdle
 		}
+		view.EmptyResponseRetry = group.emptyRetry
 		snapshot.Groups[group.id] = view
 	}
 

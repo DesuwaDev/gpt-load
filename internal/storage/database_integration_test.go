@@ -163,9 +163,10 @@ func TestExternalDatabaseLifecycle(t *testing.T) {
 		"0027_auto_decision_attribution",
 		"0028_client_model_overrides",
 		"0029_request_audit",
+		"0030_rpm_stats",
 	}
 	if !slices.Equal(migrationIDs, wantMigrationIDs) {
-		t.Fatalf("migration ledger = %v, want complete 0001-0029 chain", migrationIDs)
+		t.Fatalf("migration ledger = %v, want complete 0001-0030 chain", migrationIDs)
 	}
 	if !db.Migrator().HasIndex("usage_stats", "idx_usage_stats_group_bucket") {
 		t.Fatal("usage_stats group activity index is missing")

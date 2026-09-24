@@ -64,6 +64,9 @@ type ForwardInput struct {
 	CodexTurnState string
 	// CodexTurnStateModels 把注入限定在指定模型上，逗号分隔，空串表示不限模型。
 	CodexTurnStateModels string
+	// EmptyResponseRetry 启用空回检测：提交前压住尚无产出的前导事件，
+	// 使「上游正常完成但没有内容」仍可换候选重试。
+	EmptyResponseRetry bool
 }
 
 // ResolvedCodexTurnState 给出本次尝试真正会注入的 X-Codex-Turn-State，空串表示不
@@ -137,6 +140,7 @@ type UpstreamResult struct {
 	RequestWritten            bool
 	Committed                 bool
 	ProviderErrorBeforeCommit bool
+	EmptyResponseBeforeCommit bool
 	Stream                    StreamObservation
 	Usage                     usage.Result
 	DispatchState             execution.DispatchState
