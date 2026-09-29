@@ -131,28 +131,36 @@ When working over SSH or from a remote browser, the browser's `localhost` may no
 
 ### Client protocols
 
-| Protocol                | Main entry                             |
-| ----------------------- | -------------------------------------- |
-| OpenAI Chat Completions | `POST /v1/chat/completions`            |
-| OpenAI Responses        | `/v1/responses` and its resource paths |
-| OpenAI Images           | `POST /v1/images/...`                  |
-| OpenAI Embeddings       | `POST /v1/embeddings`                  |
-| Rerank                  | `POST /v1/rerank`                      |
-| Anthropic Messages      | `POST /v1/messages`                    |
-| Gemini                  | `/v1beta/models/...`                   |
-
-Each channel declares exactly which protocols and capabilities it can execute. GPT-Load converts between supported capabilities, but it is not a general-purpose any-protocol, any-JSON translator.
-
-Embeddings initially uses the native OpenAI-compatible wire only on the OpenAI, OpenRouter, and OpenAI Compatible API-key channels; subscription channels and protocol conversion are not supported. An AccessKey without a protocol filter keeps its existing “all enabled protocols” behavior and therefore gains Embeddings access after upgrade. Least-privilege deployments should configure an explicit protocol filter.
-
-Rerank uses the independent `rerank` protocol through `POST /v1/rerank` on the OpenAI Compatible, New API, and GPT-Load API-key channels. Requests contain `model`, `query`, and a text-only `documents` array, with optional upstream parameters such as `top_n` and `return_documents`. Streaming, subscription channels, and protocol conversion are not supported. OpenAI Compatible takes a complete API prefix (for example, `https://host/v1`); New API / GPT-Load take the gateway root. The upstream must implement a compatible Rerank endpoint. AccessKeys without a protocol filter also gain Rerank access. Responses containing only non-token units such as `search_units` remain unpriced; these units are not treated as tokens or free requests.
+| Protocol                | Main entry                                                         |
+| ----------------------- | ------------------------------------------------------------------ |
+| OpenAI Chat Completions | `POST /v1/chat/completions`                                        |
+| OpenAI Responses        | `/v1/responses` and its resource paths                             |
+| OpenAI Images           | `POST /v1/images/...`                                              |
+| OpenAI Embeddings       | `POST /v1/embeddings`                                              |
+| Rerank                  | `POST /v1/rerank`                                                  |
+| Mistral native          | `/v1/ocr`, `/v1/audio/...` |
+| Anthropic Messages      | `POST /v1/messages`                                                |
+| Gemini                  | `/v1beta/models/...`                                               |
+| Gemini Embeddings       | `POST /v1beta/models/{model}:embedContent` / `:batchEmbedContents` |
 
 ### Built-in channels
 
 - **Official and cloud** — OpenAI, Anthropic, Gemini, xAI, Azure OpenAI, AWS Bedrock, Google Vertex AI
-- **Model services** — DeepSeek, Moonshot AI, SiliconFlow, Zhipu AI, Alibaba, Volcengine, OpenRouter, Groq
+- **Model services** — DeepSeek, Moonshot AI, SiliconFlow, Zhipu AI, Alibaba, Volcengine, OpenRouter, Cline, Groq, Cerebras, Mistral, Nebius, Parasail, Wafer, Hugging Face (Chat), Cohere (text reranking), OpenCode Go, OpenCode Zen
 - **Subscription** — Codex, Claude, Antigravity, Grok
 - **Custom** — OpenAI Compatible (any compatible relay)
+
+### Parameter overrides and protocol conversion
+
+Group parameter overrides run before protocol conversion. Use client-protocol names for ordinary parameters: the SDK converts Responses `max_output_tokens` to Anthropic `max_tokens`, for example. For Bifrost conversation conversions, top-level fields explicitly set by an override but absent from the SDK's client request schema are supplied as SDK extra parameters. The SDK still determines whether the target protocol supports them; arbitrary parameter passthrough is not enabled. Unknown client-supplied fields are not automatically forwarded, and existing content-block cache markers retain their behavior.
+
+For example, configure an Anthropic group to supply top-level caching for Responses requests:
+
+```json
+[{"match":{"protocol":"openai-responses"},"set":{"cache_control":{"type":"ephemeral"}}}]
+```
+
+This forwards the cache configuration without guaranteeing an upstream cache hit.
 
 ## Deployment and data
 
@@ -237,21 +245,6 @@ At startup, the application reads `.env` in the current directory; existing proc
 Environment proxies apply only when no proxy is specified on the credential, group, or global settings.
 
 </details>
-
-## Production considerations
-
-- The service listens on `127.0.0.1` only by default. For remote access, expose it through a controlled network or a TLS reverse proxy, and configure ACLs and firewall rules.
-- Manage `AUTH_KEY` and `ENCRYPTION_KEY` carefully. Never commit real keys to a repository, log, screenshot, or public issue.
-- 2.0 is designed for a **single application instance**. Instances do not share state, so horizontal scaling is not supported.
-- Usage and cost are **estimates** derived from upstream responses. They support operational analysis and capacity planning, and do not equal a provider invoice or a financial reconciliation.
-- Subscription channels depend on upstream OAuth and compatibility protocols and may change as upstreams change. Only connect accounts you are entitled to use, and follow each provider's terms.
-- HTTP Responses continuation with `previous_response_id` automatically uses native Responses routes that declare upstream-managed storage: currently `openai`, `gpt_load`, `xai`, `newapi`, `cliproxyapi`, and `sub2api`. Ownership is isolated by AccessKey and pins the original credential when current routing permits, independently of soft affinity; actual state availability depends on the upstream. Stateless and converted responses are not registered as persistent state. Unknown IDs, including IDs created before upgrading or outside this gateway, are rejected. Group parameter overrides cannot change this field.
-- Native Responses WebSocket uses `GET /v1/responses` on the same port. Admission follows declared upstream capabilities for OpenAI, xAI, Codex, and compatible native CPA/sub2api and GPT-Load endpoints. Clients may include the boolean `stream:true/false`; both values still use the WS event stream. Each turn checks current permissions, rate and cost limits, and routing, with separate usage and cost records. One connection keeps one upstream identity; there is no HTTP fallback or conversation-history replay.
-- `responses_websocket_enabled` defaults to enabled. An explicit group setting overrides the global value; otherwise the group inherits it. Disabling immediately closes affected WS connections and interrupts generation without affecting HTTP/SSE. Re-enabling does not restore the old connection's temporary state.
-- `empty_response_retry` defaults to disabled. An explicit group setting overrides the global value. When enabled, a streaming chat request is checked for produced content before it is committed downstream: if upstream finishes naturally without producing anything, the attempt counts as a failure and the next candidate is tried, without cooling down or blacklisting the credential. Once retries are exhausted the upstream empty response is still delivered as-is. Empty results explained by their stop reason, such as an exhausted output budget, a content filter or a refusal, are delivered without retrying. Prewarm requests (`generate:false`), requests carrying `previous_response_id` or `conversation`, non-chat endpoints and WebSocket are all exempt; when upstream keeps emitting events without content, the response is committed at a built-in limit rather than held indefinitely. Retried empty attempts are still billed upstream, but usage and cost estimates only record the attempt that was finally delivered.
-- Full `stream_id` multiplexing and forks are enabled for OpenAI and GPT-Load cascades that support them end to end. The other channels above run serially and reject named streams. Prewarming sends `generate:false` upstream. Codex continuation requires the original live connection: `store:true` and restoration by an old ID on a new connection are unsupported. Persistent continuation on other channels depends on storage capabilities and valid ownership. Existing [Codex SDK proxy, reading, and shutdown limits](third_party/cpaembedded/README.md#codex-websocket-session) still apply.
-- Response bindings stay in memory for up to 30 days, with limits of 100,000 entries and 16 MiB of ID text; older entries are evicted when capacity is reached. A successful checkpoint during normal shutdown allows restoration from the same data directory. Crash recovery and continued upstream state availability are not guaranteed.
-- `conversation` and other existing resource IDs are outside this ownership routing scope and still depend on a single credential or upstream resource sharing across credentials.
 
 ## Moving from 1.x
 

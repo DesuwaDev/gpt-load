@@ -48,6 +48,10 @@ func standardRequest(
 		selected = NewRerank()
 		request.Path = rerankPath
 		body = map[string]any{"model": model, "query": "ping", "documents": []string{"ping"}, "top_n": 1}
+	case protocol.Mistral:
+		selected = NewMistral()
+		request.Path = "/v1/ocr"
+		body = map[string]any{"model": model}
 	case protocol.Decisions:
 		selected = NewDecisions()
 		request.Path = decisionsPath
@@ -69,6 +73,10 @@ func standardRequest(
 		selected = NewGemini()
 		request.Path = geminiGenerationPrefix + model + geminiGenerateSuffix
 		body = map[string]any{}
+	case protocol.GeminiEmbeddings:
+		selected = NewGeminiEmbeddings()
+		request.Path = geminiGenerationPrefix + model + geminiEmbedContentSuffix
+		body = map[string]any{"content": map[string]any{"parts": []any{}}}
 	default:
 		return nil, nil, fmt.Errorf("unsupported data protocol %q", clientProtocol)
 	}

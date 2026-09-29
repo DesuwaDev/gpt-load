@@ -56,6 +56,7 @@ const knownReasons = new Set<RouteInspectReasonCode>([
   'operation_unsupported',
   'native_route_required',
   'no_route_target',
+  'codex_live_disabled',
   'group_disabled',
   'group_filtered',
   'no_available_group',
@@ -283,9 +284,11 @@ function validatedRequest(): RouteInspectRequest | undefined {
     errors.protocol = 'monitor.inspector.errors.protocol'
   }
   if (
-    draftModel.value === '' ||
-    !isValidMonitorText(draftModel.value) ||
-    !configuredModels.value.includes(draftModel.value)
+    draftProtocol.value === 'codex-live'
+      ? draftModel.value !== '' && !isValidMonitorText(draftModel.value)
+      : draftModel.value === '' ||
+        !isValidMonitorText(draftModel.value) ||
+        !configuredModels.value.includes(draftModel.value)
   ) {
     errors.externalModel = 'monitor.inspector.errors.model'
   }

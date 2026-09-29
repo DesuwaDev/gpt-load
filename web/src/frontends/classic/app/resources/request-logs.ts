@@ -60,6 +60,16 @@ export type RequestLogOperation =
   | 'embeddings_create'
   | 'rerank'
   | 'decisions_create'
+  | 'mistral_ocr'
+  | 'mistral_fim'
+  | 'mistral_audio_transcription'
+  | 'mistral_audio_speech'
+  | 'mistral_moderation'
+  | 'mistral_chat_moderation'
+  | 'mistral_classification'
+  | 'mistral_voices'
+  | 'mistral_realtime_transcription'
+  | 'live_call'
   | 'list_models'
   | 'probe'
 export type RequestLogRouteMode = 'native' | 'converted'
@@ -80,7 +90,7 @@ export interface RequestLogFilters {
   upstream_model?: string
   access_key_id?: number
   status?: RequestLogStatus
-  audit_status?: 'warned' | 'blocked' | 'incomplete'
+  audit_status?: 'warned' | 'blocked' | 'failed'
   audit_rule?: string
   request_id?: string
   protocol?: AccessProtocol
@@ -297,6 +307,16 @@ const operations = [
   'embeddings_create',
   'rerank',
   'decisions_create',
+  'mistral_ocr',
+  'mistral_fim',
+  'mistral_audio_transcription',
+  'mistral_audio_speech',
+  'mistral_moderation',
+  'mistral_chat_moderation',
+  'mistral_classification',
+  'mistral_voices',
+  'mistral_realtime_transcription',
+  'live_call',
   'list_models',
   'probe',
 ] as const

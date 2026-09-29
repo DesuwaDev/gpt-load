@@ -20,7 +20,7 @@ func (manager *RuntimeManager) ValidateRouteCapability(
 	}
 	if _, sdkBacked := sdkProviderSpecFor(providerKind); !sdkBacked &&
 		providerKind != channel.ProviderOpenAICompatible && providerKind != channel.ProviderMultiProtocolGateway &&
-		providerKind != channel.ProviderJev {
+		providerKind != channel.ProviderJev && providerKind != channel.ProviderCline {
 		return fmt.Errorf("provider is not implemented by Bifrost")
 	}
 	if route.RouteMode == execution.RouteConverted {
@@ -39,6 +39,8 @@ func convertedRouteImplemented(providerKind channel.ProviderKind, clientProtocol
 	switch operation {
 	case execution.OperationImagesGenerate:
 		return providerKind == channel.ProviderGemini && clientProtocol == protocol.OpenAIImages
+	case execution.OperationEmbeddingsCreate:
+		return providerKind == channel.ProviderGemini && clientProtocol == protocol.OpenAIEmbeddings
 	case execution.OperationListModels:
 		return clientProtocol != protocol.OpenAIResponses && clientProtocol != protocol.Rerank &&
 			clientProtocol != protocol.Decisions && clientProtocol.Valid()
@@ -75,6 +77,8 @@ func nativeRouteImplemented(
 		return (providerKind == channel.ProviderOpenAICompatible || providerKind == channel.ProviderMultiProtocolGateway) && (operation == execution.OperationRerank || operation == execution.OperationProbe)
 	}
 	switch providerKind {
+	case channel.ProviderCline:
+		return clientProtocol == protocol.OpenAICompletions && standardProtocolOperation(clientProtocol, operation)
 	case channel.ProviderOpenAI:
 		if clientProtocol == protocol.OpenAIEmbeddings {
 			return operation == execution.OperationEmbeddingsCreate || operation == execution.OperationProbe
@@ -86,6 +90,9 @@ func nativeRouteImplemented(
 	case channel.ProviderAnthropic:
 		return clientProtocol == protocol.Anthropic && standardProtocolOperation(clientProtocol, operation)
 	case channel.ProviderGemini:
+		if clientProtocol == protocol.GeminiEmbeddings {
+			return operation == execution.OperationEmbeddingsCreate || operation == execution.OperationProbe
+		}
 		return clientProtocol == protocol.Gemini && standardProtocolOperation(clientProtocol, operation)
 	case channel.ProviderMultiProtocolGateway:
 		switch clientProtocol {
@@ -100,7 +107,7 @@ func nativeRouteImplemented(
 		case protocol.OpenAIImages:
 			return operation == execution.OperationImagesGenerate ||
 				operation == execution.OperationImagesEdit
-		case protocol.OpenAIEmbeddings:
+		case protocol.OpenAIEmbeddings, protocol.GeminiEmbeddings:
 			return operation == execution.OperationEmbeddingsCreate ||
 				operation == execution.OperationProbe
 		case protocol.Anthropic, protocol.Gemini:
@@ -112,6 +119,9 @@ func nativeRouteImplemented(
 			return false
 		}
 	case channel.ProviderOpenAICompatible:
+		if clientProtocol == protocol.Mistral {
+			return mistralNativeOperation(operation)
+		}
 		if clientProtocol == protocol.OpenAIEmbeddings {
 			return operation == execution.OperationEmbeddingsCreate || operation == execution.OperationProbe
 		}
@@ -140,6 +150,23 @@ func nativeRouteImplemented(
 	case channel.ProviderGoogleVertex:
 		return clientProtocol == protocol.Gemini &&
 			(operation == execution.OperationChatCompletion || operation == execution.OperationProbe)
+	default:
+		return false
+	}
+}
+
+func mistralNativeOperation(operation execution.Operation) bool {
+	switch operation {
+	case execution.OperationMistralOCR,
+		execution.OperationMistralFIM,
+		execution.OperationMistralAudioTranscription,
+		execution.OperationMistralAudioSpeech,
+		execution.OperationMistralModeration,
+		execution.OperationMistralChatModeration,
+		execution.OperationMistralClassification,
+		execution.OperationMistralVoices,
+		execution.OperationMistralRealtimeTranscription:
+		return true
 	default:
 		return false
 	}

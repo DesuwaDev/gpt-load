@@ -325,8 +325,17 @@ func operationRequiresModel(operation Operation) bool {
 		operation == OperationImagesGenerate ||
 		operation == OperationImagesEdit ||
 		operation == OperationEmbeddingsCreate ||
+		operation == OperationLiveCall ||
 		operation == OperationRerank ||
 		operation == OperationDecisionsCreate ||
+		operation == OperationMistralOCR ||
+		operation == OperationMistralFIM ||
+		operation == OperationMistralAudioTranscription ||
+		operation == OperationMistralAudioSpeech ||
+		operation == OperationMistralModeration ||
+		operation == OperationMistralChatModeration ||
+		operation == OperationMistralClassification ||
+		operation == OperationMistralRealtimeTranscription ||
 		operation == OperationProbe
 }
 

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/sirupsen/logrus"
 
 	"gpt-load/internal/channel"
 	"gpt-load/internal/dialect"
@@ -69,6 +70,78 @@ func TestRequestRedactionMultipartOnlyReplacesPrompt(t *testing.T) {
 		if err != nil || part.FormName() != want.name || string(value) != want.value {
 			t.Fatalf("part %d = %s %s / %v", i, part.FormName(), value, err)
 		}
+	}
+}
+
+func TestRequestRedactionEncryptsStableValuesForOneAccessKey(t *testing.T) {
+	f := &scriptedForwarder{results: []UpstreamResult{auditReply(`{"choices":[]}`), auditReply(`{"choices":[]}`)}}
+	h, manager, _ := newHandlerForTest(t, f, "answer-key")
+	compiled, err := requestredact.Compile([]requestredact.Rule{{Pattern: `gpt-4o|alice@example\.com|bob@example\.com`, Mode: requestredact.ModeEncrypt}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	manager.Current().RequestRedaction = compiled
+	engine := gin.New()
+	bindGatewayRoutesForTest(t, engine, h)
+	requestBody := `{"model":"gpt-4o","messages":[{"role":"user","content":"alice@example.com and bob@example.com and alice@example.com"}]}`
+	for range 2 {
+		if response := sendAuditRequest(engine, requestBody); response.Code != http.StatusOK {
+			t.Fatalf("request status = %d", response.Code)
+		}
+	}
+	if len(f.inputs) != 2 {
+		t.Fatalf("forwarded attempts = %d", len(f.inputs))
+	}
+	for _, input := range f.inputs {
+		if input.ExternalModel != "gpt-4o" || !bytes.Contains(input.Request.Body, []byte(`"model":"gpt-4o"`)) {
+			t.Fatal("routing model was changed by content encryption")
+		}
+	}
+	var first, second struct {
+		Messages []struct {
+			Content string `json:"content"`
+		} `json:"messages"`
+	}
+	if err := json.Unmarshal(f.inputs[0].Request.Body, &first); err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(f.inputs[1].Request.Body, &second); err != nil {
+		t.Fatal(err)
+	}
+	value := first.Messages[0].Content
+	parts := strings.Split(value, " and ")
+	if len(parts) != 3 || !strings.HasPrefix(parts[0], "gld1_") || !strings.HasPrefix(parts[1], "gld1_") || parts[0] == parts[1] || parts[0] != parts[2] || second.Messages[0].Content != value {
+		t.Fatalf("unstable or indistinguishable encrypted values")
+	}
+	if strings.Contains(value, "alice@example.com") || strings.Contains(value, "bob@example.com") {
+		t.Fatal("plaintext reached upstream")
+	}
+}
+
+func TestRequestRedactionPreservesAuthenticatedHistoryAfterEncryptRuleRemoval(t *testing.T) {
+	f := &scriptedForwarder{results: []UpstreamResult{auditReply(`{"choices":[]}`)}}
+	h, manager, _ := newHandlerForTest(t, f, "answer-key")
+	cipher, err := h.encryption.NewRedactionCipher(1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	token, err := cipher.EncryptToken("alice@example.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	manager.Current().RequestRedaction, err = requestredact.Compile([]requestredact.Rule{{
+		Pattern: `gld1_[0-9]+_[A-Za-z0-9_-]+`, Replacement: "[MUTATED]",
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	engine := gin.New()
+	bindGatewayRoutesForTest(t, engine, h)
+	response := sendAuditRequest(engine, `{"model":"gpt-4o","messages":[{"role":"user","content":"`+token+`"}]}`)
+	if response.Code != http.StatusOK || len(f.inputs) != 1 ||
+		!bytes.Contains(f.inputs[0].Request.Body, []byte(token)) ||
+		bytes.Contains(f.inputs[0].Request.Body, []byte("[MUTATED]")) {
+		t.Fatalf("authenticated history changed: status=%d attempts=%d", response.Code, len(f.inputs))
 	}
 }
 
@@ -193,5 +266,93 @@ func TestRequestRedactionRunsAfterGroupOverridesWithoutChangingRouting(t *testin
 	body := f.inputs[0].Request.Body
 	if !bytes.Contains(body, []byte(`"content":"secret-redacted"`)) || !bytes.Contains(body, []byte(`"model":"gpt-4o"`)) {
 		t.Fatalf("unexpected outbound request %s", body)
+	}
+}
+
+func TestLogUnrestoredRedactionTokens(t *testing.T) {
+	var output bytes.Buffer
+	logger := logrus.New()
+	logger.SetOutput(&output)
+	handler := &Handler{logger: logger}
+	handler.logUnrestoredRedactionTokens(nil, "request-1")
+	cipher := websocketRedactionTestCipher(t)
+	handler.logUnrestoredRedactionTokens(cipher, "request-1")
+	if output.Len() != 0 {
+		t.Fatalf("logged without unrestored tokens: %s", output.String())
+	}
+	if _, err := cipher.RestoreText("damaged gld1_3_abc"); err != nil {
+		t.Fatal(err)
+	}
+	handler.logUnrestoredRedactionTokens(cipher, "request-1")
+	if line := output.String(); !strings.Contains(line, "request_id=request-1") || !strings.Contains(line, "occurrences=1") {
+		t.Fatalf("unrestored token log = %q", line)
+	}
+}
+
+func TestRedactionMayRestore(t *testing.T) {
+	cases := []struct {
+		body       string
+		reversible bool
+		want       bool
+	}{
+		{``, true, true},
+		{``, false, false},
+		{`{"input":"hello"}`, true, false},
+		{`{"input":"gld1_44_abc"}`, false, true},
+		{`{"input":"\u0067ld1_44_abc"}`, false, true},
+		{`{"input":[{"type":"reasoning","encrypted_content":"opaque"}]}`, true, true},
+		{`{"input":[{"type":"reasoning","encrypted_content":"opaque"}]}`, false, false},
+		{`{"contents":[{"parts":[{"text":"x","thoughtSignature":"s"}]}]}`, true, true},
+		{`{"messages":[{"content":[{"type":"thinking","signature":"s"}]}]}`, true, true},
+		{`{"messages":[{"content":[{"type":"thinking","signature":"s"}]}]}`, false, false},
+		{`{"previous_response_id":"resp_1","input":"hi"}`, true, true},
+		{`{"conversation":"conv_1","input":"hi"}`, true, true},
+		{`{"cachedContent":"cachedContents/c1","contents":[]}`, true, true},
+		{`{"cached_content":"cachedContents/c1","contents":[]}`, true, true},
+		{`{"container":"container_1","messages":[]}`, true, true},
+		{`{"tools":[{"type":"code_interpreter","container_id":"cntr_1"}],"input":"hi"}`, true, true},
+		{`{"container":"container_1","messages":[]}`, false, false},
+		{`{"messages":[{"role":"user","content":"restart the container"}]}`, true, false},
+	}
+	for _, tc := range cases {
+		request := &dialect.ParsedRequest{Body: []byte(tc.body)}
+		if got := redactionMayRestore(request, tc.reversible); got != tc.want {
+			t.Errorf("redactionMayRestore(%s, reversible=%v) = %v, want %v", tc.body, tc.reversible, got, tc.want)
+		}
+	}
+}
+
+func TestRequestRedactionRestoresOnlyWhenCiphertextMayReturn(t *testing.T) {
+	encrypt := []requestredact.Rule{{Pattern: `alice@example\.com`, Mode: requestredact.ModeEncrypt}}
+	cases := []struct {
+		name  string
+		rules []requestredact.Rule
+		body  string
+		want  bool
+	}{
+		{"no rules", nil, `{"model":"gpt-4o","messages":[{"role":"user","content":"hello"}]}`, false},
+		{"rule without match", encrypt, `{"model":"gpt-4o","messages":[{"role":"user","content":"hello"}]}`, false},
+		{"encrypted content", encrypt, `{"model":"gpt-4o","messages":[{"role":"user","content":"alice@example.com"}]}`, true},
+		{"signed history without encrypt rules", nil, `{"model":"gpt-4o","messages":[{"role":"assistant","content":"ok","reasoning_details":[{"type":"reasoning.text","text":"x","signature":"s"}]},{"role":"user","content":"hi"}]}`, false},
+		{"signed history with encrypt rules", encrypt, `{"model":"gpt-4o","messages":[{"role":"assistant","content":"ok","reasoning_details":[{"type":"reasoning.text","text":"x","signature":"s"}]},{"role":"user","content":"hi"}]}`, true},
+	}
+	for _, tc := range cases {
+		f := &scriptedForwarder{results: []UpstreamResult{auditReply(`{"choices":[]}`)}}
+		h, manager, _ := newHandlerForTest(t, f, "answer-key")
+		if tc.rules != nil {
+			compiled, err := requestredact.Compile(tc.rules)
+			if err != nil {
+				t.Fatal(err)
+			}
+			manager.Current().RequestRedaction = compiled
+		}
+		engine := gin.New()
+		bindGatewayRoutesForTest(t, engine, h)
+		if response := sendAuditRequest(engine, tc.body); response.Code != http.StatusOK || len(f.inputs) != 1 {
+			t.Fatalf("%s: status=%d attempts=%d", tc.name, response.Code, len(f.inputs))
+		}
+		if got := f.inputs[0].RedactionCipher != nil; got != tc.want {
+			t.Errorf("%s: restoration enabled = %v, want %v", tc.name, got, tc.want)
+		}
 	}
 }

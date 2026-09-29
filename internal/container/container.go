@@ -79,6 +79,7 @@ func BuildContainer() (*dig.Container, error) {
 			limiter.SetRPMStore(store)
 			return limiter
 		},
+		func(handler *gateway.Handler) app.LiveSessionRuntime { return handler },
 		func(limiter *ratelimit.AccessKeyRPM) gateway.AccessKeyRPMLimiter {
 			return limiter
 		},
@@ -184,6 +185,8 @@ func BuildContainer() (*dig.Container, error) {
 		dialect.NewDecisions,
 		dialect.NewAnthropic,
 		dialect.NewGemini,
+		dialect.NewGeminiEmbeddings,
+		dialect.NewMistral,
 		func(
 			openAI *dialect.OpenAI,
 			openAIResponses *dialect.OpenAIResponses,
@@ -193,8 +196,12 @@ func BuildContainer() (*dig.Container, error) {
 			decisions *dialect.Decisions,
 			anthropic *dialect.Anthropic,
 			gemini *dialect.Gemini,
+			geminiEmbeddings *dialect.GeminiEmbeddings,
+			mistral *dialect.Mistral,
 		) dialect.Set {
-			return dialect.NewSet(openAI, openAIResponses, openAIImages, openAIEmbeddings, rerank, decisions, anthropic, gemini)
+			return dialect.NewSet(
+				openAI, openAIResponses, openAIImages, openAIEmbeddings, rerank, decisions, anthropic, gemini, geminiEmbeddings, mistral,
+			)
 		},
 		func(registry *channel.Registry) (*bifrostexecutor.RuntimeManager, error) {
 			return bifrostexecutor.NewManagedRuntime(registry)
@@ -259,6 +266,16 @@ func BuildContainer() (*dig.Container, error) {
 			return nil, err
 		}
 	}
+	if err := dependencyContainer.Decorate(func(
+		handler *gateway.Handler,
+		adapter *cpaexecutor.Adapter,
+		cfg *config.Config,
+	) *gateway.Handler {
+		handler.ConfigureCodexLive(adapter, cfg.CodexLive)
+		return handler
+	}); err != nil {
+		return nil, err
+	}
 	if err := dependencyContainer.Invoke(func(
 		engine *gin.Engine,
 		registry *httproute.Registry,
@@ -310,6 +327,7 @@ func newProviderAdapterRegistry(
 		{ProviderKind: channel.ProviderGemini, Adapter: bifrost},
 		{ProviderKind: channel.ProviderMultiProtocolGateway, Adapter: bifrost},
 		{ProviderKind: channel.ProviderOpenAICompatible, Adapter: bifrost},
+		{ProviderKind: channel.ProviderCline, Adapter: bifrost},
 		{ProviderKind: channel.ProviderAzureOpenAI, Adapter: bifrost},
 		{ProviderKind: channel.ProviderAWSBedrock, Adapter: bifrost},
 		{ProviderKind: channel.ProviderGoogleVertex, Adapter: bifrost},

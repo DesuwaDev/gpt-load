@@ -8,15 +8,21 @@ const (
 	OpenAIResponses   Protocol = "openai-responses"
 	OpenAIImages      Protocol = "openai-images"
 	OpenAIEmbeddings  Protocol = "openai-embeddings"
+	CodexLive         Protocol = "codex-live"
 	Rerank            Protocol = "rerank"
 	Decisions         Protocol = "decisions"
 	Anthropic         Protocol = "anthropic"
 	Gemini            Protocol = "gemini"
+	GeminiEmbeddings  Protocol = "gemini-embeddings"
+	// Mistral is the native surface for Mistral-only HTTP APIs. Chat and
+	// embeddings stay on the OpenAI-compatible protocols.
+	Mistral Protocol = "mistral"
 )
 
 func (p Protocol) Valid() bool {
 	switch p {
-	case OpenAICompletions, OpenAIResponses, OpenAIImages, OpenAIEmbeddings, Rerank, Decisions, Anthropic, Gemini:
+	case OpenAICompletions, OpenAIResponses, OpenAIImages, OpenAIEmbeddings, CodexLive, Rerank, Decisions,
+		Anthropic, Gemini, GeminiEmbeddings, Mistral:
 		return true
 	default:
 		return false
@@ -25,7 +31,8 @@ func (p Protocol) Valid() bool {
 
 func (p Protocol) DataPlaneEnabled() bool {
 	switch p {
-	case OpenAICompletions, OpenAIResponses, OpenAIImages, OpenAIEmbeddings, Rerank, Decisions, Anthropic, Gemini:
+	case OpenAICompletions, OpenAIResponses, OpenAIImages, OpenAIEmbeddings, CodexLive, Rerank, Decisions,
+		Anthropic, Gemini, GeminiEmbeddings, Mistral:
 		return true
 	default:
 		return false
@@ -42,9 +49,12 @@ func DataPlaneProtocols() []Protocol {
 		OpenAIResponses,
 		OpenAIImages,
 		OpenAIEmbeddings,
+		CodexLive,
 		Rerank,
 		Decisions,
 		Anthropic,
 		Gemini,
+		GeminiEmbeddings,
+		Mistral,
 	}
 }

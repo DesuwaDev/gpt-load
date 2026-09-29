@@ -71,10 +71,14 @@ func modelRewriter(clientProtocol protocol.Protocol) (dialect.ModelRewriter, err
 		return dialect.NewDecisions(), nil
 	case protocol.OpenAIEmbeddings:
 		return dialect.NewOpenAIEmbeddings(), nil
+	case protocol.Mistral:
+		return dialect.NewMistral(), nil
 	case protocol.Anthropic:
 		return dialect.NewAnthropic(), nil
 	case protocol.Gemini:
 		return dialect.NewGemini(), nil
+	case protocol.GeminiEmbeddings:
+		return dialect.NewGeminiEmbeddings(), nil
 	default:
 		return nil, fmt.Errorf("unsupported client protocol")
 	}

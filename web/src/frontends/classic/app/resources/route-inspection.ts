@@ -29,6 +29,7 @@ export type RouteInspectReasonCode =
   | 'operation_unsupported'
   | 'native_route_required'
   | 'no_route_target'
+  | 'codex_live_disabled'
   | 'group_disabled'
   | 'group_filtered'
   | 'no_available_group'
@@ -51,6 +52,7 @@ export interface RouteInspectRequest {
 
 export type RouteInspectOperation =
   | 'chat_completion'
+  | 'live_call'
   | 'responses_create'
   | 'responses_retrieve'
   | 'responses_delete'
@@ -65,6 +67,15 @@ export type RouteInspectOperation =
   | 'embeddings_create'
   | 'rerank'
   | 'decisions_create'
+  | 'mistral_ocr'
+  | 'mistral_fim'
+  | 'mistral_audio_transcription'
+  | 'mistral_audio_speech'
+  | 'mistral_moderation'
+  | 'mistral_chat_moderation'
+  | 'mistral_classification'
+  | 'mistral_voices'
+  | 'mistral_realtime_transcription'
 export type RouteInspectRequirement = 'any' | 'native'
 export type RouteInspectMode = 'native' | 'converted'
 
@@ -112,6 +123,7 @@ export interface RouteInspectResponseDto {
 const accessKeyStatuses = ['active', 'disabled'] as const
 export const routeInspectOperations = [
   'chat_completion',
+  'live_call',
   'responses_create',
   'responses_retrieve',
   'responses_delete',
@@ -126,6 +138,15 @@ export const routeInspectOperations = [
   'embeddings_create',
   'rerank',
   'decisions_create',
+  'mistral_ocr',
+  'mistral_fim',
+  'mistral_audio_transcription',
+  'mistral_audio_speech',
+  'mistral_moderation',
+  'mistral_chat_moderation',
+  'mistral_classification',
+  'mistral_voices',
+  'mistral_realtime_transcription',
 ] as const
 export const routeInspectRequirements = ['any', 'native'] as const
 const routeModes = ['native', 'converted'] as const
@@ -138,6 +159,7 @@ const reasonCodes = [
   'operation_unsupported',
   'native_route_required',
   'no_route_target',
+  'codex_live_disabled',
   'group_disabled',
   'group_filtered',
   'no_available_group',

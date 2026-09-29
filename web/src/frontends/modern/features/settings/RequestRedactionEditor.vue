@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { Plus, Trash2 } from '@lucide/vue'
-import { onScopeDispose, watch } from 'vue'
+import { CircleHelp, Plus, Trash2 } from '@lucide/vue'
+import { computed, onScopeDispose, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { redactionPresets, type RedactionRule } from '@modern/api/request-redaction'
-import { AppButton, AppIconButton, AppTextField } from '@modern/components/ui'
+import { AppButton, AppIconButton, AppSelect, AppTextField } from '@modern/components/ui'
 import { useRedactionValidation } from './use-redaction-validation'
 
 const props = defineProps<{ modelValue: RedactionRule[]; disabled?: boolean }>()
@@ -12,13 +12,21 @@ const emit = defineEmits<{
   invalid: [value: boolean]
 }>()
 const { t } = useI18n()
+const modeOptions = computed(() => [
+  { value: 'encrypt', label: t('requestRedaction.modes.encrypt') },
+  { value: 'replace', label: t('requestRedaction.modes.replace') },
+])
 const { issues, failed, invalid } = useRedactionValidation(() => props.modelValue)
 watch(invalid, (value) => emit('invalid', value), { immediate: true })
 onScopeDispose(() => emit('invalid', false))
 function add(rule: RedactionRule = { pattern: '', replacement: '[REDACTED]' }) {
   emit('update:modelValue', [
     ...props.modelValue,
-    { pattern: rule.pattern, replacement: rule.replacement },
+    {
+      pattern: rule.pattern,
+      replacement: rule.replacement,
+      mode: rule.mode ?? 'encrypt',
+    },
   ])
 }
 function update(index: number, patch: Partial<RedactionRule>) {
@@ -54,6 +62,10 @@ function error(index: number): string | undefined {
     <p v-if="!modelValue.length" class="modern-redaction-note">{{ t('requestRedaction.empty') }}</p>
     <div v-if="modelValue.length" class="modern-redaction-heading">
       <span>{{ t('requestRedaction.pattern') }}</span>
+      <span class="modern-redaction-mode-label">
+        {{ t('requestRedaction.mode') }}
+        <AppIconButton :icon="CircleHelp" :label="t('requestRedaction.modeHelp')" size="xxs" />
+      </span>
       <span>{{ t('requestRedaction.replacement') }}</span>
     </div>
     <div v-for="(rule, index) in modelValue" :key="index" class="modern-redaction-row">
@@ -77,7 +89,29 @@ function error(index: number): string | undefined {
           {{ t('requestRedaction.broad') }}
         </p>
       </div>
-      <div class="modern-redaction-field">
+      <div class="modern-redaction-field modern-redaction-mode">
+        <span class="modern-redaction-mobile-label">
+          <span class="modern-redaction-mode-label">
+            {{ t('requestRedaction.mode') }}
+            <AppIconButton :icon="CircleHelp" :label="t('requestRedaction.modeHelp')" size="xxs" />
+          </span>
+        </span>
+        <AppSelect
+          :model-value="rule.mode ?? 'replace'"
+          :options="modeOptions"
+          :label="t('requestRedaction.mode')"
+          label-hidden
+          size="sm"
+          :disabled="disabled"
+          @update:model-value="
+            update(index, { mode: $event === 'encrypt' ? 'encrypt' : 'replace' })
+          "
+        />
+      </div>
+      <div
+        v-if="(rule.mode ?? 'replace') === 'replace'"
+        class="modern-redaction-field modern-redaction-replacement"
+      >
         <span class="modern-redaction-mobile-label">{{ t('requestRedaction.replacement') }}</span>
         <AppTextField
           :model-value="rule.replacement"
@@ -136,7 +170,7 @@ function error(index: number): string | undefined {
 <style scoped>
 .modern-redaction {
   display: grid;
-  gap: var(--modern-space-3);
+  gap: var(--modern-space-2);
   min-width: 0;
   width: 100%;
 }
@@ -151,11 +185,12 @@ function error(index: number): string | undefined {
 .modern-redaction-heading,
 .modern-redaction-row {
   display: grid;
-  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr) var(--modern-control-sm);
+  grid-template-columns: minmax(0, 3fr) 112px minmax(0, 2fr) var(--modern-control-sm);
   align-items: start;
   gap: var(--modern-space-2);
 }
 .modern-redaction-heading {
+  align-items: center;
   color: var(--modern-text);
   font-size: var(--modern-font-size-secondary);
   font-weight: var(--modern-weight-medium);
@@ -169,7 +204,13 @@ function error(index: number): string | undefined {
 .modern-redaction-mobile-label {
   display: none;
 }
+.modern-redaction-mode-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--modern-space-1);
+}
 .modern-redaction-remove {
+  grid-column: 4;
   align-self: start;
   margin-top: var(--modern-space-0-5);
 }
@@ -200,6 +241,14 @@ function error(index: number): string | undefined {
   .modern-redaction-row > :first-child {
     grid-column: 1 / -1;
   }
+  .modern-redaction-mode {
+    grid-column: 1;
+    grid-row: 2;
+  }
+  .modern-redaction-replacement {
+    grid-column: 1 / -1;
+    grid-row: 3;
+  }
   .modern-redaction-mobile-label {
     display: block;
     color: var(--modern-text);
@@ -208,6 +257,8 @@ function error(index: number): string | undefined {
     line-height: var(--modern-leading-compact);
   }
   .modern-redaction-remove {
+    grid-column: 2;
+    grid-row: 2;
     margin-top: var(--modern-space-6);
   }
 }

@@ -152,15 +152,18 @@ func TestAccessKeyCreateAcceptsAllEnabledProtocolsInCanonicalOrder(t *testing.T)
 		Name: "all protocols",
 		Filters: &AccessKeyFilters{
 			Protocols: []protocol.Protocol{
+				protocol.GeminiEmbeddings,
 				protocol.Gemini,
 				protocol.OpenAIImages,
 				protocol.OpenAIEmbeddings,
+				protocol.CodexLive,
 				protocol.Rerank,
 				protocol.Decisions,
 				protocol.OpenAIResponses,
 				protocol.Anthropic,
 				protocol.OpenAICompletions,
 				protocol.OpenAIResponses,
+				protocol.Mistral,
 			},
 		},
 	})

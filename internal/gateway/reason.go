@@ -40,6 +40,7 @@ var (
 	reasonUpstreamConnect               = reason{Status: http.StatusBadGateway, Code: "upstream_connect_failed", Message: "Could not connect to an upstream service."}
 	reasonUpstreamTimeout               = reason{Status: http.StatusGatewayTimeout, Code: "upstream_timeout", Message: "Upstream request timed out."}
 	reasonUpstreamProtocol              = reason{Status: http.StatusBadGateway, Code: "upstream_protocol_error", Message: "Upstream returned an unsupported response."}
+	reasonResponseRedactionFailed       = reason{Status: http.StatusBadGateway, Code: "response_redaction_failed", Message: "Response content could not be restored safely."}
 	reasonProtocolConversionUnsupported = reason{Status: http.StatusUnprocessableEntity, Code: "protocol_conversion_unsupported", Message: "No upstream target could preserve or convert the request."}
 	reasonRequestTooLarge               = reason{Status: http.StatusRequestEntityTooLarge, Code: "request_too_large", Message: "Request body is too large."}
 	reasonUnsupportedContentEncoding    = reason{
@@ -106,6 +107,19 @@ type accessKeyCostLimitClientError struct {
 	ResetsAt *int64 `json:"resets_at,omitempty"`
 }
 
+type accessKeyCostLimitErrorData struct {
+	Recoverable       bool                          `json:"recoverable"`
+	NextAvailableAtMS *int64                        `json:"next_available_at_ms"`
+	BlockingRules     []accessKeyCostLimitRuleError `json:"blocking_rules"`
+}
+
+type accessKeyCostLimitErrorBody struct {
+	Code    string                        `json:"code"`
+	Message string                        `json:"message"`
+	Error   accessKeyCostLimitClientError `json:"error"`
+	Data    accessKeyCostLimitErrorData   `json:"data"`
+}
+
 func (handler *Handler) completeAccessQuotaReason(
 	context *gin.Context,
 	recorder *requestRecorder,
@@ -117,10 +131,7 @@ func (handler *Handler) completeAccessQuotaReason(
 	}
 }
 
-func (handler *Handler) writeAccessQuotaReason(
-	context *gin.Context,
-	decision accessquota.Decision,
-) error {
+func accessKeyCostLimitResponse(decision accessquota.Decision) accessKeyCostLimitErrorBody {
 	blocking := make([]accessKeyCostLimitRuleError, 0, len(decision.BlockingRules))
 	for _, rule := range decision.BlockingRules {
 		blocking = append(blocking, accessKeyCostLimitRuleError{
@@ -137,32 +148,15 @@ func (handler *Handler) writeAccessQuotaReason(
 		seconds := (*decision.NextAvailableAtMS + 999) / 1_000
 		resetsAt = &seconds
 	}
-	body, err := json.Marshal(struct {
-		Code    string                        `json:"code"`
-		Message string                        `json:"message"`
-		Error   accessKeyCostLimitClientError `json:"error"`
-		Data    struct {
-			Recoverable       bool                          `json:"recoverable"`
-			NextAvailableAtMS *int64                        `json:"next_available_at_ms"`
-			BlockingRules     []accessKeyCostLimitRuleError `json:"blocking_rules"`
-		} `json:"data"`
-	}{
-		Code:    reasonAccessKeyCostLimitExceeded.Code,
-		Message: message,
-		Error: accessKeyCostLimitClientError{
-			Type: "usage_limit_reached", Code: reasonAccessKeyCostLimitExceeded.Code,
-			Message: message, ResetsAt: resetsAt,
-		},
-		Data: struct {
-			Recoverable       bool                          `json:"recoverable"`
-			NextAvailableAtMS *int64                        `json:"next_available_at_ms"`
-			BlockingRules     []accessKeyCostLimitRuleError `json:"blocking_rules"`
-		}{
-			Recoverable:       decision.Recoverable,
-			NextAvailableAtMS: cloneReasonInt64(decision.NextAvailableAtMS),
-			BlockingRules:     blocking,
-		},
-	})
+	return accessKeyCostLimitErrorBody{
+		Code: reasonAccessKeyCostLimitExceeded.Code, Message: message,
+		Error: accessKeyCostLimitClientError{Type: "usage_limit_reached", Code: reasonAccessKeyCostLimitExceeded.Code, Message: message, ResetsAt: resetsAt},
+		Data:  accessKeyCostLimitErrorData{Recoverable: decision.Recoverable, NextAvailableAtMS: cloneReasonInt64(decision.NextAvailableAtMS), BlockingRules: blocking},
+	}
+}
+
+func (handler *Handler) writeAccessQuotaReason(context *gin.Context, decision accessquota.Decision) error {
+	body, err := json.Marshal(accessKeyCostLimitResponse(decision))
 	if err != nil {
 		return err
 	}

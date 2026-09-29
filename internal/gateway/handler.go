@@ -24,11 +24,13 @@ import (
 	"gpt-load/internal/execution"
 	"gpt-load/internal/health"
 	"gpt-load/internal/httplifecycle"
+	"gpt-load/internal/platform/config"
 	"gpt-load/internal/platform/contentcoding"
 	"gpt-load/internal/platform/encryption"
 	platformheader "gpt-load/internal/platform/httpheader"
 	"gpt-load/internal/platform/utils"
 	"gpt-load/internal/pricing"
+	"gpt-load/internal/protocol"
 	"gpt-load/internal/ratelimit"
 	"gpt-load/internal/requestaudit"
 	"gpt-load/internal/requestredact"
@@ -138,6 +140,9 @@ type Handler struct {
 	responseBindings    *state.ResponseBindings
 	websocketLimits     websocketLimits
 	websocketBudget     websocketBudget
+	liveOpener          execution.LiveOpener
+	liveSessions        *liveSessions
+	liveConfig          config.CodexLiveConfig
 }
 
 func (handler *Handler) freezeAttemptPricing(
@@ -196,6 +201,7 @@ func NewHandler(
 		affinityCache:     affinity.NewCache(),
 		responseBindings:  state.NewResponseBindings(),
 		websocketLimits:   defaultWebsocketLimits(),
+		liveSessions:      newLiveSessions(),
 		newRequestID:      newRequestID,
 		requestNow:        time.Now,
 		now:               time.Now,
@@ -472,6 +478,14 @@ func (handler *Handler) Handle(ginContext *gin.Context) {
 	}
 	if requestContext.selectedRoute.Kind == endpointUsage {
 		handler.handleUsage(ginContext, requestContext)
+		return
+	}
+	if requestContext.selectedRoute.Protocol == protocol.CodexLive {
+		handler.handleCodexLive(ginContext, requestContext)
+		return
+	}
+	if requestContext.selectedRoute.Kind == endpointMistralRealtime {
+		handler.handleMistralRealtime(ginContext, requestContext)
 		return
 	}
 	if websocketIntent(ginContext.Request) {
@@ -932,6 +946,16 @@ func (handler *Handler) executeAttempts(
 ) {
 	stream := originalMetadata.Stream
 	operation := originalMetadata.Operation
+	var redactionCipher encryption.RedactionCipher
+	if !snapshot.RequestRedaction.Empty() || redactionBusinessProtocol(selectedDialect.Protocol()) {
+		var err error
+		redactionCipher, err = handler.encryption.NewRedactionCipher(recorder.accessKeyID)
+		if err != nil {
+			handler.completeReason(ginContext, recorder, reasonRedactionFailed)
+			return
+		}
+		defer handler.logUnrestoredRedactionTokens(redactionCipher, recorder.requestID)
+	}
 	type deferredAttempt struct {
 		result        UpstreamResult
 		decision      health.Decision
@@ -962,6 +986,7 @@ func (handler *Handler) executeAttempts(
 	}
 	defer releaseCurrentSlot()
 	type preparedRequest struct {
+		configuredParameters  []string
 		request               *dialect.ParsedRequest
 		observations          dialect.RequestMetadata
 		observationsAvailable bool
@@ -983,7 +1008,7 @@ func (handler *Handler) executeAttempts(
 		}
 		defer func() {
 			if prepared.err == nil {
-				prepared.request, prepared.err = redactOutboundRequest(snapshot.RequestRedaction, selectedDialect.Protocol(), prepared.request)
+				prepared.request, prepared.err = redactOutboundRequest(snapshot.RequestRedaction, selectedDialect.Protocol(), prepared.request, redactionCipher)
 			}
 			cachedPrepared = &prepared
 		}()
@@ -1009,6 +1034,7 @@ func (handler *Handler) executeAttempts(
 			cachedPrepared = &prepared
 			return prepared
 		}
+		prepared.configuredParameters = selection.Group.ParameterOverrides.ConfiguredFields(selectedDialect.Protocol(), originalMetadata.Operation, routeModel)
 		if int64(len(body)) > maxRequestBodyBytes {
 			prepared.err = errRequestTooLarge
 			cachedPrepared = &prepared
@@ -1292,6 +1318,10 @@ func (handler *Handler) executeAttempts(
 			handler.completeReason(ginContext, recorder, *failure)
 			return
 		}
+		if ginContext.Request.Context().Err() != nil {
+			recorder.completeCanceled(ginContext.Request.Context(), 0, lastAttemptIndex)
+			return
+		}
 		attemptSequence++
 		forwardAttempts++
 		if attemptSequence == 1 && (originalMetadata.PreviousResponseID != "" ||
@@ -1307,9 +1337,15 @@ func (handler *Handler) executeAttempts(
 		if recorder != nil && recorder.requestID != "" {
 			executionRequestID = recorder.requestID
 		}
+		restoreCipher := redactionCipher
+		if !redactionMayRestore(prepared.request, snapshot.RequestRedaction.Reversible()) {
+			restoreCipher = nil
+		}
 		input := ForwardInput{
-			Dialect: selectedDialect, ObserveUsage: attemptObservations.ObserveUsage,
-			Group: selection.Group, APIKey: normalizedCredential.apiKey,
+			ConfiguredParameters: prepared.configuredParameters,
+			Dialect:              selectedDialect, ObserveUsage: attemptObservations.ObserveUsage,
+			RedactionCipher: restoreCipher,
+			Group:           selection.Group, APIKey: normalizedCredential.apiKey,
 			CredentialSecrets: normalizedCredential.secrets, Request: prepared.request,
 			ExternalModel:            externalModel,
 			UpstreamModelID:          optionalModelValue(selection.UpstreamModelID),
@@ -1555,6 +1591,10 @@ func (handler *Handler) executeAttempts(
 		}
 		value := transportReason(result)
 		recorder.completeTransport(value, optionalModelValue(selection.UpstreamModelID), recordedAttempt)
+		if value.Code == reasonResponseRedactionFailed.Code {
+			// 下游还原失败不代表上游未计费；沿用已冻结的该次尝试报价。
+			recorder.bindUsage(recordedAttempt, result.Usage, true)
+		}
 		if err := handler.writeReason(ginContext, value); err != nil {
 			handler.completeWriteTerminal(ginContext, recorder, value.Status)
 		}
@@ -1704,6 +1744,8 @@ func transportReason(result UpstreamResult) reason {
 		return reasonInvalidProtocolRequest
 	case errors.Is(result.Err, ErrUpstreamProtocol):
 		return reasonUpstreamProtocol
+	case errors.Is(result.Err, errRedactionStream), errors.Is(result.Err, errUnaryRestore):
+		return reasonResponseRedactionFailed
 	case isTimeoutError(result.Err):
 		return reasonUpstreamTimeout
 	default:

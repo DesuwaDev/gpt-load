@@ -85,7 +85,26 @@ func TestDataPlaneEndpointCatalogDeclaresCompleteHTTPRoutes(t *testing.T) {
 		},
 		{name: "data.rerank", methods: []string{http.MethodPost}, path: "/v1/rerank"},
 		{name: "data.decisions", methods: []string{http.MethodPost}, path: "/v1/systemone"},
+		{name: "data.mistral.ocr", methods: []string{http.MethodPost}, path: "/v1/ocr"},
+		{name: "data.mistral.fim", methods: []string{http.MethodPost}, path: "/v1/fim/completions"},
+		{name: "data.mistral.audio.transcriptions", methods: []string{http.MethodPost}, path: "/v1/audio/transcriptions"},
+		{name: "data.mistral.realtime", methods: []string{http.MethodGet}, path: "/v1/audio/transcriptions/realtime"},
+		{name: "data.mistral.audio.speech", methods: []string{http.MethodPost}, path: "/v1/audio/speech"},
+		{name: "data.mistral.voices", methods: []string{http.MethodGet, http.MethodHead}, path: "/mistral/v1/audio/voices"},
+		{name: "data.mistral.voices.resource", methods: []string{http.MethodGet, http.MethodHead}, path: "/mistral/v1/audio/voices/*resource_path"},
+		{name: "data.mistral.voices.v2", methods: []string{http.MethodGet, http.MethodHead}, path: "/mistral/v2/audio/voices"},
+		{name: "data.mistral.voices.v2.resource", methods: []string{http.MethodGet, http.MethodHead}, path: "/mistral/v2/audio/voices/*resource_path"},
+		{name: "data.mistral.moderations", methods: []string{http.MethodPost}, path: "/v1/moderations"},
+		{name: "data.mistral.chat.moderations", methods: []string{http.MethodPost}, path: "/v1/chat/moderations"},
+		{name: "data.mistral.classifications", methods: []string{http.MethodPost}, path: "/v1/classifications"},
 		{name: "data.codex.search", methods: []string{http.MethodPost}, path: "/v1/alpha/search"},
+		{name: "data.codex.live", methods: []string{http.MethodPost}, path: "/v1/live"},
+		{name: "data.codex.live.sideband", methods: []string{http.MethodGet}, path: "/v1/live/:call_id"},
+		{name: "data.codex.live.legacy.hangup", methods: []string{http.MethodPost}, path: "/v1/live/:call_id/hangup"},
+		{name: "data.codex.live.calls", methods: []string{http.MethodPost}, path: "/v1/realtime/calls"},
+		{name: "data.codex.live.realtime", methods: []string{http.MethodGet}, path: "/v1/realtime"},
+		{name: "data.codex.live.call.sideband", methods: []string{http.MethodGet}, path: "/v1/realtime/calls/:call_id"},
+		{name: "data.codex.live.hangup", methods: []string{http.MethodPost}, path: "/v1/realtime/calls/:call_id/hangup"},
 	}
 
 	catalog := dataPlaneEndpointCatalog()
@@ -177,6 +196,18 @@ func TestDataPlaneEndpointCatalogResolvesProtocolAndKind(t *testing.T) {
 			name: "Gemini count tokens", endpoint: "data.gemini.generate",
 			method: http.MethodPost, path: "/v1beta/models/gemini-2.5-pro:countTokens",
 			want:      route{Protocol: protocol.Gemini, Kind: endpointForward},
+			validPath: true,
+		},
+		{
+			name: "Gemini embed content", endpoint: "data.gemini.generate",
+			method: http.MethodPost, path: "/v1beta/models/gemini-embedding-001:embedContent",
+			want:      route{Protocol: protocol.GeminiEmbeddings, Kind: endpointForward},
+			validPath: true,
+		},
+		{
+			name: "Gemini batch embed contents", endpoint: "data.gemini.generate",
+			method: http.MethodPost, path: "/v1beta/models/gemini-embedding-001:batchEmbedContents",
+			want:      route{Protocol: protocol.GeminiEmbeddings, Kind: endpointForward},
 			validPath: true,
 		},
 		{
@@ -272,6 +303,14 @@ func TestDataPlaneEndpointCatalogRejectsMalformedPreAuthPaths(t *testing.T) {
 		{
 			name: "Gemini empty model", endpoint: "data.gemini.generate",
 			path: "/v1beta/models/:generateContent",
+		},
+		{
+			name: "Gemini embeddings empty model", endpoint: "data.gemini.generate",
+			path: "/v1beta/models/:embedContent",
+		},
+		{
+			name: "Gemini unknown embeddings action", endpoint: "data.gemini.generate",
+			path: "/v1beta/models/gemini-embedding-001:asyncBatchEmbedContent",
 		},
 	}
 	for _, test := range tests {

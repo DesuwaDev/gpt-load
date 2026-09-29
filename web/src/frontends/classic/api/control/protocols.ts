@@ -16,6 +16,10 @@ export const protocolCatalog = [
     supportsProtocolOnlyRouting: false,
   },
   {
+    value: 'codex-live',
+    supportsProtocolOnlyRouting: false,
+  },
+  {
     value: 'rerank',
     supportsProtocolOnlyRouting: false,
   },
@@ -30,6 +34,14 @@ export const protocolCatalog = [
   {
     value: 'gemini',
     supportsProtocolOnlyRouting: false,
+  },
+  {
+    value: 'gemini-embeddings',
+    supportsProtocolOnlyRouting: false,
+  },
+  {
+    value: 'mistral',
+    supportsProtocolOnlyRouting: true,
   },
 ] as const
 

@@ -12,6 +12,7 @@ import (
 	"gpt-load/internal/channel"
 	"gpt-load/internal/dialect"
 	"gpt-load/internal/execution"
+	"gpt-load/internal/platform/config"
 	"gpt-load/internal/protocol"
 	"gpt-load/internal/state"
 )
@@ -234,6 +235,33 @@ func TestCandidateGroupIDsForQueryRejectsResourceOperationWithoutConfiguredModel
 	})
 	if len(got) != 0 {
 		t.Fatalf("CandidateGroupIDsForQuery() = %#v, want none", got)
+	}
+}
+
+func TestCodexLiveSchedulesClientModelWithoutGroupMappingAndHonorsKeyFilter(t *testing.T) {
+	t.Parallel()
+	snapshot, err := state.Compile(state.CompileInput{
+		ChannelRegistry: channel.NewRegistry(),
+		Groups: []state.GroupConfig{{ID: 7, ChannelID: channel.Codex, ConnectionType: "subscription",
+			Params: json.RawMessage(`{}`), Enabled: true}},
+		Credentials: []state.CredentialConfig{{ID: 71, GroupID: 7, Status: state.CredentialStatusActive,
+			Version: 1, IdentityGeneration: 1, Fingerprint: "voice"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	query := Query{ClientProtocol: protocol.CodexLive, Operation: execution.OperationLiveCall,
+		RouteRequirement: execution.RouteRequirementNative, ExternalModel: modelPointer("client-live-model"),
+		AccessKey: state.AccessKeyView{Status: state.AccessKeyStatusActive,
+			Filters: state.FilterSet{Models: map[string]struct{}{"client-live-model": {}}}},
+	}
+	selection, err := New(snapshot, fakeCredentialSource{keys: []state.CredentialMeta{{ID: 71, GroupID: 7}}}, query).Next()
+	if err != nil || selection.UpstreamModelID == nil || *selection.UpstreamModelID != "client-live-model" || selection.GroupID != 7 {
+		t.Fatalf("Codex live selection = %#v, error=%v", selection, err)
+	}
+	query.AccessKey.Filters.Models = map[string]struct{}{"other-model": {}}
+	if got := CandidateGroupIDsForQuery(snapshot, query); len(got) != 0 {
+		t.Fatalf("filtered live groups = %v", got)
 	}
 }
 
@@ -825,4 +853,27 @@ func responsesStoreSchedulerSnapshot(t *testing.T, includeExact bool) *state.Con
 		t.Fatalf("Compile() error = %v", err)
 	}
 	return snapshot
+}
+
+func TestCodexLiveDisabledGroupRemainsAvailableForText(t *testing.T) {
+	snapshot, err := state.Compile(state.CompileInput{ChannelRegistry: channel.NewRegistry(),
+		Groups: []state.GroupConfig{{ID: 7, ChannelID: channel.Codex, ConnectionType: "subscription", Params: json.RawMessage(`{}`), Enabled: true,
+			Settings: config.Settings{"codex_live_mode": "off"}, Models: []state.ModelConfig{{ID: "text-model"}}}},
+		Credentials: []state.CredentialConfig{{ID: 71, GroupID: 7, Status: state.CredentialStatusActive, Version: 1, IdentityGeneration: 1, Fingerprint: "voice"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	query := Query{ClientProtocol: protocol.CodexLive, Operation: execution.OperationLiveCall, RouteRequirement: execution.RouteRequirementNative, ExternalModel: modelPointer("client-live-model"), AccessKey: state.AccessKeyView{Status: state.AccessKeyStatusActive}}
+	if got := CandidateGroupIDsForQuery(snapshot, query); len(got) != 0 {
+		t.Fatalf("disabled live groups = %v", got)
+	}
+	inspection, err := Inspect(snapshot, nil, query, time.Now())
+	if err != nil || inspection.Reason != ReasonCodexLiveDisabled {
+		t.Fatalf("inspection = %+v, %v", inspection, err)
+	}
+	query.ClientProtocol, query.Operation, query.ExternalModel = protocol.OpenAIResponses, execution.OperationResponsesCreate, modelPointer("text-model")
+	query.RouteRequirement = execution.RouteRequirementAny
+	if got := CandidateGroupIDsForQuery(snapshot, query); len(got) != 1 {
+		t.Fatalf("text groups = %v", got)
+	}
 }

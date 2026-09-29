@@ -16,6 +16,7 @@ import (
 	"gpt-load/internal/execution"
 	"gpt-load/internal/outboundproxy"
 	"gpt-load/internal/platform/contentcoding"
+	"gpt-load/internal/platform/encryption"
 	platformheader "gpt-load/internal/platform/httpheader"
 	"gpt-load/internal/protocol"
 	"gpt-load/internal/reasoning"
@@ -26,16 +27,18 @@ import (
 // ForwardInput is the frozen logical-attempt input shared by the gateway
 // orchestrator and the provider-neutral execution adapter.
 type ForwardInput struct {
-	Dialect           dialect.Dialect
-	ObserveUsage      bool
-	Group             state.GroupView
-	APIKey            string
-	CredentialSecrets []string
-	Request           *dialect.ParsedRequest
-	ExternalModel     string
-	UpstreamModelID   string
-	OnStreamReady     func()
-	OnFirstResponse   func()
+	Dialect              dialect.Dialect
+	ObserveUsage         bool
+	Group                state.GroupView
+	APIKey               string
+	CredentialSecrets    []string
+	RedactionCipher      encryption.RedactionCipher
+	Request              *dialect.ParsedRequest
+	ConfiguredParameters []string
+	ExternalModel        string
+	UpstreamModelID      string
+	OnStreamReady        func()
+	OnFirstResponse      func()
 	// OnResponse 在原生 Response 对象下发前登记归属，不承担上游执行。
 	OnResponse func([]byte) error
 
@@ -505,6 +508,7 @@ func sanitizeForwardResponseHeaders(
 			strings.HasPrefix(strings.ToLower(actualName), "x-upstream-") ||
 			strings.EqualFold(actualName, "Set-Cookie") ||
 			strings.EqualFold(actualName, "Set-Cookie2") ||
+			headerValuesContainLiteral(values, "gld1_") ||
 			headerValuesContainLiteral(values, input.APIKey)
 		for _, secret := range append(append([]string(nil), input.CredentialSecrets...), additionalSecrets...) {
 			if deleteField || secret == "" || secret == input.APIKey {

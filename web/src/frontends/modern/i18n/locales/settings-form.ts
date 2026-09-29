@@ -39,7 +39,7 @@ export const zhCN = {
     system: '系统信息',
   },
   sectionHelp: {
-    redaction: '配置发送给上游与 JEV 的文本替换规则',
+    redaction: '配置发送给上游与 JEV 的文本脱敏规则',
     routing: '路由选择与请求亲和',
     connection: '代理、超时和失败处理',
     browser: '跨域访问与请求头规则',
@@ -48,7 +48,9 @@ export const zhCN = {
     experimental: '集中管理默认关闭且可能调整的实验性功能',
     system: '版本与部署信息',
   },
+  liveModes: { off: '关闭', direct: '直连上游', relay: '网关中继' },
   fields: {
+    codex_live_mode: '实时语音',
     request_redaction: '请求脱敏',
     jev: 'JEV 公共配置',
     request_audit: '智能护栏',
@@ -73,7 +75,9 @@ export const zhCN = {
     cors: '跨域访问（CORS）',
   },
   hints: {
-    request_redaction: '配置发送给上游与 JEV 的文本替换规则',
+    codex_live_mode:
+      '分组可覆盖此默认值。直连要求客户端能访问上游；中继需要配置公网媒体地址及 UDP 端口。关闭仅停用语音。',
+    request_redaction: '配置发送给上游与 JEV 的文本脱敏规则',
     jev: '自动模型与语义审计共用。请求文本会发送到所选分组；语义审计需要明确指定分组。',
     request_audit: '使用 JEV 按自定义规则拦截或告警。',
     auto_model: 'Jev 选择预设，现有调度选择分组和凭据。',
@@ -209,7 +213,7 @@ export const enUS = {
     system: 'System information',
   },
   sectionHelp: {
-    redaction: 'Configure text replacement for upstream providers and JEV',
+    redaction: 'Configure text redaction for upstream providers and JEV',
     routing: 'Route selection and request affinity',
     connection: 'Proxy, timeouts and failure handling',
     browser: 'Cross-origin access and header rules',
@@ -218,7 +222,9 @@ export const enUS = {
     experimental: 'Manage disabled-by-default features that may change',
     system: 'Version and deployment',
   },
+  liveModes: { off: 'Off', direct: 'Direct to upstream', relay: 'Gateway relay' },
   fields: {
+    codex_live_mode: 'Live voice',
     request_redaction: 'Request redaction',
     jev: 'Shared JEV configuration',
     request_audit: 'AI Guardrails',
@@ -243,7 +249,9 @@ export const enUS = {
     cors: 'Cross-origin access (CORS)',
   },
   hints: {
-    request_redaction: 'Configure text replacement for upstream providers and JEV',
+    codex_live_mode:
+      'Groups can override this default. Direct mode requires client access to upstream media. Relay mode requires a reachable media IP and UDP ports. Off disables voice only.',
+    request_redaction: 'Configure text redaction for upstream providers and JEV',
     jev: 'Used by automatic models and semantic auditing. Request text is sent to this route; semantic auditing requires an explicit group.',
     request_audit: 'Use JEV to block or warn on custom rules.',
     route_strategy:
@@ -385,7 +393,7 @@ export const jaJP = {
     system: 'システム情報',
   },
   sectionHelp: {
-    redaction: '上流と JEV に送信するテキストの置換ルールを設定',
+    redaction: '上流と JEV に送信するテキストのマスキングルールを設定',
     routing: 'ルート選択とリクエスト親和性',
     connection: 'プロキシ、タイムアウト、失敗時の処理',
     browser: 'クロスオリジンアクセスとヘッダールール',
@@ -394,7 +402,9 @@ export const jaJP = {
     experimental: '初期状態で無効かつ変更される可能性がある機能を管理',
     system: 'バージョンと配置情報',
   },
+  liveModes: { off: '無効', direct: '上流に直接接続', relay: 'ゲートウェイ中継' },
   fields: {
+    codex_live_mode: 'リアルタイム音声',
     request_redaction: 'リクエストのマスキング',
     jev: 'JEV 共通設定',
     request_audit: 'AI ガードレール',
@@ -419,7 +429,9 @@ export const jaJP = {
     cors: 'クロスオリジンアクセス（CORS）',
   },
   hints: {
-    request_redaction: '上流と JEV に送信するテキストの置換ルールを設定',
+    codex_live_mode:
+      'グループで既定値を上書きできます。直接接続はクライアントから上流への通信が必要です。中継には到達可能なメディア IP と UDP ポートが必要です。無効にしてもテキストは利用できます。',
+    request_redaction: '上流と JEV に送信するテキストのマスキングルールを設定',
     jev: '自動モデルと意味監査で共用します。リクエスト本文を選択したグループに送信します。意味監査にはグループの指定が必要です。',
     request_audit: 'JEV が独自ルールでブロックまたは警告します。',
     route_strategy:

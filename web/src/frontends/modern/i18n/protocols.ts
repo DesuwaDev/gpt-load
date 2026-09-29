@@ -6,8 +6,11 @@ export const protocolOrder = [
   'openai-completions',
   'openai-images',
   'openai-embeddings',
+  'gemini-embeddings',
+  'codex-live',
   'rerank',
   'decisions',
+  'mistral',
 ] as const
 export const protocolMessages = Object.fromEntries(
   protocolOrder.map((protocol) => [protocol, protocol]),

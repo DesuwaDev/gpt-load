@@ -32,6 +32,8 @@ func TestOpenAIEmbeddingsRuntimeUsesOneTypedRawWireForSupportedChannels(t *testi
 		{name: "OpenAI", channelID: channel.OpenAI, wantPath: "/v1/embeddings"},
 		{name: "OpenRouter", channelID: channel.OpenRouter, wantPath: "/v1/embeddings"},
 		{name: "OpenAI Compatible complete prefix", channelID: channel.OpenAICompatible, baseSuffix: "/tenant/api/v4", wantPath: "/tenant/api/v4/embeddings"},
+		{name: "Mistral preset", channelID: channel.ID("mistral"), baseSuffix: "/v1", wantPath: "/v1/embeddings"},
+		{name: "Nebius preset", channelID: channel.ID("nebius"), baseSuffix: "/v1", wantPath: "/v1/embeddings"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
@@ -140,7 +142,6 @@ func TestOpenAIEmbeddingsRequestShapeAndCapabilityAreExact(t *testing.T) {
 		func(spec *execution.AttemptSpec) { spec.Method = http.MethodGet },
 		func(spec *execution.AttemptSpec) { spec.Path = "/v1/embedding" },
 		func(spec *execution.AttemptSpec) { spec.Operation = execution.OperationChatCompletion },
-		func(spec *execution.AttemptSpec) { spec.RouteMode = execution.RouteConverted },
 	} {
 		invalid := valid.Clone()
 		mutate(&invalid)

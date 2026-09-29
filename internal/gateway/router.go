@@ -27,6 +27,10 @@ const (
 	endpointForward endpointKind = iota + 1
 	endpointModels
 	endpointUsage
+	endpointLiveCreate
+	endpointLiveSideband
+	endpointLiveHangup
+	endpointMistralRealtime
 )
 
 type route struct {
@@ -70,7 +74,7 @@ func dataPlaneEndpointCatalog() []dataPlaneEndpoint {
 			methods:       []string{http.MethodPost},
 			path:          geminiGenerationPattern,
 			pathValidator: validateGeminiRequest,
-			resolve:       staticRoute(protocol.Gemini, endpointForward),
+			resolve:       resolveGeminiModelActionRoute,
 		},
 		{
 			name:    "data.gemini.models",
@@ -118,7 +122,26 @@ func dataPlaneEndpointCatalog() []dataPlaneEndpoint {
 		},
 		{name: "data.rerank", methods: []string{http.MethodPost}, path: "/v1/rerank", resolve: staticRoute(protocol.Rerank, endpointForward)},
 		{name: "data.decisions", methods: []string{http.MethodPost}, path: decisionsPath, resolve: staticRoute(protocol.Decisions, endpointForward)},
+		{name: "data.mistral.ocr", methods: []string{http.MethodPost}, path: "/v1/ocr", resolve: staticRoute(protocol.Mistral, endpointForward)},
+		{name: "data.mistral.fim", methods: []string{http.MethodPost}, path: "/v1/fim/completions", resolve: staticRoute(protocol.Mistral, endpointForward)},
+		{name: "data.mistral.audio.transcriptions", methods: []string{http.MethodPost}, path: "/v1/audio/transcriptions", resolve: staticRoute(protocol.Mistral, endpointForward)},
+		{name: "data.mistral.realtime", methods: []string{http.MethodGet}, path: "/v1/audio/transcriptions/realtime", resolve: staticRoute(protocol.Mistral, endpointMistralRealtime)},
+		{name: "data.mistral.audio.speech", methods: []string{http.MethodPost}, path: "/v1/audio/speech", resolve: staticRoute(protocol.Mistral, endpointForward)},
+		{name: "data.mistral.voices", methods: mistralVoiceMethods(), path: "/mistral/v1/audio/voices", resolve: staticRoute(protocol.Mistral, endpointForward)},
+		{name: "data.mistral.voices.resource", methods: mistralVoiceMethods(), path: "/mistral/v1/audio/voices/*resource_path", pathValidator: mistralResourcePath, resolve: staticRoute(protocol.Mistral, endpointForward)},
+		{name: "data.mistral.voices.v2", methods: []string{http.MethodGet, http.MethodHead}, path: "/mistral/v2/audio/voices", resolve: staticRoute(protocol.Mistral, endpointForward)},
+		{name: "data.mistral.voices.v2.resource", methods: []string{http.MethodGet, http.MethodHead}, path: "/mistral/v2/audio/voices/*resource_path", pathValidator: mistralResourcePath, resolve: staticRoute(protocol.Mistral, endpointForward)},
+		{name: "data.mistral.moderations", methods: []string{http.MethodPost}, path: "/v1/moderations", resolve: staticRoute(protocol.Mistral, endpointForward)},
+		{name: "data.mistral.chat.moderations", methods: []string{http.MethodPost}, path: "/v1/chat/moderations", resolve: staticRoute(protocol.Mistral, endpointForward)},
+		{name: "data.mistral.classifications", methods: []string{http.MethodPost}, path: "/v1/classifications", resolve: staticRoute(protocol.Mistral, endpointForward)},
 		{name: "data.codex.search", methods: []string{http.MethodPost}, path: "/v1/alpha/search", resolve: staticRoute(protocol.OpenAIResponses, endpointForward)},
+		{name: "data.codex.live", methods: []string{http.MethodPost}, path: "/v1/live", resolve: staticRoute(protocol.CodexLive, endpointLiveCreate)},
+		{name: "data.codex.live.sideband", methods: []string{http.MethodGet}, path: "/v1/live/:call_id", resolve: staticRoute(protocol.CodexLive, endpointLiveSideband)},
+		{name: "data.codex.live.legacy.hangup", methods: []string{http.MethodPost}, path: "/v1/live/:call_id/hangup", resolve: staticRoute(protocol.CodexLive, endpointLiveHangup)},
+		{name: "data.codex.live.calls", methods: []string{http.MethodPost}, path: "/v1/realtime/calls", resolve: staticRoute(protocol.CodexLive, endpointLiveCreate)},
+		{name: "data.codex.live.realtime", methods: []string{http.MethodGet}, path: "/v1/realtime", resolve: staticRoute(protocol.CodexLive, endpointLiveSideband)},
+		{name: "data.codex.live.call.sideband", methods: []string{http.MethodGet}, path: "/v1/realtime/calls/:call_id", resolve: staticRoute(protocol.CodexLive, endpointLiveSideband)},
+		{name: "data.codex.live.hangup", methods: []string{http.MethodPost}, path: "/v1/realtime/calls/:call_id/hangup", resolve: staticRoute(protocol.CodexLive, endpointLiveHangup)},
 	}
 }
 
@@ -136,10 +159,52 @@ func responsesRegisteredMethods() []string {
 	}
 }
 
+func mistralVoiceMethods() []string {
+	return []string{
+		http.MethodGet,
+		http.MethodHead,
+	}
+}
+
+func mistralResourcePath(request *http.Request) bool {
+	if request == nil || request.URL == nil {
+		return false
+	}
+	path := request.URL.Path
+	for _, root := range []string{"/mistral/v1/audio/voices", "/mistral/v2/audio/voices"} {
+		if path == root {
+			return true
+		}
+		prefix := root + "/"
+		if !strings.HasPrefix(path, prefix) {
+			continue
+		}
+		rest := strings.TrimPrefix(path, prefix)
+		if rest == "" || strings.Contains(rest, "//") {
+			return false
+		}
+		for _, segment := range strings.Split(rest, "/") {
+			if segment == "" || segment == "." || segment == ".." {
+				return false
+			}
+		}
+		return true
+	}
+	return false
+}
+
 func staticRoute(selectedProtocol protocol.Protocol, kind endpointKind) func(*http.Request) route {
 	return func(*http.Request) route {
 		return route{Protocol: selectedProtocol, Kind: kind}
 	}
+}
+
+// resolveGeminiModelActionRoute 按动作后缀区分 Gemini 生成类请求和原生 embedding 请求。
+func resolveGeminiModelActionRoute(request *http.Request) route {
+	if request != nil && request.URL != nil && geminiEmbeddingsRequestPath(request.URL.Path) {
+		return route{Protocol: protocol.GeminiEmbeddings, Kind: endpointForward}
+	}
+	return route{Protocol: protocol.Gemini, Kind: endpointForward}
 }
 
 func resolveModelListRoute(request *http.Request) route {
@@ -191,6 +256,15 @@ func locallyRejectedForwardMethod(method string) bool {
 }
 
 func geminiRequestPath(path string) bool {
+	return geminiModelActionPath(path, ":generateContent", ":streamGenerateContent", ":countTokens") ||
+		geminiEmbeddingsRequestPath(path)
+}
+
+func geminiEmbeddingsRequestPath(path string) bool {
+	return geminiModelActionPath(path, ":embedContent", ":batchEmbedContents")
+}
+
+func geminiModelActionPath(path string, suffixes ...string) bool {
 	const prefix = geminiModelsPath + "/"
 	if !strings.HasPrefix(path, prefix) {
 		return false
@@ -199,7 +273,7 @@ func geminiRequestPath(path string) bool {
 	if strings.Contains(modelAndAction, "/") {
 		return false
 	}
-	for _, suffix := range []string{":generateContent", ":streamGenerateContent", ":countTokens"} {
+	for _, suffix := range suffixes {
 		if model := strings.TrimSuffix(modelAndAction, suffix); model != modelAndAction {
 			return model != ""
 		}

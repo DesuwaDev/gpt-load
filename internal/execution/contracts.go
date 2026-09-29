@@ -30,24 +30,34 @@ func (e *ValidationError) Error() string {
 type Operation string
 
 const (
-	OperationChatCompletion       Operation = "chat_completion"
-	OperationResponsesCreate      Operation = "responses_create"
-	OperationResponsesRetrieve    Operation = "responses_retrieve"
-	OperationResponsesDelete      Operation = "responses_delete"
-	OperationResponsesCancel      Operation = "responses_cancel"
-	OperationResponsesInputItems  Operation = "responses_input_items"
-	OperationResponsesCompact     Operation = "responses_compact"
-	OperationResponsesInputTokens Operation = "responses_input_tokens"
-	OperationCountTokens          Operation = "count_tokens"
-	OperationResponsesPassthrough Operation = "responses_passthrough"
-	OperationWebSearch            Operation = "web_search"
-	OperationImagesGenerate       Operation = "images_generate"
-	OperationImagesEdit           Operation = "images_edit"
-	OperationEmbeddingsCreate     Operation = "embeddings_create"
-	OperationRerank               Operation = "rerank"
-	OperationDecisionsCreate      Operation = "decisions_create"
-	OperationListModels           Operation = "list_models"
-	OperationProbe                Operation = "probe"
+	OperationChatCompletion               Operation = "chat_completion"
+	OperationResponsesCreate              Operation = "responses_create"
+	OperationResponsesRetrieve            Operation = "responses_retrieve"
+	OperationResponsesDelete              Operation = "responses_delete"
+	OperationResponsesCancel              Operation = "responses_cancel"
+	OperationResponsesInputItems          Operation = "responses_input_items"
+	OperationResponsesCompact             Operation = "responses_compact"
+	OperationResponsesInputTokens         Operation = "responses_input_tokens"
+	OperationCountTokens                  Operation = "count_tokens"
+	OperationResponsesPassthrough         Operation = "responses_passthrough"
+	OperationWebSearch                    Operation = "web_search"
+	OperationImagesGenerate               Operation = "images_generate"
+	OperationImagesEdit                   Operation = "images_edit"
+	OperationEmbeddingsCreate             Operation = "embeddings_create"
+	OperationLiveCall                     Operation = "live_call"
+	OperationRerank                       Operation = "rerank"
+	OperationDecisionsCreate              Operation = "decisions_create"
+	OperationMistralOCR                   Operation = "mistral_ocr"
+	OperationMistralFIM                   Operation = "mistral_fim"
+	OperationMistralAudioTranscription    Operation = "mistral_audio_transcription"
+	OperationMistralAudioSpeech           Operation = "mistral_audio_speech"
+	OperationMistralModeration            Operation = "mistral_moderation"
+	OperationMistralChatModeration        Operation = "mistral_chat_moderation"
+	OperationMistralClassification        Operation = "mistral_classification"
+	OperationMistralVoices                Operation = "mistral_voices"
+	OperationMistralRealtimeTranscription Operation = "mistral_realtime_transcription"
+	OperationListModels                   Operation = "list_models"
+	OperationProbe                        Operation = "probe"
 )
 
 // Valid reports whether the operation is supported by the execution contract.
@@ -67,8 +77,18 @@ func (o Operation) Valid() bool {
 		OperationImagesGenerate,
 		OperationImagesEdit,
 		OperationEmbeddingsCreate,
+		OperationLiveCall,
 		OperationRerank,
 		OperationDecisionsCreate,
+		OperationMistralOCR,
+		OperationMistralFIM,
+		OperationMistralAudioTranscription,
+		OperationMistralAudioSpeech,
+		OperationMistralModeration,
+		OperationMistralChatModeration,
+		OperationMistralClassification,
+		OperationMistralVoices,
+		OperationMistralRealtimeTranscription,
 		OperationListModels,
 		OperationProbe:
 		return true
@@ -94,7 +114,10 @@ const (
 // ReplayPolicy returns the operation-level replay contract.
 func (o Operation) ReplayPolicy() ReplayPolicy {
 	switch o {
-	case OperationImagesGenerate, OperationImagesEdit, OperationEmbeddingsCreate, OperationRerank, OperationDecisionsCreate:
+	case OperationImagesGenerate, OperationImagesEdit, OperationEmbeddingsCreate, OperationRerank, OperationDecisionsCreate, OperationLiveCall,
+		OperationMistralOCR, OperationMistralFIM, OperationMistralAudioTranscription, OperationMistralAudioSpeech,
+		OperationMistralModeration, OperationMistralChatModeration, OperationMistralClassification,
+		OperationMistralRealtimeTranscription:
 		return ReplayPolicyRequireRejectedBeforeProcessing
 	default:
 		return ReplayPolicyLegacy
@@ -223,7 +246,7 @@ type AttemptTimeouts struct {
 
 // AttemptSpec is a fully selected, provider-neutral upstream attempt.
 // NewAttemptSpec or Clone must be used at ownership boundaries because Query,
-// Header, ConfiguredHeaders, Body, TargetConfig, and Credential contain reference-backed values.
+// Header, ConfiguredHeaders, ConfiguredParameters, Body, TargetConfig, and Credential contain reference-backed values.
 type AttemptSpec struct {
 	RequestID                string                   `json:"request_id"`
 	AttemptID                string                   `json:"attempt_id"`
@@ -247,6 +270,8 @@ type AttemptSpec struct {
 	Body     []byte      `json:"body,omitempty"`
 	// ConfiguredHeaders 记录显式请求头规则的字段；最终值由 Header 提供，缺失表示移除。
 	ConfiguredHeaders []string `json:"-"`
+	// ConfiguredParameters 仅记录本次分组覆盖设置的字段，值从最终 Body 读取。
+	ConfiguredParameters []string `json:"-"`
 	// IncludeUsage asks the executor to request provider usage details when the
 	// selected operation supports an explicit wire option.
 	IncludeUsage bool `json:"include_usage,omitempty"`
@@ -276,6 +301,7 @@ func (s AttemptSpec) Clone() AttemptSpec {
 	clone.Query = cloneValues(s.Query)
 	clone.Header = cloneHeader(s.Header)
 	clone.ConfiguredHeaders = append([]string(nil), s.ConfiguredHeaders...)
+	clone.ConfiguredParameters = append([]string(nil), s.ConfiguredParameters...)
 	clone.Body = cloneBytes(s.Body)
 	clone.TargetConfig = cloneRawMessage(s.TargetConfig)
 	clone.Credential = s.Credential.Clone()

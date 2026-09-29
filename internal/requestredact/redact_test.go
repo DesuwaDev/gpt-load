@@ -8,16 +8,17 @@ import (
 	"testing"
 )
 
-func TestRedactionPreservesOpaqueBlocksAndRejectsSignedTextMutation(t *testing.T) {
+func TestRedactionPreservesOpaqueBlocksAndSignedText(t *testing.T) {
 	c, _ := Compile([]Rule{{Pattern: "private", Replacement: "[VALUE]"}})
 	image := []byte(`{"messages":[{"role":"user","content":[{"type":"image","source":{"type":"base64","data":"private"}}]}]}`)
 	got, err := c.Apply(image)
 	if err != nil || !bytes.Equal(image, got) {
 		t.Fatal("binary content changed")
 	}
-	_, err = c.Apply([]byte(`{"messages":[{"role":"assistant","content":[{"type":"thinking","thinking":"private","signature":"signed"}]}]}`))
-	if !errors.Is(err, ErrContent) {
-		t.Fatal("signed text was silently corrupted")
+	// 带签名的思考由上游生成，没有还原记录时原样发回，避免签名失效。
+	signed := []byte(`{"messages":[{"role":"assistant","content":[{"type":"thinking","thinking":"private","signature":"signed"}]}]}`)
+	if got, err := c.Apply(signed); err != nil || !bytes.Equal(got, signed) {
+		t.Fatalf("signed text changed: %s / %v", got, err)
 	}
 }
 
@@ -42,6 +43,80 @@ func TestRedactionValidationAndLiteralReplacement(t *testing.T) {
 	}
 	if _, err := c.Text(strings.Repeat("a", 65537) + "private"); !errors.Is(err, ErrContent) {
 		t.Fatal("match limit silently skipped the remaining text")
+	}
+}
+
+func TestRedactionRuleModeContract(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		raw  string
+	}{
+		{"legacy", `[{"pattern":"private","replacement":"[VALUE]"}]`},
+		{"explicit replace", `[{"pattern":"private","replacement":"[VALUE]","mode":"replace"}]`},
+		{"encrypt retains replacement", `[{"pattern":"private","replacement":"[VALUE]","mode":"encrypt"}]`},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			rules, err := Decode([]byte(test.raw))
+			if err != nil {
+				t.Fatalf("Decode() error = %v", err)
+			}
+			if issues := Validate(rules); len(issues) != 0 {
+				t.Fatalf("Validate() issues = %+v", issues)
+			}
+			compiled, err := Compile(rules)
+			if err != nil {
+				t.Fatalf("Compile() error = %v", err)
+			}
+			got, err := json.Marshal(compiled.Rules())
+			if err != nil || string(got) != test.raw {
+				t.Fatalf("Rules() = %s, error = %v, want %s", got, err, test.raw)
+			}
+			if test.name != "encrypt retains replacement" {
+				if got, err := compiled.Text("private"); err != nil || got != "[VALUE]" {
+					t.Fatalf("legacy replacement = %q, error = %v", got, err)
+				}
+			}
+		})
+	}
+
+	rules, err := Decode([]byte(`[{"pattern":"private","replacement":"[VALUE]","mode":"unknown"}]`))
+	if err != nil {
+		t.Fatalf("Decode() error = %v", err)
+	}
+	if issues := Validate(rules); len(issues) != 1 || issues[0].Error != "invalid_mode" {
+		t.Fatalf("invalid mode issues = %+v", issues)
+	}
+	if _, err := Compile(rules); err == nil {
+		t.Fatal("Compile() accepted invalid mode")
+	}
+}
+
+func TestEncryptRuleCannotUseLegacyReplacementPath(t *testing.T) {
+	for _, rules := range [][]Rule{
+		{{Pattern: "private", Replacement: "temporary", Mode: ModeEncrypt}},
+		{{Pattern: "private", Replacement: "[VALUE]"}, {Pattern: "private", Replacement: "temporary", Mode: ModeEncrypt}},
+	} {
+		compiled, err := Compile(rules)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got, err := compiled.Text("public"); err != nil || got != "public" {
+			t.Fatalf("unmatched text = %q, error = %v", got, err)
+		}
+		if _, err := compiled.Text("private"); !errors.Is(err, ErrContent) {
+			t.Fatalf("Text() error = %v, want ErrContent", err)
+		}
+		if _, err := compiled.Apply([]byte(`{"input":"private"}`)); !errors.Is(err, ErrContent) {
+			t.Fatalf("Apply() error = %v, want ErrContent", err)
+		}
+	}
+
+	replace, err := Compile([]Rule{{Pattern: "private", Replacement: "[VALUE]", Mode: ModeReplace}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, err := replace.Text("private"); err != nil || got != "[VALUE]" {
+		t.Fatalf("replace text = %q, error = %v", got, err)
 	}
 }
 
