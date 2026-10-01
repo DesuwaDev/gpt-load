@@ -130,7 +130,10 @@ function clear(): void {
         </div>
 
         <div class="credential-turn-state-dialog__field">
-          <label class="credential-turn-state-dialog__label" for="credential-turn-state-models-input">
+          <label
+            class="credential-turn-state-dialog__label"
+            for="credential-turn-state-models-input"
+          >
             {{ t('group.credentials.turnState.models') }}
           </label>
           <p class="credential-turn-state-dialog__hint">

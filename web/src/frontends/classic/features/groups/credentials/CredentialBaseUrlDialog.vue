@@ -4,10 +4,7 @@ import { useI18n } from 'vue-i18n'
 
 import AppButton from '@/components/ui/AppButton.vue'
 import AppDialog from '@/components/ui/AppDialog.vue'
-import {
-  credentialBaseUrlMaxLength,
-  validCodexCustomBaseURL,
-} from './credential-base-url'
+import { credentialBaseUrlMaxLength, validCodexCustomBaseURL } from './credential-base-url'
 
 const props = defineProps<{
   open: boolean

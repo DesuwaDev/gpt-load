@@ -46,5 +46,3 @@ function validCredentialTurnStateModelEntry(entry: string): boolean {
 export function credentialTurnStateIssuedAtMs(value: string): number | null {
   return parseFernetToken(value)?.issuedAtMs ?? null
 }
-
-

@@ -212,7 +212,13 @@ const authStates = ['ready', 'refreshing', 'reauthorization_required', 'outcome_
 const observationStates = ['fresh', 'stale', 'refreshing', 'error', 'unavailable'] as const
 const quotaStates = ['available', 'exhausted', 'unknown'] as const
 const planLevels = ['free', 'standard', 'premium', 'elite'] as const
-const accountFields = ['email', 'email_mask', 'expires_at_ms', 'last_refresh_at_ms', 'base_url'] as const
+const accountFields = [
+  'email',
+  'email_mask',
+  'expires_at_ms',
+  'last_refresh_at_ms',
+  'base_url',
+] as const
 const observationFields = [
   'state',
   'snapshot',

@@ -305,20 +305,14 @@ function runMenuAction(
               <button type="button" :disabled="busy" @click="runMenuAction('custom-gateway')">
                 <Globe :size="15" aria-hidden="true" />
                 <span>{{ t('group.credentials.customGateway.title') }}</span>
-                <span
-                  v-if="item.account?.base_url"
-                  class="group-credential-record__menu-chip"
-                >
+                <span v-if="item.account?.base_url" class="group-credential-record__menu-chip">
                   {{ t('group.credentials.customGateway.active') }}
                 </span>
               </button>
               <button type="button" :disabled="busy" @click="runMenuAction('turn-state')">
                 <Layers :size="15" aria-hidden="true" />
                 <span>{{ t('group.credentials.turnState.title') }}</span>
-                <span
-                  v-if="item.codex_turn_state"
-                  class="group-credential-record__menu-chip"
-                >
+                <span v-if="item.codex_turn_state" class="group-credential-record__menu-chip">
                   {{ t('group.credentials.turnState.active') }}
                 </span>
               </button>
