@@ -55,6 +55,7 @@ type accessKeyCollectionRecord struct {
 }
 
 type accessKeyCollectionRow struct {
+	ConcurrencyLimit      *int64
 	KeyPrefix             string
 	PriceMultiplierMicros *int64
 	ID                    uint
@@ -63,7 +64,6 @@ type accessKeyCollectionRow struct {
 	Status                string
 	Filters               models.JSON
 	RPMLimit              int64
-	ConcurrencyLimit      int64
 	ExpiresAtMS           *int64
 	CreatedAtMS           int64
 	UpdatedAtMS           int64
@@ -190,6 +190,7 @@ func (s *Service) captureAccessKeyCollectionRecords(
 			return nil, err
 		}
 		metadata.RPMUsed, metadata.ConcurrencyUsed = s.accessKeyLiveUsage(row.ID)
+		s.fillAccessKeyConcurrency(&metadata)
 		metadata.CostLimitRules = mapAccessKeyCostLimitRules(rulesByAccessKey[row.ID])
 		if s.accessQuota != nil {
 			status := mapAccessKeyCostLimitStatus(s.accessQuota.Snapshot(row.ID, observedAt))

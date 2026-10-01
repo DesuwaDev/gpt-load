@@ -144,6 +144,7 @@ func (s *Service) RotateAccessKeyIdempotent(
 	if plaintext, ok := operationResult.Ephemeral.(string); ok && !operationResult.Replayed {
 		result.Key = plaintext
 	}
+	s.fillAccessKeyConcurrency(&result.AccessKeyMetadata)
 	return result, nil
 }
 

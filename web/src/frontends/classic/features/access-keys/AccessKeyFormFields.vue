@@ -9,16 +9,16 @@ import { isValidPriceMultiplier } from '@/lib/price-multiplier'
 const props = defineProps<{
   name: string
   status: AccessKeyDto['status']
+  concurrencyLimit: number | null
   rpmLimit: number
-  concurrencyLimit: number
   priceMultiplier: string
   disabled: boolean
 }>()
 const emit = defineEmits<{
   'update:name': [value: string]
   'update:status': [value: AccessKeyDto['status']]
+  'update:concurrencyLimit': [value: number | null]
   'update:rpmLimit': [value: number]
-  'update:concurrencyLimit': [value: number]
   'update:priceMultiplier': [value: string]
 }>()
 const { t } = useI18n()
@@ -35,10 +35,6 @@ function toggleStatus(): void {
 
 function updateRpm(value: string): void {
   emit('update:rpmLimit', value === '' ? 0 : Number(value))
-}
-
-function updateConcurrency(value: string): void {
-  emit('update:concurrencyLimit', value === '' ? 0 : Number(value))
 }
 
 defineExpose({ focusName })
@@ -64,6 +60,30 @@ defineExpose({ focusName })
     </div>
 
     <slot name="credential" />
+    <div class="access-key-drawer__field">
+      <span class="access-key-drawer__field-label" aria-hidden="true">{{
+        t('concurrency.label')
+      }}</span>
+      <AppTextInput
+        id="access-key-concurrency"
+        :model-value="concurrencyLimit === null ? '' : String(concurrencyLimit)"
+        :label="t('concurrency.label')"
+        :placeholder="t('concurrency.inherit')"
+        type="number"
+        min="0"
+        step="1"
+        appearance="surface"
+        size="compact"
+        :disabled="disabled"
+        :invalid="
+          concurrencyLimit !== null &&
+          (!Number.isSafeInteger(concurrencyLimit) || concurrencyLimit < 0)
+        "
+        described-by="access-key-concurrency-description"
+        @update:model-value="emit('update:concurrencyLimit', $event === '' ? null : Number($event))"
+      />
+      <small id="access-key-concurrency-description">{{ t('concurrency.overrideHelp') }}</small>
+    </div>
 
     <div class="access-key-drawer__field">
       <span class="access-key-drawer__field-label" aria-hidden="true">
@@ -131,30 +151,6 @@ defineExpose({ focusName })
         @update:model-value="updateRpm"
       />
       <small id="access-key-rpm-description">{{ t('accessKeys.drawer.rpmDescription') }}</small>
-    </div>
-
-    <div class="access-key-drawer__field">
-      <span class="access-key-drawer__field-label" aria-hidden="true">
-        {{ t('accessKeys.drawer.concurrency') }}
-        <small class="access-key-drawer__optional">{{ t('accessKeys.drawer.optional') }}</small>
-      </span>
-      <AppTextInput
-        id="access-key-concurrency"
-        :model-value="concurrencyLimit === 0 ? '' : String(concurrencyLimit)"
-        :label="t('accessKeys.drawer.concurrency')"
-        type="number"
-        appearance="surface"
-        size="compact"
-        min="0"
-        step="1"
-        described-by="access-key-concurrency-description"
-        :placeholder="t('accessKeys.drawer.rpmPlaceholder')"
-        :disabled="disabled"
-        @update:model-value="updateConcurrency"
-      />
-      <small id="access-key-concurrency-description">{{
-        t('accessKeys.drawer.concurrencyDescription')
-      }}</small>
     </div>
   </div>
 </template>

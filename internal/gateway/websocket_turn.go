@@ -117,6 +117,12 @@ func (s *websocketConnection) newTurnRecorder(turn websocketTurn) *requestRecord
 }
 
 func (s *websocketConnection) executeTurn(turn websocketTurn) {
+	var releaseRequest func()
+	defer func() {
+		if releaseRequest != nil {
+			releaseRequest()
+		}
+	}()
 	h := s.handler
 	recorder := s.newTurnRecorder(turn)
 	requestID := recorder.requestID
@@ -157,6 +163,11 @@ func (s *websocketConnection) executeTurn(turn websocketTurn) {
 		s.cancel()
 		return
 	}
+	releaseRequest, failure := h.acquireRequestConcurrency(key.ID)
+	if failure != nil {
+		reject(*failure)
+		return
+	}
 	recorder.accessKeyMultiplier = key.PriceMultiplier
 	if h.accessQuota != nil {
 		decision, current := h.checkAccessQuotaForSnapshot(snapshot, key.ID, h.quotaNow())
@@ -174,12 +185,6 @@ func (s *websocketConnection) executeTurn(turn websocketTurn) {
 		reject(reasonAccessKeyRateLimited)
 		return
 	}
-	releaseConcurrency, concurrencyAllowed := h.concurrency.Acquire(key.ID, key.ConcurrencyLimit)
-	if !concurrencyAllowed {
-		reject(reasonAccessKeyConcurrencyLimited)
-		return
-	}
-	defer releaseConcurrency()
 	original, err := inspectWebsocketRequest(turn.body)
 	if err != nil {
 		reject(reasonInvalidProtocolRequest)
@@ -551,6 +556,12 @@ func (s *websocketConnection) executeTurn(turn websocketTurn) {
 			}
 			recorder.setAffinityHit(requiredRef != nil || selection.CredentialID == affinity.preferredCredentialID, kind)
 		}
+		releaseGroup, failure := h.acquireGroupConcurrency(selection.GroupID)
+		if failure != nil {
+			reject(*failure)
+			return
+		}
+		defer releaseGroup()
 		started := recorder.beforeForward()
 		forwardAttempts++
 		ctx, cancel := context.WithTimeout(requestCtx, selection.Group.Timeouts.Request)
@@ -618,6 +629,7 @@ func (s *websocketConnection) executeTurn(turn websocketTurn) {
 		}
 		cancel()
 		releaseInput()
+		releaseGroup()
 		for _, name := range []string{"X-Request-Id", "Request-Id", "Openai-Request-Id", "X-Oai-Request-Id"} {
 			if value := result.Header.Get(name); value != "" && len(value) <= 1024 {
 				result.UpstreamRequestID = recorder.redactor.String(value, credential.secrets...)
@@ -948,6 +960,7 @@ func (s *websocketConnection) runWebsocketAttempt(ctx context.Context, cancel co
 	}
 	var restoreFailure error
 	var eventProtocolFailure bool
+	outputTiming := dialect.OutputTimingObserver{Protocol: protocol.OpenAIResponses}
 	emitRestored := func(ctx context.Context, frames [][]byte) error {
 		if len(frames) == 0 {
 			return nil
@@ -963,6 +976,12 @@ func (s *websocketConnection) runWebsocketAttempt(ctx context.Context, cancel co
 			}
 			if err := s.emit(ctx, frame); err != nil {
 				return err
+			}
+			produced := outputTiming.Observe(dialect.StreamEvent{Payload: frame})
+			if outputTiming.Overflowed() {
+				recorder.recordOutput(false)
+			} else if produced {
+				recorder.recordOutput(true)
 			}
 			result.Committed = true
 			result.ResponseStarted = true
@@ -1120,6 +1139,9 @@ func (s *websocketConnection) runWebsocketAttempt(ctx context.Context, cancel co
 		}
 		return emitRestored(ctx, frames)
 	})
+	if wsResult.AppliedReasoning != nil {
+		result.AppliedReasoning = wsResult.AppliedReasoning.Clone()
+	}
 	if restored != nil && wsResult.Error == nil && restoreFailure == nil {
 		frames, err := restored.Finish()
 		if err != nil {

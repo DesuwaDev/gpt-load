@@ -344,6 +344,9 @@ export default {
         first_byte_timeout: 'Native response / stream first-event timeout',
         request_timeout: 'Upstream request timeout per attempt',
         stream_idle_timeout: 'Stream-idle timeout',
+        concurrency_limit: 'Concurrency limit',
+        concurrencyHelp:
+          '0 means unlimited. Applies to data-plane concurrency; reject immediately when full.',
         blacklist_threshold: 'Consecutive-failure blacklist threshold',
         blacklistThresholdHelp:
           'A credential is blacklisted after this many consecutive failures; 0 disables automatic blacklisting.',
@@ -777,6 +780,7 @@ export default {
       },
       full: {
         actions: 'All credentials',
+        import: 'Import from files',
         download: 'Download all',
         enable: 'Enable all',
         disable: 'Disable all',
@@ -805,6 +809,14 @@ export default {
           restore: 'Restored {count} {kind}',
         },
         failed: 'Unable to complete the full-Group operation',
+      },
+      fileImport: {
+        description:
+          'Add {count} credentials from the files to this group. Existing duplicates will be skipped.',
+        empty: 'The selected files contain no credentials.',
+        too_large: 'The import exceeds 32 MiB. Split it into smaller files.',
+        too_many: 'Import up to 5000 credentials at a time. Split the files and retry.',
+        read_failed: 'Unable to read the files. Choose UTF-8 encoded TXT, JSON or JSONL files.',
       },
       batch: {
         selected: '{count} selected',

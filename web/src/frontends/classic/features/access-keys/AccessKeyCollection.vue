@@ -86,7 +86,6 @@ const presentations = computed(() =>
       allModels: t('accessKeys.allModels'),
       unlimited: t('accessKeys.unlimited'),
       costRules: (count) => t('accessKeys.costLimits.ruleCount', { count }),
-      concurrency: (count) => t('accessKeys.concurrencyValue', { count }),
       priceMultiplier: (value) => t('common.priceMultiplier.value', { value }),
     },
     protocolLabel: (protocol) => protocol,
@@ -252,6 +251,10 @@ watch(
             <dt>{{ scope.label }}</dt>
             <OverflowTooltip as="dd" :content="scope.value">{{ scope.value }}</OverflowTooltip>
           </div>
+          <div v-if="source(record.id).concurrency.limit > 0">
+            <dt>{{ t('concurrency.label') }}</dt>
+            <dd>{{ formatInteger(source(record.id).concurrency.limit, locale) }}</dd>
+          </div>
         </dl>
       </div>
 
@@ -294,8 +297,8 @@ watch(
           />
           <LimitUsageMeter
             :label="t('accessKeys.limits.concurrencyShort')"
-            :used="source(record.id).concurrency_used"
-            :limit="source(record.id).concurrency_limit"
+            :used="source(record.id).concurrency.current"
+            :limit="source(record.id).concurrency.limit"
             compact
           />
         </div>
@@ -410,7 +413,8 @@ watch(
   max-width: 100%;
   align-items: center;
   gap: 7px;
-  min-height: 24px;  font-family: var(--font-sans);
+  min-height: 24px;
+  font-family: var(--font-sans);
   font-size: var(--text-label-xs);
 }
 .access-key-quota :deep(.quota-progress) {

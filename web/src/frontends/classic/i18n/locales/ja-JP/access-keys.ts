@@ -98,7 +98,6 @@ export default {
     allProtocols: 'すべてのプロトコル',
     allModels: 'すべてのモデル',
     unlimited: '無制限',
-    concurrencyValue: '同時 {count}',
     limits: {
       rpmShort: 'RPM',
       concurrencyShort: '同時',
@@ -261,9 +260,6 @@ export default {
       rpm: '1 分あたりのリクエスト数',
       rpmPlaceholder: '空欄は無制限',
       rpmDescription: '0 以上の整数を入力してください。0 は無制限です。',
-      concurrency: '最大同時リクエスト数',
-      concurrencyDescription:
-        '同時に処理中のリクエスト数の上限です。超過分は 429 を返します。0 は無制限です。',
       costLimits: {
         enableTotal: '総額上限を有効化',
         enablePeriodic: '周期上限を有効化',
@@ -291,7 +287,6 @@ export default {
       saveBlockedPending: '保存中…',
       saveBlockedName: '名前を入力してください',
       saveBlockedRPM: 'RPM は 0 以上の整数で入力してください',
-      saveBlockedConcurrency: '同時リクエスト数は 0 以上の整数で入力してください',
       saveBlockedCostLimits: '上限額または周期を確認してください',
       saveBlockedGroupProtocol: 'グループとプロトコルをルーティングできません',
       saveBlockedGroupUnavailable: 'グループカタログを利用できません',

@@ -24,13 +24,13 @@ type accessKeyFilterDigestBody struct {
 }
 
 type accessKeyCreateDigestBody struct {
+	ConcurrencyLimit *int64                          `json:"concurrency_limit,omitempty"`
 	KeyHash          string                          `json:"key_hash,omitempty"`
 	PriceMultiplier  string                          `json:"price_multiplier,omitempty"`
 	Name             string                          `json:"name"`
 	Status           *state.AccessKeyStatus          `json:"status,omitempty"`
 	Filters          accessKeyFilterDigestBody       `json:"filters"`
 	RPMLimit         int64                           `json:"rpm_limit"`
-	ConcurrencyLimit int64                           `json:"concurrency_limit,omitempty"`
 	CostLimitRules   []AccessKeyCostLimitRuleRequest `json:"cost_limit_rules,omitempty"`
 	ExpiresAtMS      *int64                          `json:"expires_at_ms,omitempty"`
 }
@@ -60,7 +60,7 @@ func (s *Service) CreateAccessKeyIdempotent(
 	if err != nil {
 		return AccessKeyCreateResult{}, err
 	}
-	concurrencyLimit, err := normalizeRPMLimit(request.ConcurrencyLimit, 0)
+	concurrencyLimit, err := normalizeConcurrencyLimit(request.ConcurrencyLimit)
 	if err != nil {
 		return AccessKeyCreateResult{}, err
 	}
@@ -88,13 +88,12 @@ func (s *Service) CreateAccessKeyIdempotent(
 	}
 	digestFilters := canonicalAccessKeyFilterSet(filters)
 	canonicalBody, err := canonicalIdempotencyBody(accessKeyCreateDigestBody{
-		KeyHash:         keyHash,
-		PriceMultiplier: priceMultiplierDigest(priceMultiplier),
-		Name:            name, Status: digestStatus, Filters: digestFilters, RPMLimit: rpmLimit,
-		// omitempty：并发上限为 0 时不进入摘要，旧幂等键的重放结果保持一致。
 		ConcurrencyLimit: concurrencyLimit,
-		CostLimitRules:   costLimitRuleRequestsForDigest(costLimitRules),
-		ExpiresAtMS:      request.ExpiresAtMS,
+		KeyHash:          keyHash,
+		PriceMultiplier:  priceMultiplierDigest(priceMultiplier),
+		Name:             name, Status: digestStatus, Filters: digestFilters, RPMLimit: rpmLimit,
+		CostLimitRules: costLimitRuleRequestsForDigest(costLimitRules),
+		ExpiresAtMS:    request.ExpiresAtMS,
 	})
 	if err != nil {
 		return AccessKeyCreateResult{}, app_errors.ErrInternalServer
@@ -128,11 +127,12 @@ func (s *Service) CreateAccessKeyIdempotent(
 			if err := validateFilterGroupReferences(tx, filters.Groups); err != nil {
 				return idempotentMutationResult{}, err
 			}
-			row, plaintext, err := s.newAccessKeyRow(name, filters, rpmLimit, concurrencyLimit, request.Key)
+			row, plaintext, err := s.newAccessKeyRow(name, filters, rpmLimit, request.Key)
 			if err != nil {
 				return idempotentMutationResult{}, err
 			}
 			row.PriceMultiplierMicros = priceMultiplierStorage(priceMultiplier)
+			row.ConcurrencyLimit = concurrencyLimit
 			row.Status = string(status)
 			row.ExpiresAtMS = cloneOptionalInt64(request.ExpiresAtMS)
 			if err := tx.Create(&row).Error; err != nil {
@@ -145,10 +145,9 @@ func (s *Service) CreateAccessKeyIdempotent(
 			metadata, err := mapAccessKeyMetadataRow(accessKeyMetadataRow{
 				ID: row.ID, Name: row.Name, KeyPrefix: *row.KeyPrefix, KeySuffix: row.KeySuffix,
 				PriceMultiplierMicros: row.PriceMultiplierMicros,
-				Status:                row.Status, Filters: row.Filters, RPMLimit: row.RPMLimit,
-				ConcurrencyLimit: row.ConcurrencyLimit,
-				ExpiresAtMS:      row.ExpiresAtMS,
-				CreatedAtMS:      row.CreatedAtMS, UpdatedAtMS: row.UpdatedAtMS,
+				Status:                row.Status, Filters: row.Filters, RPMLimit: row.RPMLimit, ConcurrencyLimit: row.ConcurrencyLimit,
+				ExpiresAtMS: row.ExpiresAtMS,
+				CreatedAtMS: row.CreatedAtMS, UpdatedAtMS: row.UpdatedAtMS,
 			})
 			if err != nil {
 				return idempotentMutationResult{}, err
@@ -205,6 +204,7 @@ func (s *Service) CreateAccessKeyIdempotent(
 		!operationResult.Replayed {
 		result.Key = plaintext
 	}
+	s.fillAccessKeyConcurrency(&result.AccessKeyMetadata)
 	return result, nil
 }
 

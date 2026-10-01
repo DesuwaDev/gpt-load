@@ -25,10 +25,11 @@ const rpm = computed(() =>
         count: formatInteger(props.accessKey.rpm_limit, locale.value),
       }),
 )
+// 显示实际生效值：密钥未单独设置时继承系统默认值，0 表示不限。
 const concurrency = computed(() =>
-  props.accessKey.concurrency_limit === 0
+  props.accessKey.concurrency.limit === 0
     ? t('home.ledger.currentAccessKey.unlimited')
-    : formatInteger(props.accessKey.concurrency_limit, locale.value),
+    : formatInteger(props.accessKey.concurrency.limit, locale.value),
 )
 const protocols = computed(() =>
   props.accessKey.filters.protocols.length === 0

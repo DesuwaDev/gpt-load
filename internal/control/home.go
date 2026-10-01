@@ -35,6 +35,7 @@ type HomeAccessKey struct {
 }
 
 type HomeBase struct {
+	Concurrency      *ConcurrencyView         `json:"concurrency,omitempty"`
 	Inventory        HomeInventory            `json:"inventory"`
 	AccessKeys       []HomeAccessKey          `json:"access_keys"`
 	CurrentAccessKey *AccessKeyCollectionItem `json:"current_access_key"`
@@ -60,6 +61,7 @@ type homeCredentialRow struct {
 }
 
 type homeAccessKeyRow struct {
+	ConcurrencyLimit      *int64
 	KeyPrefix             string
 	PriceMultiplierMicros *int64
 	ID                    uint
@@ -68,7 +70,6 @@ type homeAccessKeyRow struct {
 	Status                string
 	Filters               models.JSON
 	RPMLimit              int64
-	ConcurrencyLimit      int64
 	ExpiresAtMS           *int64
 	CreatedAtMS           int64
 	UpdatedAtMS           int64
@@ -190,6 +191,9 @@ func (s *Service) readHomeBase(
 		Inventory:  inventory,
 		AccessKeys: accessKeys,
 	}
+	if accessKeyID == nil {
+		result.Concurrency = &ConcurrencyView{Current: s.manager.Concurrency().Snapshot().Global, Limit: snapshot.Settings.GlobalConcurrencyLimit}
+	}
 	if accessKeyID != nil {
 		current, err := mapHomeCurrentAccessKey(accessKeyRows[0], nowMS)
 		if err != nil {
@@ -203,6 +207,7 @@ func (s *Service) readHomeBase(
 				current.CostLimitRules = costLimitDefinitionsFromStatus(status)
 			}
 		}
+		s.fillAccessKeyConcurrency(&current.AccessKeyMetadata)
 		result.CurrentAccessKey = &current
 	}
 	return result, nil
@@ -586,10 +591,9 @@ func mapHomeCurrentAccessKey(
 	metadata, err := mapAccessKeyMetadataRow(accessKeyMetadataRow{
 		PriceMultiplierMicros: row.PriceMultiplierMicros,
 		ID:                    row.ID, Name: row.Name, KeyPrefix: row.KeyPrefix, KeySuffix: row.KeySuffix,
-		Status: row.Status, Filters: row.Filters, RPMLimit: row.RPMLimit,
-		ConcurrencyLimit: row.ConcurrencyLimit,
-		ExpiresAtMS:      row.ExpiresAtMS,
-		CreatedAtMS:      row.CreatedAtMS, UpdatedAtMS: row.UpdatedAtMS,
+		Status: row.Status, Filters: row.Filters, RPMLimit: row.RPMLimit, ConcurrencyLimit: row.ConcurrencyLimit,
+		ExpiresAtMS: row.ExpiresAtMS,
+		CreatedAtMS: row.CreatedAtMS, UpdatedAtMS: row.UpdatedAtMS,
 	})
 	if err != nil {
 		return AccessKeyCollectionItem{}, err

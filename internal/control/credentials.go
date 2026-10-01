@@ -96,6 +96,7 @@ type CredentialSummaryResponse struct {
 }
 
 type CredentialAccountResponse struct {
+	PlanType        string `json:"-"`
 	Email           string `json:"email,omitempty"`
 	EmailMask       string `json:"email_mask,omitempty"`
 	ExpiresAtMS     *int64 `json:"expires_at_ms,omitempty"`
@@ -240,7 +241,7 @@ func (s *Service) credentialPresentation(
 		}
 		stagedAccount := subscriptionCredentialAccount(credential)
 		account := CredentialAccountResponse{
-			Email: strings.TrimSpace(credential.Account().Email), EmailMask: stagedAccount.EmailMask,
+			PlanType: credential.Account().PlanType, Email: strings.TrimSpace(credential.Account().Email), EmailMask: stagedAccount.EmailMask,
 			ExpiresAtMS: stagedAccount.ExpiresAtMS, LastRefreshAtMS: stagedAccount.LastRefreshAtMS,
 			BaseURL: stagedAccount.BaseURL,
 		}
@@ -502,6 +503,7 @@ func (s *Service) mapCredentialCollection(
 		item.Proxy = proxyViews[row.ID]
 		if item.ConnectionType == string(models.ConnectionTypeSubscription) {
 			item.Observation = presentCredentialObservation(observation.subscription[row.ID], row.IdentityFingerprint)
+			item.Observation = withCredentialPlan(item.Observation, account.PlanType)
 		}
 		var filterKey string
 		if query.modern != nil && query.modern.credentialKey != "" {

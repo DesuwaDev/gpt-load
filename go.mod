@@ -10,7 +10,7 @@ require (
 	github.com/gorilla/websocket v1.5.3
 	github.com/joho/godotenv v1.5.1
 	github.com/klauspost/compress v1.20.0
-	github.com/maximhq/bifrost/core v1.10.4
+	github.com/maximhq/bifrost/core v1.11.0
 	github.com/nicksnyder/go-i18n/v2 v2.6.1
 	github.com/pion/ice/v4 v4.4.4
 	github.com/pion/interceptor v0.1.49
@@ -18,7 +18,7 @@ require (
 	github.com/pion/sdp/v3 v3.0.20
 	github.com/pion/stun/v3 v3.1.7
 	github.com/pion/webrtc/v4 v4.2.22
-	github.com/router-for-me/CLIProxyAPI/v8 v8.0.4
+	github.com/router-for-me/CLIProxyAPI/v8 v8.0.8
 	github.com/router-for-me/CLIProxyAPI/v8/gptload-embedded v0.0.0
 	github.com/sirupsen/logrus v1.10.2
 	github.com/tidwall/gjson v1.19.0

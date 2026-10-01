@@ -87,6 +87,7 @@ func externalModelName(model ModelConfig) string {
 }
 
 type AccessKeyConfig struct {
+	ConcurrencyLimit *int64
 	KeyPrefix        string
 	PriceMultiplier  *pricing.PriceMultiplier
 	ID               uint
@@ -98,7 +99,6 @@ type AccessKeyConfig struct {
 	ExpiresAtMS      *int64
 	AllowedPeerCIDRs []netip.Prefix
 	RPMLimit         int64
-	ConcurrencyLimit int64
 	CostLimitRules   []accessquota.Rule
 }
 
@@ -154,6 +154,7 @@ func (rules HeaderRules) ConfiguredNames() []string {
 }
 
 type GroupView struct {
+	ConcurrencyLimit           int64
 	PriceMultiplier            pricing.PriceMultiplier
 	ID                         uint
 	Name                       string
@@ -189,6 +190,7 @@ type GroupCatalogView struct {
 }
 
 type AccessKeyView struct {
+	ConcurrencyLimit *int64
 	KeyPrefix        string
 	PriceMultiplier  pricing.PriceMultiplier
 	ID               uint
@@ -199,7 +201,6 @@ type AccessKeyView struct {
 	ExpiresAtMS      *int64
 	AllowedPeerCIDRs []netip.Prefix
 	RPMLimit         int64
-	ConcurrencyLimit int64
 	CostLimitRules   []accessquota.Rule
 }
 
@@ -364,6 +365,7 @@ func Compile(input CompileInput) (*ConfigSnapshot, error) {
 			CodexLiveMode:              resolved.CodexLiveMode,
 			ResponsesWebsocketEnabled:  resolved.ResponsesWebsocketEnabled,
 			EmptyResponseRetry:         resolved.EmptyResponseRetry,
+			ConcurrencyLimit:           resolved.ConcurrencyLimit,
 			WeightManual:               cloneWeight(group.WeightManual),
 			CredentialRPMLimit:         group.CredentialRPMLimit,
 			CredentialConcurrencyLimit: group.CredentialConcurrencyLimit,
@@ -422,7 +424,7 @@ func newAccessKeyView(input AccessKeyConfig) AccessKeyView {
 		ExpiresAtMS:      cloneAccessKeyExpiry(input.ExpiresAtMS),
 		AllowedPeerCIDRs: cloneAllowedPeerCIDRs(input.AllowedPeerCIDRs),
 		RPMLimit:         input.RPMLimit,
-		ConcurrencyLimit: input.ConcurrencyLimit,
+		ConcurrencyLimit: cloneAccessKeyExpiry(input.ConcurrencyLimit),
 		CostLimitRules:   rules,
 	}
 }
@@ -690,11 +692,11 @@ func validateCompileInput(input CompileInput) error {
 		if accessKey.PriceMultiplier != nil && !accessKey.PriceMultiplier.Valid() {
 			return fmt.Errorf("access key %d price multiplier is invalid", accessKey.ID)
 		}
+		if accessKey.ConcurrencyLimit != nil && (*accessKey.ConcurrencyLimit < 0 || *accessKey.ConcurrencyLimit > maxJSONSafeInteger) {
+			return fmt.Errorf("access key %d has invalid concurrency limit", accessKey.ID)
+		}
 		if accessKey.RPMLimit < 0 {
 			return fmt.Errorf("access key %d rpm limit must not be negative", accessKey.ID)
-		}
-		if accessKey.ConcurrencyLimit < 0 {
-			return fmt.Errorf("access key %d concurrency limit must not be negative", accessKey.ID)
 		}
 		if accessKey.ExpiresAtMS != nil &&
 			(*accessKey.ExpiresAtMS < 0 || *accessKey.ExpiresAtMS > maxSafeAccessKeyEpochMS) {

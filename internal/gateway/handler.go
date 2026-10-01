@@ -69,12 +69,6 @@ type AccessKeyRPMLimiter interface {
 	Allow(accessKeyID uint, limit int64) ratelimit.LimitDecision
 }
 
-// AccessKeyConcurrencyLimiter 按访问密钥限制在途请求数。Acquire 成功后返回的
-// release 必须在请求结束时调用；limit <= 0 表示不限。
-type AccessKeyConcurrencyLimiter interface {
-	Acquire(accessKeyID uint, limit int64) (release func(), allowed bool)
-}
-
 // CredentialLimiter 按凭据限制本地 RPM 与在途请求数。调度器用 Available 过滤
 // 候选，网关在拿到 Selection 后立即 Acquire 扣减；两者共用同一实例才能保证
 // 候选过滤与实际扣减看到的是同一份计数。
@@ -121,7 +115,6 @@ type Handler struct {
 	stats               *health.StatsStore
 	mutations           credentialMutationCoordinator
 	limiter             AccessKeyRPMLimiter
-	concurrency         AccessKeyConcurrencyLimiter
 	credentialLimiter   CredentialLimiter
 	requestLogSink      telemetry.RequestLogSink
 	priceTables         PriceTableProvider
@@ -196,7 +189,7 @@ func NewHandler(
 	handler := &Handler{
 		manager: manager, channels: channels, subscriptions: subscriptions, registry: registry, encryption: encryptionService,
 		forwarder: forwarder, dialects: dialects, stats: stats, mutations: mutations,
-		limiter: limiter, concurrency: unlimitedAccessKeyConcurrencyLimiter{}, requestLogSink: requestLogSink, priceTables: priceTables,
+		limiter: limiter, requestLogSink: requestLogSink, priceTables: priceTables,
 		credentialLimiter: unlimitedCredentialLimiter{},
 		affinityCache:     affinity.NewCache(),
 		responseBindings:  state.NewResponseBindings(),
@@ -240,7 +233,6 @@ func NewHandlerWithLifecycle(
 	stats *health.StatsStore,
 	mutations *health.MutationCoordinator,
 	limiter AccessKeyRPMLimiter,
-	concurrency AccessKeyConcurrencyLimiter,
 	credentialLimiter CredentialLimiter,
 	requestLogSink telemetry.RequestLogSink,
 	priceTables PriceTableProvider,
@@ -269,9 +261,6 @@ func NewHandlerWithLifecycle(
 	if subscriptions != nil {
 		handler.subscriptions = subscriptions
 	}
-	if concurrency != nil {
-		handler.concurrency = concurrency
-	}
 	if credentialLimiter != nil {
 		handler.credentialLimiter = credentialLimiter
 	}
@@ -286,12 +275,6 @@ type unlimitedAccessKeyRPMLimiter struct{}
 
 func (unlimitedAccessKeyRPMLimiter) Allow(uint, int64) ratelimit.LimitDecision {
 	return ratelimit.LimitDecision{Allowed: true}
-}
-
-type unlimitedAccessKeyConcurrencyLimiter struct{}
-
-func (unlimitedAccessKeyConcurrencyLimiter) Acquire(uint, int64) (func(), bool) {
-	return func() {}, true
 }
 
 type unlimitedCredentialLimiter struct{}
@@ -477,6 +460,12 @@ func (handler *Handler) Handle(ginContext *gin.Context) {
 		return
 	}
 	if requestContext.selectedRoute.Kind == endpointUsage {
+		release, failure := handler.acquireRequestConcurrency(requestContext.accessKey.ID)
+		if failure != nil {
+			_ = handler.writeReason(ginContext, *failure)
+			return
+		}
+		defer release()
 		handler.handleUsage(ginContext, requestContext)
 		return
 	}
@@ -492,6 +481,12 @@ func (handler *Handler) Handle(ginContext *gin.Context) {
 		handler.handleWebsocket(ginContext, requestContext)
 		return
 	}
+	var releaseRequest func()
+	defer func() {
+		if releaseRequest != nil {
+			releaseRequest()
+		}
+	}()
 	requestStarted := requestContext.requestStarted
 	snapshot := requestContext.snapshot
 	accessKey := requestContext.accessKey
@@ -545,6 +540,15 @@ func (handler *Handler) Handle(ginContext *gin.Context) {
 		}()
 	}
 
+	if !concurrencyControlRequest(ginContext.Request, selectedRoute) {
+		var failure *reason
+		releaseRequest, failure = handler.acquireRequestConcurrency(accessKey.ID)
+		if failure != nil {
+			handler.completeReason(ginContext, recorder, *failure)
+			return
+		}
+	}
+
 	if quotaAdmission != nil && handler.accessQuota != nil {
 		quotaDecision := accessquota.Decision{}
 		if quotaAdmission.snapshot == nil {
@@ -575,14 +579,6 @@ func (handler *Handler) Handle(ginContext *gin.Context) {
 		handler.completeReason(ginContext, recorder, reasonAccessKeyRateLimited)
 		return
 	}
-	// 并发名额在 RPM 之后占用：RPM 拒绝不该消耗在途名额，而已计入 RPM 窗口的
-	// 请求被并发拒绝也不回滚，与上游 429 的计费口径一致。
-	releaseConcurrency, concurrencyAllowed := handler.concurrency.Acquire(accessKey.ID, accessKey.ConcurrencyLimit)
-	if !concurrencyAllowed {
-		handler.completeReason(ginContext, recorder, reasonAccessKeyConcurrencyLimited)
-		return
-	}
-	defer releaseConcurrency()
 	if selectedRoute.Kind == endpointModels {
 		if !contentcoding.IdentityAcceptable(
 			headerFieldValues(ginContext.Request.Header, "Accept-Encoding"),
@@ -1314,14 +1310,28 @@ func (handler *Handler) executeAttempts(
 			quotaAdmission.admitted = true
 		}
 
-		if failure := handler.checkRequestAudit(ginContext.Request.Context(), snapshot, snapshot.AccessKeysByID[recorder.accessKeyID], prepared.request.Body, recorder, func() *reason { return handler.admitAutoQuota(snapshot, quotaAdmission) }); failure != nil {
-			handler.completeReason(ginContext, recorder, *failure)
-			return
+		// 取消已有响应不创建内容，不能启动新的审查调用或被审查组满额阻止。
+		if operation != execution.OperationResponsesCancel {
+			if failure := handler.checkRequestAudit(ginContext.Request.Context(), snapshot, snapshot.AccessKeysByID[recorder.accessKeyID], prepared.request.Body, recorder, func() *reason { return handler.admitAutoQuota(snapshot, quotaAdmission) }); failure != nil {
+				handler.completeReason(ginContext, recorder, *failure)
+				return
+			}
 		}
 		if ginContext.Request.Context().Err() != nil {
 			recorder.completeCanceled(ginContext.Request.Context(), 0, lastAttemptIndex)
 			return
 		}
+		releaseGroup := func() {}
+		if operation != execution.OperationResponsesCancel {
+			var failure *reason
+			releaseGroup, failure = handler.acquireGroupConcurrency(selection.GroupID)
+			if failure != nil {
+				handler.completeReason(ginContext, recorder, *failure)
+				return
+			}
+		}
+		// 异常退出也收尾；普通路径在本次执行结束后立即归还，幂等保护防止重复释放。
+		defer releaseGroup()
 		attemptSequence++
 		forwardAttempts++
 		if attemptSequence == 1 && (originalMetadata.PreviousResponseID != "" ||
@@ -1380,6 +1390,7 @@ func (handler *Handler) executeAttempts(
 			OnFirstResponse: func() {
 				recorder.recordFirstResponse()
 			},
+			OnOutput: recorder.recordOutput,
 		}
 		if recorder != nil {
 			recorder.freezeNextAttemptPricing(
@@ -1398,6 +1409,7 @@ func (handler *Handler) executeAttempts(
 		} else {
 			result = handler.forwarder.Forward(ginContext.Request.Context(), input)
 		}
+		releaseGroup()
 		result = normalizeUpstreamResultContract(result)
 		if !stream && result.HasResponse() && !result.ProviderErrorBeforeCommit &&
 			result.DispatchState != execution.DispatchLocal &&

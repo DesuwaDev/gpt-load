@@ -83,20 +83,16 @@ func BuildContainer() (*dig.Container, error) {
 		func(limiter *ratelimit.AccessKeyRPM) gateway.AccessKeyRPMLimiter {
 			return limiter
 		},
-		ratelimit.NewAccessKeyConcurrency,
-		func(limiter *ratelimit.AccessKeyConcurrency) gateway.AccessKeyConcurrencyLimiter {
-			return limiter
-		},
 		ratelimit.NewCredentialLimiter,
 		func(limiter *ratelimit.CredentialLimiter) gateway.CredentialLimiter {
 			return limiter
 		},
 		func(
 			accessKeyRPM *ratelimit.AccessKeyRPM,
-			accessKeyConcurrency *ratelimit.AccessKeyConcurrency,
+			manager *state.Manager,
 			credentials *ratelimit.CredentialLimiter,
 		) control.LiveLimitUsage {
-			return control.NewLiveLimitUsage(accessKeyRPM, accessKeyConcurrency, credentials)
+			return control.NewLiveLimitUsage(accessKeyRPM, accessKeyConcurrencyUsage{manager: manager}, credentials)
 		},
 		func(manager *state.Manager) requestlog.RetentionPolicyProvider {
 			return retentionSnapshotProvider{manager: manager}

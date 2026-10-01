@@ -2,6 +2,7 @@ package models
 
 // AccessKey is an encrypted client credential and its persisted access policy.
 type AccessKey struct {
+	ConcurrencyLimit        *int64  `gorm:"type:bigint;check:chk_access_key_concurrency,concurrency_limit >= 0 AND concurrency_limit <= 9007199254740991"`
 	PriceMultiplierMicros   *int64  `gorm:"column:price_multiplier_micros;type:bigint;not null;default:1000000;check:chk_access_key_price_multiplier,price_multiplier_micros >= 0 AND price_multiplier_micros <= 1000000000"`
 	ID                      uint    `gorm:"primaryKey;autoIncrement"`
 	Name                    string  `gorm:"type:varchar(255);not null"`
@@ -12,7 +13,6 @@ type AccessKey struct {
 	Status                  string  `gorm:"type:varchar(32);not null;default:'active';check:chk_access_key_status,status IN ('active','disabled')"`
 	Filters                 JSON    `gorm:"type:json"`
 	RPMLimit                int64   `gorm:"not null;default:0"`
-	ConcurrencyLimit        int64   `gorm:"column:concurrency_limit;not null;default:0"`
 	DailyCostLimitNanoUSD   int64   `gorm:"column:daily_cost_limit_nano_usd;not null;default:0;check:chk_access_key_daily_cost_limit_nano,daily_cost_limit_nano_usd >= 0"`
 	MonthlyCostLimitNanoUSD int64   `gorm:"column:monthly_cost_limit_nano_usd;not null;default:0;check:chk_access_key_monthly_cost_limit_nano,monthly_cost_limit_nano_usd >= 0"`
 	ExpiresAtMS             *int64  `gorm:"column:expires_at_ms"`

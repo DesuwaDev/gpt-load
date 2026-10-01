@@ -104,7 +104,7 @@ var migrations = []migration{
 		Validate: migrationfiles.Validate0012, ValidateRecoverable: migrationfiles.ValidateRecoverable0012,
 	},
 	{ID: migrationfiles.ID0013, Up: migrationfiles.Up0013, Validate: migrationfiles.Validate0013, ValidateRecoverable: migrationfiles.ValidateRecoverable0013},
-	{ID: migrationfiles.ID0014, Up: migrationfiles.Up0014, Validate: migrationfiles.Validate0014, ValidateRecoverable: migrationfiles.ValidateRecoverable0014},
+	{ID: migrationfiles.ID0014, Up: migrationfiles.Up0014, Validate: migrationfiles.Validate0014, ValidateCurrent: migrationfiles.ValidateCurrent0014, ValidateRecoverable: migrationfiles.ValidateRecoverable0014},
 	{ID: migrationfiles.ID0015, Up: migrationfiles.Up0015, Validate: migrationfiles.Validate0015, ValidateRecoverable: migrationfiles.ValidateRecoverable0015},
 	{ID: migrationfiles.ID0016, Up: migrationfiles.Up0016, Validate: migrationfiles.Validate0016, ValidateRecoverable: migrationfiles.ValidateRecoverable0016},
 	{ID: migrationfiles.ID0017, Up: migrationfiles.Up0017, Validate: migrationfiles.Validate0017, ValidateRecoverable: migrationfiles.ValidateRecoverable0017},
@@ -128,6 +128,10 @@ var migrations = []migration{
 	{ID: migrationfiles.ID0029, Up: migrationfiles.Up0029, Validate: migrationfiles.Validate0029, ValidateRecoverable: migrationfiles.ValidateRecoverable0029},
 	// 上游 0022 (rpm_stats) 顺延追加为 0030。
 	{ID: migrationfiles.ID0030, Up: migrationfiles.Up0030, Validate: migrationfiles.Validate0030, ValidateRecoverable: migrationfiles.ValidateRecoverable0030},
+	// 上游 0023 (access_key_concurrency) 顺延为 0031，并把本仓库 0014 的同名列转换为上游语义。
+	{ID: migrationfiles.ID0031, Up: migrationfiles.Up0031, Validate: migrationfiles.Validate0031, ValidateRecoverable: migrationfiles.ValidateRecoverable0031},
+	// 上游 0024 (request_log_output_timing) 顺延为 0032。
+	{ID: migrationfiles.ID0032, Up: migrationfiles.Up0032, Validate: migrationfiles.Validate0032, ValidateRecoverable: migrationfiles.ValidateRecoverable0032},
 }
 
 func applyMigrations(db *gorm.DB) error {

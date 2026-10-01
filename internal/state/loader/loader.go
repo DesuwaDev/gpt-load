@@ -846,9 +846,8 @@ func mapAccessKeys(
 		result = append(result, state.AccessKeyConfig{
 			PriceMultiplier: &multiplier,
 			ID:              row.ID, Name: row.Name, KeyHash: row.KeyHash, KeyPrefix: *row.KeyPrefix, KeySuffix: row.KeySuffix,
-			Status: state.AccessKeyStatus(row.Status), Filters: filters.toState(), RPMLimit: row.RPMLimit,
-			ConcurrencyLimit: row.ConcurrencyLimit,
-			ExpiresAtMS:      cloneInt64Pointer(row.ExpiresAtMS), AllowedPeerCIDRs: allowedPeerCIDRs,
+			Status: state.AccessKeyStatus(row.Status), Filters: filters.toState(), RPMLimit: row.RPMLimit, ConcurrencyLimit: row.ConcurrencyLimit,
+			ExpiresAtMS: cloneInt64Pointer(row.ExpiresAtMS), AllowedPeerCIDRs: allowedPeerCIDRs,
 			CostLimitRules: append([]accessquota.Rule(nil), rulesByAccessKey[row.ID]...),
 		})
 	}

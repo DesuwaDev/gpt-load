@@ -98,7 +98,6 @@ export default {
     allProtocols: 'All protocols',
     allModels: 'All models',
     unlimited: 'Unlimited',
-    concurrencyValue: '{count} concurrent',
     limits: {
       rpmShort: 'RPM',
       concurrencyShort: 'Concurrent',
@@ -263,9 +262,6 @@ export default {
       rpm: 'Requests per minute',
       rpmPlaceholder: 'Leave blank for unlimited',
       rpmDescription: 'Use a non-negative whole number. 0 means unlimited.',
-      concurrency: 'Max concurrent requests',
-      concurrencyDescription:
-        'Upper bound on requests in flight at once; extra requests get 429. 0 means unlimited.',
       costLimits: {
         enableTotal: 'Enable total limit',
         enablePeriodic: 'Enable periodic limits',
@@ -293,7 +289,6 @@ export default {
       saveBlockedPending: 'Saving…',
       saveBlockedName: 'Enter a name',
       saveBlockedRPM: 'RPM must be a non-negative integer',
-      saveBlockedConcurrency: 'Concurrency must be a non-negative integer',
       saveBlockedCostLimits: 'Check cost amounts or periods',
       saveBlockedGroupProtocol: 'Group and protocol cannot route',
       saveBlockedGroupUnavailable: 'Group catalog unavailable',

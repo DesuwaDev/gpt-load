@@ -333,6 +333,8 @@ export default {
         first_byte_timeout: '原生响应 / 流式首事件超时',
         request_timeout: '单次上游请求超时',
         stream_idle_timeout: '流空闲超时',
+        concurrency_limit: '并发上限',
+        concurrencyHelp: '0 表示不限。仅限制数据面并发，满额立即拒绝。',
         blacklist_threshold: '连续失败拉黑阈值',
         blacklistThresholdHelp: '凭据达到该连续失败次数后自动拉黑；0 表示关闭自动拉黑。',
         effective: '{value} 秒',
@@ -745,6 +747,7 @@ export default {
       },
       full: {
         actions: '全量操作',
+        import: '从文件导入',
         download: '下载全部',
         enable: '启用全部',
         disable: '停用全部',
@@ -772,6 +775,13 @@ export default {
           restore: '已恢复 {count} 个{kind}',
         },
         failed: '无法完成全量操作',
+      },
+      fileImport: {
+        description: '将文件中的 {count} 条凭据添加到当前分组，已有重复凭据会自动跳过。',
+        empty: '所选文件中没有凭据。',
+        too_large: '导入内容超过 32 MiB，请拆分后导入。',
+        too_many: '单次最多导入 5000 条凭据，请拆分后导入。',
+        read_failed: '无法读取文件，请选择 UTF-8 编码的 TXT、JSON 或 JSONL 文件。',
       },
       batch: {
         selected: '已选择 {count} 项',

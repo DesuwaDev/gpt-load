@@ -54,6 +54,7 @@ export interface GroupCollectionSummaryDto {
 }
 
 export interface GroupCollectionItemDto {
+  concurrency: import('@shared/concurrency').ConcurrencyView
   id: number
   name: string
   price_multiplier: string
@@ -115,6 +116,7 @@ export interface GroupRuntimeConfigDto {
   first_byte_timeout?: number
   request_timeout?: number
   stream_idle_timeout?: number
+  concurrency_limit?: number
   blacklist_threshold?: number
   header_rules?: HeaderRulesDto
   affinity_enabled?: boolean
@@ -128,6 +130,7 @@ export interface GroupEffectiveConfigDto {
   first_byte_timeout: number
   request_timeout: number
   stream_idle_timeout: number
+  concurrency_limit: number
   blacklist_threshold: number
   header_rules: HeaderRulesDto
   affinity_enabled: boolean
@@ -565,6 +568,8 @@ export interface HealthAccessKeyCostLimitDto {
 }
 
 export interface AccessKeyDto {
+  concurrency: import('@shared/concurrency').ConcurrencyView
+  concurrency_limit: number | null
   id: number
   name: string
   price_multiplier: string
@@ -573,7 +578,6 @@ export interface AccessKeyDto {
   filters: AccessKeyFiltersDto
   expires_at_ms: number | null
   rpm_limit: number
-  concurrency_limit: number
   rpm_used: number
   concurrency_used: number
   cost_limit_rules: AccessKeyCostLimitRuleDto[]
