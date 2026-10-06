@@ -17,7 +17,7 @@ func TestCredentialAndGroupLimitMigrationsDefaultToZero(t *testing.T) {
 		Name: "limits", ChannelID: "codex", ConnectionType: models.ConnectionTypeSubscription,
 		Params: models.JSON(`{}`), Models: models.JSON(`[]`), Enabled: true,
 	}
-	if err := db.Omit("ProxyConfig", "PriceMultiplierMicros", "ValidationProtocol",
+	if err := db.Omit("ProxyConfig", "PriceMultiplierMicros", "ValidationProtocol", "Priority",
 		"CredentialRPMLimit", "CredentialConcurrencyLimit").Create(&group).Error; err != nil {
 		t.Fatalf("create legacy group: %v", err)
 	}
@@ -25,7 +25,7 @@ func TestCredentialAndGroupLimitMigrationsDefaultToZero(t *testing.T) {
 		GroupID: group.ID, Data: "cipher", Fingerprint: "fingerprint",
 		IdentityFingerprint: "identity", Status: models.CredentialStatusActive,
 	}
-	if err := db.Omit("ProxyConfig", "RPMLimit", "ConcurrencyLimit", "Mark", "MarkNote",
+	if err := db.Omit("ProxyConfig", "Name", "RPMLimit", "ConcurrencyLimit", "Mark", "MarkNote",
 		"CodexTurnState", "CodexTurnStateModels", "CodexTurnStateSetAtMS").Create(&credential).Error; err != nil {
 		t.Fatalf("create legacy credential: %v", err)
 	}

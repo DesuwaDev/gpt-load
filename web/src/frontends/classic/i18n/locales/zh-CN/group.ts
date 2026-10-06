@@ -210,8 +210,6 @@ export default {
         danger: '危险区域',
       },
       routing: {
-        description: '调整分组参与请求分配的相对权重。',
-        weightHelp: '默认 50，范围 1–100；与凭据权重相乘，决定分配比例。',
         credentialLimits: '凭据限额默认值',
         credentialRpm: '每分钟请求数',
         credentialConcurrency: '最大并发',
@@ -320,7 +318,9 @@ export default {
         validationModel: '测试模型（可选）',
         validationModelPlaceholder: '搜索或输入模型 ID',
         validationModelHelp: '留空时使用分组的第一个模型；这里填上游模型 ID，不是别名。',
-        weight: '分组权重',
+        priority: '优先级',
+        priorityError: '请输入 -2147483648～2147483647 的整数',
+        weight: '权重',
         auto: '自动',
         manual: '手动',
         weightError: '请输入 1–100 之间的整数',
@@ -390,6 +390,12 @@ export default {
       settings: '设置',
     },
     credentials: {
+      name: '名称',
+      namePlaceholder: '可选，用于识别此凭据',
+      nameSaveFailed: '名称保存失败，请重试',
+      showAccount: '查看完整账号',
+      hideAccount: '隐藏完整账号',
+
       modelCooldown: {
         label: '模型冷却',
         count: '模型冷却 · {count}',
@@ -626,6 +632,8 @@ export default {
         customBaseURL: '自定义网关',
         autoRenews: '使用时自动续期',
         resetCredits: '重置卡',
+        creditBalance: '点数',
+        creditUnlimited: '不限量',
         resetCreditsCount: '{count} 张可用',
         resetCreditsTooltipTitle: '重置卡明细',
         resetCreditsTooltipItem: '第 {index} 张：{expires}',

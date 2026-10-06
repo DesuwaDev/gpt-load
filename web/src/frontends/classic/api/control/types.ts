@@ -27,6 +27,9 @@ export type ProxyEffectiveMode = 'direct' | 'environment' | 'custom'
 export type ProxyEffectiveSource = 'credential' | 'group' | 'global' | 'environment' | 'default'
 
 export interface ProxyViewDto {
+  proxy_id?: number
+  proxy_name?: string
+  reference_state?: string
   configured_mode: ProxyConfiguredMode
   effective_mode: ProxyEffectiveMode
   effective_source: ProxyEffectiveSource
@@ -34,7 +37,7 @@ export interface ProxyViewDto {
   has_auth: boolean
 }
 
-export type ProxyConfigInput = { mode: 'direct' } | { mode: 'custom'; url: string }
+export type ProxyConfigInput = { mode: 'direct' } | { mode: 'custom'; proxy_id: number }
 export type ProxyMutation = ProxyConfigInput | null
 
 export interface GroupCollectionFilters {
@@ -54,6 +57,7 @@ export interface GroupCollectionSummaryDto {
 }
 
 export interface GroupCollectionItemDto {
+  priority: number
   concurrency: import('@shared/concurrency').ConcurrencyView
   id: number
   name: string
@@ -140,6 +144,7 @@ export interface GroupEffectiveConfigDto {
 }
 
 export interface GroupSettingsDto {
+  priority: number
   name: string
   price_multiplier: string
   channel_id: string
@@ -246,8 +251,16 @@ export interface CredentialObservationSnapshotDto {
   plan_summary: { name?: string; level?: CredentialPlanLevel }
   account_summary?: CredentialObservationAccountSummaryDto
   quota_windows: CredentialQuotaWindowDto[]
+  credits?: CredentialCreditSummaryDto
   reset_credits_available?: number
   reset_credits?: CredentialResetCreditDto[]
+}
+
+export interface CredentialCreditSummaryDto {
+  balance?: string
+  has_credits?: boolean
+  unlimited?: boolean
+  observed_at_ms?: number
 }
 
 export interface CredentialResetCreditDto {
@@ -287,6 +300,8 @@ export interface ModelCooldownDto {
 export type CredentialMark = '' | 'degraded' | 'abnormal' | 'custom'
 
 export interface CredentialItemDto {
+  name: string
+  label: string
   model_cooldowns: ModelCooldownDto[]
   credential_id: number
   connection_type: ConnectionType

@@ -212,9 +212,6 @@ export default {
         danger: '危険な操作',
       },
       routing: {
-        description: 'リクエスト分配に使うグループの相対的な重みを設定します。',
-        weightHelp:
-          '既定値は 50、範囲は 1–100 です。認証情報の重みと掛け合わせて分配比率を決定します。',
         credentialLimits: '認証情報の上限既定値',
         credentialRpm: '1 分あたりのリクエスト数',
         credentialConcurrency: '最大同時実行数',
@@ -331,7 +328,9 @@ export default {
         validationModelPlaceholder: 'モデル ID を検索または入力',
         validationModelHelp:
           '空欄の場合はグループの最初のモデルを使用します。エイリアスではなくアップストリームのモデル ID を入力してください。',
-        weight: 'グループの重み',
+        priority: '優先度',
+        priorityError: '-2147483648～2147483647 の整数を入力してください',
+        weight: '重み',
         auto: '自動',
         manual: '手動',
         weightError: '1～100 の整数を入力してください',
@@ -407,6 +406,12 @@ export default {
       settings: '設定',
     },
     credentials: {
+      name: '名前',
+      namePlaceholder: '認証情報の表示名（任意）',
+      nameSaveFailed: '名前を保存できませんでした。再試行してください。',
+      showAccount: 'アカウント全体を表示',
+      hideAccount: 'アカウント全体を隠す',
+
       modelCooldown: {
         label: 'モデルクールダウン',
         count: 'モデルクールダウン · {count}',
@@ -653,6 +658,8 @@ export default {
         customBaseURL: 'カスタムゲートウェイ',
         autoRenews: '使用時に自動更新',
         resetCredits: 'リセットクレジット',
+        creditBalance: 'クレジット',
+        creditUnlimited: '無制限',
         resetCreditsCount: '{count} 件利用可能',
         resetCreditsTooltipTitle: 'リセットクレジットの詳細',
         resetCreditsTooltipItem: '{index} 件目：{expires}',

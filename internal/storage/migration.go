@@ -131,7 +131,14 @@ var migrations = []migration{
 	// 上游 0023 (access_key_concurrency) 顺延为 0031，并把本仓库 0014 的同名列转换为上游语义。
 	{ID: migrationfiles.ID0031, Up: migrationfiles.Up0031, Validate: migrationfiles.Validate0031, ValidateRecoverable: migrationfiles.ValidateRecoverable0031},
 	// 上游 0024 (request_log_output_timing) 顺延为 0032。
-	{ID: migrationfiles.ID0032, Up: migrationfiles.Up0032, Validate: migrationfiles.Validate0032, ValidateRecoverable: migrationfiles.ValidateRecoverable0032},
+	{ID: migrationfiles.ID0032, Up: migrationfiles.Up0032, Validate: migrationfiles.Validate0032, ValidateCurrent: migrationfiles.ValidateCurrent0032, ValidateRecoverable: migrationfiles.ValidateRecoverable0032},
+	// 上游 0025~0029 (proxy_catalog, credential_names, remove_request_log_output_timing,
+	// request_log_client_ip, group_priority) 与本仓库既有编号撞号，顺延追加为 0033~0037。
+	{ID: migrationfiles.ID0033, Up: migrationfiles.Up0033, Validate: migrationfiles.Validate0033, ValidateRecoverable: migrationfiles.ValidateRecoverable0033},
+	{ID: migrationfiles.ID0034, Up: migrationfiles.Up0034, Validate: migrationfiles.Validate0034, ValidateRecoverable: migrationfiles.ValidateRecoverable0034},
+	{ID: migrationfiles.ID0035, Up: migrationfiles.Up0035, Validate: migrationfiles.Validate0035, ValidateRecoverable: migrationfiles.ValidateRecoverable0035},
+	{ID: migrationfiles.ID0036, Up: migrationfiles.Up0036, Validate: migrationfiles.Validate0036, ValidateRecoverable: migrationfiles.ValidateRecoverable0036},
+	{ID: migrationfiles.ID0037, Up: migrationfiles.Up0037, Validate: migrationfiles.Validate0037, ValidateRecoverable: migrationfiles.ValidateRecoverable0037},
 }
 
 func applyMigrations(db *gorm.DB) error {

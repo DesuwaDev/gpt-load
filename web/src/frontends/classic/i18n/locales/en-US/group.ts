@@ -212,9 +212,6 @@ export default {
         danger: 'Danger zone',
       },
       routing: {
-        description: 'Adjust the relative weight used for request allocation.',
-        weightHelp:
-          'Default: 50. Range: 1–100. Multiplied by credential weight to determine allocation shares.',
         credentialLimits: 'Credential limit defaults',
         credentialRpm: 'Requests per minute',
         credentialConcurrency: 'Max concurrent',
@@ -331,7 +328,9 @@ export default {
         validationModelPlaceholder: 'Search or enter a model ID',
         validationModelHelp:
           'Leave empty to use the first model in this Group; enter the upstream model ID, not an alias.',
-        weight: 'Group weight',
+        priority: 'Priority',
+        priorityError: 'Enter an integer from -2147483648 to 2147483647',
+        weight: 'Weight',
         auto: 'Auto',
         manual: 'Manual',
         weightError: 'Enter a whole number from 1 to 100',
@@ -406,6 +405,12 @@ export default {
       settings: 'Settings',
     },
     credentials: {
+      name: 'Name',
+      namePlaceholder: 'Optional credential alias',
+      nameSaveFailed: 'Could not save the name. Try again.',
+      showAccount: 'Show full account',
+      hideAccount: 'Hide full account',
+
       modelCooldown: {
         label: 'Model cooldown',
         count: 'Model cooldown · {count}',
@@ -648,6 +653,8 @@ export default {
         customBaseURL: 'Custom gateway',
         autoRenews: 'renews when used',
         resetCredits: 'Reset credits',
+        creditBalance: 'Credits',
+        creditUnlimited: 'Unlimited',
         resetCreditsCount: '{count} available',
         resetCreditsTooltipTitle: 'Reset credit details',
         resetCreditsTooltipItem: 'Credit {index}: {expires}',

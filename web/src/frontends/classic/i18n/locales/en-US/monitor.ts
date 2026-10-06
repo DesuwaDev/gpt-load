@@ -502,9 +502,9 @@ export default {
         title: 'Candidate Groups',
         description: {
           native_first:
-            'Native routes are tried first; converted routes are used when no native candidate is available. Selection within a tier follows a weighted rotation using shared allocation progress; rows are sorted by tier and weight. Request affinity still applies, so weight shares are not actual traffic ratios.',
+            'Select the highest available priority, prefer native routes within that tier, then rotate by effective weight and shared progress. Lower tiers remain backups. Affinity applies, so weight shares are not actual traffic ratios.',
           weighted_mix:
-            'Eligible native and converted candidates share one rotation based on effective weight and shared allocation progress; rows are sorted by weight. Request affinity still applies, so weight shares are not actual traffic ratios.',
+            'Select the highest available priority, then rotate native and converted candidates in that tier by effective weight and shared progress. Lower tiers remain backups. Affinity applies, so weight shares are not actual traffic ratios.',
         },
         count: '{count}',
         tableLabel: 'Candidate Group route explanation',
@@ -556,7 +556,7 @@ export default {
         effective: 'Raw effective weight',
         null: 'null',
         none: '—',
-        group: 'Group weight {value}',
+        group: 'Weight {value}',
       },
       excluded: {
         title: 'Excluded Groups',
@@ -953,6 +953,9 @@ export default {
       },
     },
     logs: {
+      ipColumn: 'IP column',
+      copyIP: 'Copy IP',
+      filterIP: 'Show only logs for IP {value}',
       loading: 'Loading request logs…',
       loadFailed: 'Unable to load request logs.',
       loadMore: 'Load more',
@@ -989,6 +992,7 @@ export default {
         partialFailed: 'Some filter options are unavailable. Log queries remain available.',
       },
       filters: {
+        clientIP: 'IP',
         label: 'Request log filters',
         timeRange: 'Time range',
         from: 'From',
@@ -1068,6 +1072,7 @@ export default {
         appliedCostState: 'Cost {value}',
         appliedCompleteness: 'Pricing {value}',
         appliedRequestId: 'Request ID {value}',
+        appliedClientIP: 'IP {value}',
         timezone: 'Local timezone',
         lastRefreshed: 'Last successful refresh',
         remove: 'Remove filter {value}',
@@ -1266,13 +1271,7 @@ export default {
         statusCode: 'Status code',
         duration: 'Duration',
         firstResponse: 'First response',
-        outputRate: 'Output rate',
-        firstOutputHint:
-          'Time from receiving the request to delivering the first text, reasoning content, or tool arguments, including queueing and retries.',
-        nonStreamOutputRateHint:
-          'Non-streaming average speed = output tokens / total request duration, including waiting, retries, and reasoning time.',
-        outputRateHint:
-          'Estimated speed = (output tokens − 1) / time between first and last effective output. Output includes reasoning tokens; hidden reasoning may affect the estimate.',
+        outputRate: 'Average output speed',
         attemptCount: 'Attempts',
         request: 'Client request',
         finalExecution: 'Upstream execution',
@@ -1370,6 +1369,7 @@ export default {
         },
       },
       columns: {
+        clientIP: 'IP',
         time: 'Time',
         modelProtocol: 'Model / protocol',
         response: 'Response',

@@ -29,6 +29,7 @@ type routeInspectAccessKeyResponse struct {
 }
 
 type routeInspectCredentialResponse struct {
+	Name            string                `json:"name,omitempty"`
 	CredentialID    uint                  `json:"credential_id"`
 	Available       bool                  `json:"available"`
 	ReasonCode      *scheduler.ReasonCode `json:"reason_code"`
@@ -38,6 +39,7 @@ type routeInspectCredentialResponse struct {
 }
 
 type routeInspectGroupResponse struct {
+	Priority                  int32                            `json:"priority"`
 	GroupID                   uint                             `json:"group_id"`
 	GroupName                 string                           `json:"group_name"`
 	ChannelID                 channel.ID                       `json:"channel_id"`
@@ -196,6 +198,7 @@ func mapRouteInspectResponse(
 			RouteMode:                 group.RouteMode,
 			RouteRequirementSatisfied: group.RouteRequirementSatisfied,
 			UpstreamModel:             cloneRouteModel(group.UpstreamModelID),
+			Priority:                  group.Priority,
 			WeightManual:              cloneInt(group.WeightManual),
 			Included:                  group.Included,
 			Routable:                  group.Routable,
@@ -242,6 +245,13 @@ func (server *Server) handleRouteInspect(c *gin.Context) {
 	if err != nil {
 		writeServiceError(c, "inspect_route", err)
 		return
+	}
+	// 别名仅附加到管理面展示，不进入路由检查的输入或判定。
+	for groupIndex := range result.Groups {
+		for index := range result.Groups[groupIndex].Credentials {
+			credential := &result.Groups[groupIndex].Credentials[index]
+			credential.Name = server.service.credentialDisplay(&credential.CredentialID).CredentialAlias
+		}
 	}
 	response.SuccessI18n(c, "common.success", result)
 }

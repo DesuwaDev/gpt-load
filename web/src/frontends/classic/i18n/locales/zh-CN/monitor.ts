@@ -482,9 +482,9 @@ export default {
         title: '候选分组',
         description: {
           native_first:
-            '先尝试原生路由，原生无可用候选时使用协议转换；同层按有效权重和共享分配进度轮询。列表按层级和权重排序；请求亲和仍生效，权重份额不等于实际流量比例。',
+            '先选最高可用优先级，同档内优先原生路由，再按有效权重和共享进度轮询。低档保留为备用；亲和仍生效，权重份额不等于实际流量比例。',
           weighted_mix:
-            '符合请求要求的原生与转换候选在同一池按有效权重和共享分配进度轮询，列表按权重排序。请求亲和仍生效，权重份额不等于实际流量比例。',
+            '先选最高可用优先级，同档原生与转换候选共同按有效权重和共享进度轮询。低档保留为备用；亲和仍生效，权重份额不等于实际流量比例。',
         },
         count: '{count} 个',
         tableLabel: '候选分组路由解释',
@@ -535,7 +535,7 @@ export default {
         effective: '原始有效权重',
         null: 'null',
         none: '—',
-        group: '分组权重 {value}',
+        group: '权重 {value}',
       },
       excluded: {
         title: '排除分组',
@@ -917,6 +917,9 @@ export default {
       },
     },
     logs: {
+      ipColumn: 'IP 列',
+      copyIP: '复制 IP',
+      filterIP: '只看 IP {value} 的日志',
       loading: '正在加载请求日志…',
       loadFailed: '无法加载请求日志。',
       loadMore: '加载更多',
@@ -953,6 +956,7 @@ export default {
         partialFailed: '部分筛选选项暂时无法加载，日志查询仍可正常使用。',
       },
       filters: {
+        clientIP: 'IP',
         label: '请求日志筛选',
         timeRange: '时间范围',
         from: '开始时间',
@@ -1032,6 +1036,7 @@ export default {
         appliedCostState: '成本 {value}',
         appliedCompleteness: '计价 {value}',
         appliedRequestId: '请求 ID {value}',
+        appliedClientIP: 'IP {value}',
         timezone: '本地时区',
         lastRefreshed: '最近一次成功刷新',
         remove: '移除筛选条件 {value}',
@@ -1232,12 +1237,7 @@ export default {
         statusCode: '状态码',
         duration: '耗时',
         firstResponse: '首响',
-        outputRate: '输出速率',
-        firstOutputHint: '从收到请求到首次交付文本、思考内容或工具参数，包含排队和重试等待。',
-        nonStreamOutputRateHint:
-          '非流式平均速度 = 输出 tokens ÷ 总耗时，包含等待、重试及思考耗时。',
-        outputRateHint:
-          '估算速度 =（输出 tokens − 1）÷ 首末有效输出间隔。输出量包含思考 tokens，隐藏思考可能影响结果。',
+        outputRate: '平均输出速度',
         attemptCount: '尝试次数',
         request: '客户端请求',
         finalExecution: '上游执行',
@@ -1332,6 +1332,7 @@ export default {
         },
       },
       columns: {
+        clientIP: 'IP',
         time: '时间',
         modelProtocol: '模型/协议',
         response: '响应',

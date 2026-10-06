@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode"
 	"unicode/utf8"
 
 	"gorm.io/gorm"
@@ -38,6 +39,7 @@ type credentialMarkUpdate struct {
 
 // credentialUpdatePlan 汇总一次凭据配置更新里已校验的字段，避免返回值继续膨胀。
 type credentialUpdatePlan struct {
+	name      *string
 	status    *state.CredentialStatus
 	weight    *int
 	weightSet bool
@@ -53,16 +55,30 @@ type credentialUpdatePlan struct {
 	baseURLSet           bool
 }
 
+// nameOnly 表示本次只改展示别名：别名不影响调度，运行时注册表只需原地改名。
+func (plan credentialUpdatePlan) nameOnly() bool {
+	return plan.name != nil && plan.status == nil && !plan.weightSet &&
+		plan.limits.rpm == nil && plan.limits.concurrency == nil && plan.mark.mark == nil &&
+		plan.codexTurnState == nil && plan.codexTurnStateModels == nil && !plan.proxySet && !plan.baseURLSet
+}
+
 func normalizeCredentialUpdate(
 	request CredentialUpdateRequest,
 	encryptionService encryption.Service,
 ) (credentialUpdatePlan, error) {
 	var plan credentialUpdatePlan
-	if !request.Status.Set && !request.WeightManual.Set && !request.RPMLimit.Set &&
+	if !request.Name.Set && !request.Status.Set && !request.WeightManual.Set && !request.RPMLimit.Set &&
 		!request.ConcurrencyLimit.Set && !request.Mark.Set && !request.MarkNote.Set &&
 		!request.CodexTurnState.Set && !request.CodexTurnStateModels.Set && !request.Proxy.Set &&
 		!request.BaseURL.Set {
 		return plan, app_errors.ErrBadRequest
+	}
+	if request.Name.Set {
+		name := strings.TrimSpace(request.Name.Value)
+		if request.Name.Null || utf8.RuneCountInString(name) > 255 || strings.ContainsFunc(name, unicode.IsControl) {
+			return plan, app_errors.ErrValidation
+		}
+		plan.name = &name
 	}
 	if request.Status.Set {
 		if request.Status.Null ||
@@ -427,6 +443,10 @@ func (s *Service) UpdateGroupCredential(
 			return app_errors.ErrInternalServer
 		}
 		updates := map[string]any{"updated_at_ms": updatedAtMS}
+		if plan.name != nil {
+			committed.Name = *plan.name
+			updates["name"] = committed.Name
+		}
 		if plan.status != nil {
 			committed.Status = models.CredentialStatus(*plan.status)
 			updates["status"] = committed.Status
@@ -469,8 +489,12 @@ func (s *Service) UpdateGroupCredential(
 			updates["codex_turn_state_models"] = committed.CodexTurnStateModels
 		}
 		if plan.proxySet {
-			committed.ProxyConfig = plan.proxy
-			updates["proxy_config"] = plan.proxy
+			proxy, err := s.managedProxyOverride(ctx, tx, plan.proxy)
+			if err != nil {
+				return err
+			}
+			committed.ProxyConfig = proxy
+			updates["proxy_config"] = proxy
 		}
 		if plan.baseURLSet {
 			if group.ChannelID != string(channel.Codex) {
@@ -506,7 +530,7 @@ func (s *Service) UpdateGroupCredential(
 			updates["fingerprint"] = committed.Fingerprint
 		}
 		committed.UpdatedAtMS = updatedAtMS
-		committedProxy, committedProxyFingerprint, err = storedProxyIdentity(s.encryption, committed.ProxyConfig)
+		committedProxy, committedProxyFingerprint, err = s.storedProxyIdentity(ctx, tx, committed.ProxyConfig)
 		if err != nil {
 			return err
 		}
@@ -517,11 +541,18 @@ func (s *Service) UpdateGroupCredential(
 		return nil
 	}, func() error {
 		committedProxyUpdate = plan.proxySet
+		if plan.nameOnly() {
+			if !s.registry.UpdateCredentialName(groupID, credentialID, committed.Name) {
+				return dbRegistryMismatch(mismatchMissingRegistry, groupID, credentialID)
+			}
+			return nil
+		}
 		entries, snapshotErr := s.registry.SnapshotGroupCredentialEntriesExact(groupID, []uint{credentialID})
 		if snapshotErr != nil {
 			return dbRegistryMismatch(mismatchMissingRegistry, groupID, credentialID)
 		}
 		entry := entries[0]
+		entry.Name = committed.Name
 		entry.Status = state.CredentialStatus(committed.Status)
 		entry.WeightManual = cloneInt(committed.WeightManual)
 		entry.RPMLimit = committed.RPMLimit
@@ -804,6 +835,7 @@ func (s *Service) mapCredentialItem(
 	if err != nil {
 		return CredentialItemResponse{}, err
 	}
+	item.Name = row.Name
 	item.ConnectionType = string(normalizeGroupConnectionType(group.ConnectionType))
 	item.SecretVersion = row.SecretVersion
 	item.AuthState = string(row.AuthState)

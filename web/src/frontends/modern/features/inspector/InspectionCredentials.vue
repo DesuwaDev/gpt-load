@@ -72,7 +72,7 @@ const identities = useQuery(
         rows.push(...next.items)
         next.items.forEach((row) => missing.delete(row.id))
       }
-      return new Map(rows.map((row) => [row.id, row.account || row.mask]))
+      return new Map(rows.map((row) => [row.id, row.label]))
     },
     enabled: props.group.credentials.length > 0,
   })),
@@ -91,6 +91,9 @@ function setPageSize(value: number): void {
 <template>
   <div class="modern-inspection-credentials">
     <div class="modern-inspection-weights">
+      <span
+        >{{ t('groups.edit.priority') }} <strong>{{ n(group.priority) }}</strong></span
+      >
       <span
         >{{ t('inspector.groupWeight') }} <strong>{{ n(group.weight ?? 50) }}</strong></span
       >

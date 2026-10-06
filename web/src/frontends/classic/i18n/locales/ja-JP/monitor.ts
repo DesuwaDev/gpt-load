@@ -500,9 +500,9 @@ export default {
         title: '候補グループ',
         description: {
           native_first:
-            'ネイティブルートを先に試し、利用可能な候補がない場合に変換を使用します。同じ階層では有効ウェイトと共有する割り当て進捗に基づいて順に選択し、階層とウェイト順に表示します。リクエスト親和性は引き続き有効で、ウェイト比率は実際のトラフィック比率とは異なります。',
+            '利用可能な最上位の優先度を選び、同じ階層ではネイティブを優先して有効ウェイトと共有進捗で順に選択します。下位は予備です。親和性も適用されるため、ウェイト比率は実際のトラフィック比率とは異なります。',
           weighted_mix:
-            '要求を満たすネイティブと変換候補を同じプールで有効ウェイトと共有する割り当て進捗に基づいて順に選択し、ウェイト順に表示します。リクエスト親和性は引き続き有効で、ウェイト比率は実際のトラフィック比率とは異なります。',
+            '利用可能な最上位の優先度を選び、同じ階層のネイティブと変換候補を有効ウェイトと共有進捗で順に選択します。下位は予備です。親和性も適用されるため、ウェイト比率は実際のトラフィック比率とは異なります。',
         },
         count: '{count} 件',
         tableLabel: '候補グループのルート説明',
@@ -554,7 +554,7 @@ export default {
         effective: '生の有効ウェイト',
         null: 'null',
         none: '—',
-        group: 'グループウェイト {value}',
+        group: '重み {value}',
       },
       excluded: {
         title: '除外グループ',
@@ -947,6 +947,9 @@ export default {
       },
     },
     logs: {
+      ipColumn: 'IP 列',
+      copyIP: 'IP をコピー',
+      filterIP: 'IP {value} のログのみ表示',
       loading: 'リクエストログを読み込み中…',
       loadFailed: 'リクエストログを読み込めません。',
       loadMore: 'さらに読み込む',
@@ -984,6 +987,7 @@ export default {
         partialFailed: '一部のフィルター選択肢を読み込めませんが、ログ検索は使用できます。',
       },
       filters: {
+        clientIP: 'IP',
         label: 'リクエストログのフィルター',
         timeRange: '時間範囲',
         from: '開始時刻',
@@ -1063,6 +1067,7 @@ export default {
         appliedCostState: 'コスト {value}',
         appliedCompleteness: '料金 {value}',
         appliedRequestId: 'リクエスト ID {value}',
+        appliedClientIP: 'IP {value}',
         timezone: 'ローカルタイムゾーン',
         lastRefreshed: '最終成功更新',
         remove: 'フィルター {value} を削除',
@@ -1261,13 +1266,7 @@ export default {
         statusCode: 'ステータスコード',
         duration: '所要時間',
         firstResponse: '初回応答',
-        outputRate: '出力速度',
-        firstOutputHint:
-          'リクエスト受信から最初のテキスト・思考内容・ツール引数の送信まで。待機と再試行を含みます。',
-        nonStreamOutputRateHint:
-          '非ストリーミングの平均速度 = 出力 tokens ÷ リクエスト総時間。待機、再試行、思考の時間を含みます。',
-        outputRateHint:
-          '推定速度 =（出力 tokens − 1）÷ 最初と最後の有効出力の間隔。出力量には思考 tokens が含まれ、非公開の思考が推定値に影響する場合があります。',
+        outputRate: '平均出力速度',
         attemptCount: '試行回数',
         request: 'クライアントリクエスト',
         finalExecution: 'アップストリーム実行',
@@ -1364,6 +1363,7 @@ export default {
         },
       },
       columns: {
+        clientIP: 'IP',
         time: '時刻',
         modelProtocol: 'モデル / プロトコル',
         response: '応答',

@@ -92,7 +92,7 @@ func TestExternalDatabaseLifecycle(t *testing.T) {
 		"jobs", "control_operations", "credential_stages", "credential_observations",
 		"credential_reset_operations", "credential_attempt_stats", "schema_migrations",
 		"access_key_cost_limit_rules", "access_key_cost_limit_states",
-		"auto_decision_usage_stats",
+		"auto_decision_usage_stats", "proxies",
 	} {
 		if !db.Migrator().HasTable(table) {
 			t.Fatalf("table %q is missing", table)
@@ -166,9 +166,14 @@ func TestExternalDatabaseLifecycle(t *testing.T) {
 		"0030_rpm_stats",
 		"0031_access_key_concurrency",
 		"0032_request_log_output_timing",
+		"0033_proxy_catalog",
+		"0034_credential_names",
+		"0035_remove_request_log_output_timing",
+		"0036_request_log_client_ip",
+		"0037_group_priority",
 	}
 	if !slices.Equal(migrationIDs, wantMigrationIDs) {
-		t.Fatalf("migration ledger = %v, want complete 0001-0032 chain", migrationIDs)
+		t.Fatalf("migration ledger = %v, want complete 0001-0037 chain", migrationIDs)
 	}
 	if !db.Migrator().HasIndex("usage_stats", "idx_usage_stats_group_bucket") {
 		t.Fatal("usage_stats group activity index is missing")

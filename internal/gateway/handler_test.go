@@ -20,6 +20,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"gpt-load/internal/catalog"
 	"gpt-load/internal/channel"
 	"gpt-load/internal/dialect"
 	"gpt-load/internal/execution"
@@ -1909,8 +1910,14 @@ func newModelListHandlerEngineWithLimit(
 	t.Helper()
 	keyService := encryptiontest.Service(t, "model-handler-test-master-key")
 	manager := state.NewManager()
+	catalogEnabled := true
 	if _, err := manager.Publish(state.CompileInput{
 		ChannelRegistry: channel.NewRegistry(),
+		ClientModelOverrides: map[string]catalog.ClientModelOverrides{
+			"alpha": {CatalogEnabled: &catalogEnabled},
+			"beta":  {CatalogEnabled: &catalogEnabled},
+			"zeta":  {CatalogEnabled: &catalogEnabled},
+		},
 		Groups: []state.GroupConfig{
 			{ConnectionType: "api_key", ID: 1, Name: "multi", ChannelID: channel.OpenAI, Params: json.RawMessage(`{}`),
 				Models: []state.ModelConfig{{ID: "zeta"}, {ID: "alpha"}}, Enabled: true,
@@ -4007,14 +4014,21 @@ func TestSubscriptionExplicit401RetriesSameCredentialWithForcedRefresh(t *testin
 		SystemSettings:  config.Settings{state.SettingRetryCount: 1},
 		ChannelRegistry: channel.NewRegistry(),
 		Groups: []state.GroupConfig{{
-			ID: 1, Name: "subscription", ChannelID: channel.Codex,
+			ID: 1, Name: "subscription", ChannelID: channel.Codex, Priority: 100,
 			Settings:       config.Settings{state.SettingRetryCount: 0},
+			ConnectionType: "subscription", Params: json.RawMessage(`{}`),
+			Models: []state.ModelConfig{{ID: "gpt-4o"}}, Enabled: true,
+		}, {
+			ID: 2, Name: "backup", ChannelID: channel.Codex, Priority: 0,
 			ConnectionType: "subscription", Params: json.RawMessage(`{}`),
 			Models: []state.ModelConfig{{ID: "gpt-4o"}}, Enabled: true,
 		}},
 		Credentials: []state.CredentialConfig{{
 			ID: 1, GroupID: 1, Status: state.CredentialStatusActive,
 			Version: 1, IdentityGeneration: 1, Fingerprint: "subscription-account",
+		}, {
+			ID: 2, GroupID: 2, Status: state.CredentialStatusActive,
+			Version: 1, IdentityGeneration: 1, Fingerprint: "backup-account",
 		}},
 		AccessKeys: []state.AccessKeyConfig{{
 			ID: 1, Name: "client", KeyHash: handler.encryption.Hash("gl-client"),
@@ -4032,6 +4046,9 @@ func TestSubscriptionExplicit401RetriesSameCredentialWithForcedRefresh(t *testin
 		ID: 1, GroupID: 1, Version: 1, IdentityGeneration: 1,
 		Fingerprint: "subscription-account", Status: state.CredentialStatusActive,
 		EncryptedValue: encrypted,
+	}, {
+		ID: 2, GroupID: 2, Version: 1, IdentityGeneration: 1,
+		Fingerprint: "backup-account", Status: state.CredentialStatusActive, EncryptedValue: encrypted,
 	}}); err != nil {
 		t.Fatal(err)
 	}

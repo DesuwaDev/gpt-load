@@ -21,6 +21,7 @@ import (
 )
 
 type groupCreateDigestBody struct {
+	Priority            int32                 `json:"priority,omitempty"`
 	PriceMultiplier     string                `json:"price_multiplier,omitempty"`
 	Name                *string               `json:"name"`
 	ChannelID           channel.ID            `json:"channel_id"`
@@ -54,6 +55,7 @@ func (s *Service) CreateGroupIdempotent(
 		}
 	}
 	digestBody := groupCreateDigestBody{
+		Priority:            normalized.priority,
 		PriceMultiplier:     priceMultiplierDigest(normalized.priceMultiplier),
 		Name:                normalized.explicitName,
 		ChannelID:           normalized.channelID,
@@ -124,6 +126,7 @@ func (s *Service) CreateGroupIdempotent(
 				return idempotentMutationResult{}, app_errors.ErrInternalServer
 			}
 			group := models.Group{
+				Priority:              normalized.priority,
 				PriceMultiplierMicros: priceMultiplierStorage(normalized.priceMultiplier),
 				Name:                  name,
 				ChannelID:             string(normalized.channelID),
@@ -135,6 +138,10 @@ func (s *Service) CreateGroupIdempotent(
 				Enabled:               true,
 			}
 			if err := s.initializeValidationProtocol(&group); err != nil {
+				return idempotentMutationResult{}, err
+			}
+			group.ProxyConfig, err = s.managedProxyOverride(ctx, tx, group.ProxyConfig)
+			if err != nil {
 				return idempotentMutationResult{}, err
 			}
 			if err := tx.Create(&group).Error; err != nil {

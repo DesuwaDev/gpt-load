@@ -32,6 +32,7 @@ type CredentialImportResult struct {
 }
 
 type CredentialUpdateRequest struct {
+	Name             optionalField[string]                 `json:"name"`
 	Status           optionalField[state.CredentialStatus] `json:"status"`
 	WeightManual     optionalField[int]                    `json:"weight_manual"`
 	RPMLimit         optionalField[int64]                  `json:"rpm_limit"`
@@ -105,6 +106,7 @@ type CredentialAccountResponse struct {
 }
 
 type CredentialItemResponse struct {
+	Name           string                         `json:"name"`
 	RPMPeakHour    *int64                         `json:"-"`
 	ModelCooldowns []ModelCooldownResponse        `json:"model_cooldowns"`
 	CredentialID   uint                           `json:"credential_id"`
@@ -491,6 +493,7 @@ func (s *Service) mapCredentialCollection(
 		if err != nil {
 			return CredentialCollectionResponse{}, err
 		}
+		item.Name = row.Name
 		item.ConnectionType = string(normalizeGroupConnectionType(observation.group.ConnectionType))
 		item.SecretVersion = row.SecretVersion
 		item.AuthState = string(row.AuthState)
@@ -581,7 +584,8 @@ func credentialCollectionMatches(record credentialCollectionRecord, query Creden
 		return true
 	}
 	queryValue := strings.ToLower(query.Query)
-	return strings.Contains(strings.ToLower(record.item.Mask), queryValue) ||
+	return strings.Contains(strings.ToLower(record.item.Name), queryValue) ||
+		strings.Contains(strings.ToLower(record.item.Mask), queryValue) ||
 		strings.Contains(strings.ToLower(record.item.Account.Email), queryValue)
 }
 

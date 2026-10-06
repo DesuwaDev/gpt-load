@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"strconv"
@@ -25,6 +26,7 @@ import (
 	"gpt-load/internal/protocol"
 	"gpt-load/internal/reasoning"
 	"gpt-load/internal/subscription"
+	subscriptionproviders "gpt-load/internal/subscription/providers"
 	providerobservation "gpt-load/internal/subscription/providers/observation"
 	subscriptionruntime "gpt-load/internal/subscription/runtime"
 	"gpt-load/internal/usage"
@@ -71,19 +73,19 @@ type Adapter struct {
 
 type credentialPreparer interface {
 	Prepare(context.Context, channel.ID, execution.CredentialSnapshot, bool) (subscriptionruntime.Credential, *execution.ErrorEvidence)
-	RecordPassiveQuotaObservation(credentialID uint, identityGeneration uint64, observedAtMS int64, windows []providerobservation.QuotaWindow)
+	RecordPassiveQuotaObservation(credentialID uint, identityGeneration uint64, observedAtMS int64, windows []providerobservation.QuotaWindow, credits ...*providerobservation.CreditSummary)
 	RecordPassiveQuotaPair(credentialID uint, identityGeneration uint64, preceding, latest subscription.PassiveQuotaSample)
 }
 
 // recordPassiveQuotaObservation forwards one execution's passive quota
-// windows, if any, to the credential's pending observation. It is a no-op
-// for providers that never populate a response's QuotaWindows.
+// windows and credits, if any, to the credential's pending observation.
 func (a *Adapter) recordPassiveQuotaObservation(
 	spec execution.AttemptSpec,
 	observedAt time.Time,
 	windows []providerobservation.QuotaWindow,
+	credits *providerobservation.CreditSummary,
 ) {
-	if a == nil || a.credentials == nil || len(windows) == 0 {
+	if a == nil || a.credentials == nil || (len(windows) == 0 && credits == nil) {
 		return
 	}
 	a.credentials.RecordPassiveQuotaObservation(
@@ -91,6 +93,7 @@ func (a *Adapter) recordPassiveQuotaObservation(
 		spec.Credential.IdentityGeneration,
 		observedAt.UnixMilli(),
 		windows,
+		credits,
 	)
 }
 
@@ -237,7 +240,7 @@ func (a *Adapter) Execute(ctx context.Context, spec execution.AttemptSpec) (resu
 			credential,
 			request,
 		)
-		a.recordPassiveQuotaObservation(spec, response.QuotaObservedAt, response.QuotaWindows)
+		a.recordPassiveQuotaObservation(spec, response.QuotaObservedAt, response.QuotaWindows, response.Credits)
 	}
 	turnState = observedTurnState(response.Headers)
 	if err != nil {
@@ -388,11 +391,14 @@ func (a *Adapter) ExecuteStream(
 	defer cancelStream(context.Canceled)
 	firstByte := startFirstByteGate(spec.Timeouts.FirstByte, cancelStream)
 	defer firstByte.stop()
+	streamCtx = subscriptionproviders.WithStreamBodyObserver(streamCtx, func(body io.ReadCloser, header http.Header) io.ReadCloser {
+		return observeStreamBody(streamCtx, body, header.Get("Content-Encoding"))
+	})
 	response, err := provider.ExecuteStream(streamCtx, strconv.FormatUint(uint64(spec.Credential.ID), 10), credential, request)
 	upstreamProtocol := provider.UpstreamProtocol()
 	if response != nil {
 		upstreamProtocol = effectiveUpstreamProtocol(provider, response.UpstreamProtocol)
-		a.recordPassiveQuotaObservation(spec, response.QuotaObservedAt, response.QuotaWindows)
+		a.recordPassiveQuotaObservation(spec, response.QuotaObservedAt, response.QuotaWindows, response.Credits)
 		turnState = observedTurnState(response.Headers)
 	}
 	if err != nil {

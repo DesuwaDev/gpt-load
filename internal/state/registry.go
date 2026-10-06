@@ -28,6 +28,7 @@ const (
 )
 
 type CredentialEntry struct {
+	Name                    string // 管理面展示别名，不参与调度或身份比较。
 	ID                      uint
 	GroupID                 uint
 	Version                 uint64
@@ -71,6 +72,7 @@ type CredentialMeta struct {
 }
 
 type CredentialRef struct {
+	Name                    string
 	ID                      uint
 	GroupID                 uint
 	Version                 uint64
@@ -321,6 +323,7 @@ func (r *CredentialRegistry) ReconcileGroup(groupID uint, entries []CredentialEn
 	for _, desired := range entries {
 		if existing := previous[desired.ID]; existing != nil &&
 			samePersistedCredentialConfig(*existing, desired) {
+			existing.Name = desired.Name
 			next[desired.ID] = existing
 			continue
 		}
@@ -350,7 +353,7 @@ func (r *CredentialRegistry) matchesGroupLocked(groupID uint, entries []Credenti
 	}
 	for _, desired := range entries {
 		existing := current[desired.ID]
-		if existing == nil || !samePersistedCredentialConfig(*existing, desired) {
+		if existing == nil || existing.Name != desired.Name || !samePersistedCredentialConfig(*existing, desired) {
 			return false
 		}
 	}
@@ -377,6 +380,18 @@ func samePersistedCredentialConfig(left, right CredentialEntry) bool {
 		return left.WeightManual == nil && right.WeightManual == nil
 	}
 	return *left.WeightManual == *right.WeightManual
+}
+
+// UpdateCredentialName 只更新管理面展示元数据，不触碰调度记账或健康状态。
+func (r *CredentialRegistry) UpdateCredentialName(groupID, credentialID uint, name string) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	entry, exists := r.entryLocked(credentialID)
+	if !exists || entry.GroupID != groupID {
+		return false
+	}
+	entry.Name = name
+	return true
 }
 
 func (r *CredentialRegistry) RemoveCredential(credentialID uint) bool {
@@ -615,7 +630,8 @@ func (r *CredentialRegistry) CaptureActiveCredentialRefs(groupIDs []uint) []Cred
 				continue
 			}
 			refs = append(refs, CredentialRef{
-				ID: entry.ID, GroupID: entry.GroupID,
+				Name: entry.Name,
+				ID:   entry.ID, GroupID: entry.GroupID,
 				Version: entry.Version, IdentityGeneration: entry.IdentityGeneration,
 				Fingerprint: entry.Fingerprint, EncryptedValue: entry.EncryptedValue,
 				EncryptedProxy: entry.EncryptedProxy, ProxyFingerprint: entry.ProxyFingerprint,
@@ -684,7 +700,8 @@ func (r *CredentialRegistry) CredentialRef(credentialID uint) (CredentialRef, bo
 		return CredentialRef{}, false
 	}
 	return CredentialRef{
-		ID: entry.ID, GroupID: entry.GroupID, Version: entry.Version,
+		Name: entry.Name,
+		ID:   entry.ID, GroupID: entry.GroupID, Version: entry.Version,
 		IdentityGeneration: entry.IdentityGeneration, Fingerprint: entry.Fingerprint,
 		EncryptedValue: entry.EncryptedValue, EncryptedProxy: entry.EncryptedProxy,
 		ProxyFingerprint: entry.ProxyFingerprint, FailureGeneration: entry.FailureGeneration,
@@ -1031,7 +1048,8 @@ func (r *CredentialRegistry) BlacklistedCredentials() []CredentialRef {
 				continue
 			}
 			refs = append(refs, CredentialRef{
-				ID: entry.ID, GroupID: entry.GroupID,
+				Name: entry.Name,
+				ID:   entry.ID, GroupID: entry.GroupID,
 				Version: entry.Version, IdentityGeneration: entry.IdentityGeneration,
 				Fingerprint: entry.Fingerprint, EncryptedValue: entry.EncryptedValue,
 				EncryptedProxy: entry.EncryptedProxy, ProxyFingerprint: entry.ProxyFingerprint,
