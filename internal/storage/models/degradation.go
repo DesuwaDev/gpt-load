@@ -80,8 +80,8 @@ func (e DegradationReasoningEffort) Valid() bool {
 // moves every target that has not been individually pinned.
 type DegradationMonitor struct {
 	ID                      uint                       `gorm:"primaryKey;autoIncrement"`
-	GroupID                 uint                       `gorm:"not null;check:chk_degradation_monitor_group,group_id > 0;index:idx_degradation_monitors_group"`
-	CredentialID            uint                       `gorm:"not null;check:chk_degradation_monitor_credential,credential_id > 0;uniqueIndex:idx_degradation_monitors_target,priority:1"`
+	GroupID                 uint                       `gorm:"not null;index:idx_degradation_monitors_group"`
+	CredentialID            uint                       `gorm:"not null;uniqueIndex:idx_degradation_monitors_target,priority:1"`
 	UpstreamModel           string                     `gorm:"type:varchar(255);not null;uniqueIndex:idx_degradation_monitors_target,priority:2"`
 	ExpectedModel           string                     `gorm:"type:varchar(64);not null"`
 	ReasoningEffort         DegradationReasoningEffort `gorm:"type:varchar(16);not null;default:'';check:chk_degradation_monitor_effort,reasoning_effort IN ('','minimal','low','medium','high')"`
@@ -115,7 +115,7 @@ func (DegradationMonitor) TableName() string { return "degradation_monitors" }
 // DegradationRun is one recorded detection attempt.
 type DegradationRun struct {
 	ID                        uint               `gorm:"primaryKey;autoIncrement;index:idx_degradation_runs_monitor,priority:2,sort:desc"`
-	MonitorID                 uint               `gorm:"not null;check:chk_degradation_run_monitor,monitor_id > 0;index:idx_degradation_runs_monitor,priority:1"`
+	MonitorID                 uint               `gorm:"not null;index:idx_degradation_runs_monitor,priority:1"`
 	Trigger                   DegradationTrigger `gorm:"type:varchar(16);not null;check:chk_degradation_run_trigger,trigger IN ('schedule','manual','overload')"`
 	Outcome                   DegradationState   `gorm:"type:varchar(32);not null;check:chk_degradation_run_outcome,outcome IN ('healthy','degraded','inconclusive','error','quota_exhausted')"`
 	StartedAtMS               int64              `gorm:"column:started_at_ms;not null;check:chk_degradation_run_started_at,started_at_ms >= 0"`
@@ -147,7 +147,7 @@ const DegradationSettingsID uint = 1
 // defaults are the product defaults; the control plane seeds the row on first
 // read so there is exactly one source of truth.
 type DegradationSettings struct {
-	ID                          uint   `gorm:"primaryKey;check:chk_degradation_settings_singleton,id = 1"`
+	ID                          uint   `gorm:"primaryKey;autoIncrement:false;check:chk_degradation_settings_singleton,id = 1"`
 	Enabled                     bool   `gorm:"not null;default:false"`
 	IntervalSeconds             int64  `gorm:"not null;default:21600;check:chk_degradation_settings_interval,interval_seconds >= 300 AND interval_seconds <= 604800"`
 	CooldownIntervalSeconds     int64  `gorm:"not null;default:3600;check:chk_degradation_settings_cooldown,cooldown_interval_seconds >= 300 AND cooldown_interval_seconds <= 604800"`

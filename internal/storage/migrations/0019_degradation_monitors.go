@@ -13,8 +13,8 @@ const ID0019 = "0019_degradation_monitors"
 
 type degradationMonitor0019 struct {
 	ID                      uint               `gorm:"primaryKey;autoIncrement"`
-	GroupID                 uint               `gorm:"not null;check:chk_degradation_monitor_group,group_id > 0;index:idx_degradation_monitors_group"`
-	CredentialID            uint               `gorm:"not null;check:chk_degradation_monitor_credential,credential_id > 0;uniqueIndex:idx_degradation_monitors_target,priority:1"`
+	GroupID                 uint               `gorm:"not null;index:idx_degradation_monitors_group"`
+	CredentialID            uint               `gorm:"not null;uniqueIndex:idx_degradation_monitors_target,priority:1"`
 	UpstreamModel           string             `gorm:"type:varchar(255);not null;uniqueIndex:idx_degradation_monitors_target,priority:2"`
 	ExpectedModel           string             `gorm:"type:varchar(64);not null"`
 	ReasoningEffort         string             `gorm:"type:varchar(16);not null;default:'';check:chk_degradation_monitor_effort,reasoning_effort IN ('','minimal','low','medium','high')"`
@@ -45,7 +45,7 @@ func (degradationMonitor0019) TableName() string { return "degradation_monitors"
 
 type degradationRun0019 struct {
 	ID                        uint                    `gorm:"primaryKey;autoIncrement;index:idx_degradation_runs_monitor,priority:2,sort:desc"`
-	MonitorID                 uint                    `gorm:"not null;check:chk_degradation_run_monitor,monitor_id > 0;index:idx_degradation_runs_monitor,priority:1"`
+	MonitorID                 uint                    `gorm:"not null;index:idx_degradation_runs_monitor,priority:1"`
 	Trigger                   string                  `gorm:"type:varchar(16);not null;check:chk_degradation_run_trigger,trigger IN ('schedule','manual','overload')"`
 	Outcome                   string                  `gorm:"type:varchar(32);not null;check:chk_degradation_run_outcome,outcome IN ('healthy','degraded','inconclusive','error','quota_exhausted')"`
 	StartedAtMS               int64                   `gorm:"column:started_at_ms;not null;check:chk_degradation_run_started_at,started_at_ms >= 0"`
@@ -68,8 +68,36 @@ type degradationRun0019 struct {
 
 func (degradationRun0019) TableName() string { return "degradation_runs" }
 
+// degradationRunMySQL0019 与 degradationRun0019 列、索引、约束名完全相同，只有 trigger
+// 的 CHECK 表达式给列名加了反引号：TRIGGER 在 MySQL 是保留字，而 PostgreSQL 只认双引号，
+// 无法写出一份三种方言通用的表达式。Validate0019 按约束名校验，两者等价。
+type degradationRunMySQL0019 struct {
+	ID                        uint                    `gorm:"primaryKey;autoIncrement;index:idx_degradation_runs_monitor,priority:2,sort:desc"`
+	MonitorID                 uint                    `gorm:"not null;index:idx_degradation_runs_monitor,priority:1"`
+	Trigger                   string                  "gorm:\"type:varchar(16);not null;check:chk_degradation_run_trigger,`trigger` IN ('schedule','manual','overload')\""
+	Outcome                   string                  `gorm:"type:varchar(32);not null;check:chk_degradation_run_outcome,outcome IN ('healthy','degraded','inconclusive','error','quota_exhausted')"`
+	StartedAtMS               int64                   `gorm:"column:started_at_ms;not null;check:chk_degradation_run_started_at,started_at_ms >= 0"`
+	CompletedAtMS             int64                   `gorm:"column:completed_at_ms;not null;check:chk_degradation_run_completed_at,completed_at_ms >= 0;index:idx_degradation_runs_completed,sort:desc"`
+	DurationMs                int64                   `gorm:"not null;default:0;check:chk_degradation_run_duration,duration_ms >= 0"`
+	ExpectedModel             string                  `gorm:"type:varchar(64);not null;default:''"`
+	DetectedModel             string                  `gorm:"type:varchar(64);not null;default:''"`
+	ExpectedProbabilityMicros int64                   `gorm:"column:expected_probability_micros;not null;default:0;check:chk_degradation_run_expected_probability,expected_probability_micros >= 0 AND expected_probability_micros <= 1000000"`
+	LeadingProbabilityMicros  int64                   `gorm:"column:leading_probability_micros;not null;default:0;check:chk_degradation_run_leading_probability,leading_probability_micros >= 0 AND leading_probability_micros <= 1000000"`
+	MinProbabilityMicros      int64                   `gorm:"column:min_probability_micros;not null;default:0;check:chk_degradation_run_threshold,min_probability_micros >= 0 AND min_probability_micros <= 1000000"`
+	SampleCount               int                     `gorm:"not null;default:0;check:chk_degradation_run_samples,sample_count >= 0"`
+	UsedSamples               int                     `gorm:"not null;default:0;check:chk_degradation_run_used_samples,used_samples >= 0"`
+	Attempts                  int                     `gorm:"not null;default:0;check:chk_degradation_run_attempts,attempts >= 0"`
+	Reasons                   string                  `gorm:"type:varchar(160);not null;default:''"`
+	ErrorCode                 string                  `gorm:"type:varchar(64);not null;default:''"`
+	ErrorSummary              string                  `gorm:"type:text;not null"`
+	Detail                    initialJSON             `gorm:"type:json"`
+	Monitor                   *degradationMonitor0019 `gorm:"foreignKey:MonitorID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
+}
+
+func (degradationRunMySQL0019) TableName() string { return "degradation_runs" }
+
 type degradationSettings0019 struct {
-	ID                          uint   `gorm:"primaryKey;check:chk_degradation_settings_singleton,id = 1"`
+	ID                          uint   `gorm:"primaryKey;autoIncrement:false;check:chk_degradation_settings_singleton,id = 1"`
 	Enabled                     bool   `gorm:"not null;default:false"`
 	IntervalSeconds             int64  `gorm:"not null;default:21600;check:chk_degradation_settings_interval,interval_seconds >= 300 AND interval_seconds <= 604800"`
 	CooldownIntervalSeconds     int64  `gorm:"not null;default:3600;check:chk_degradation_settings_cooldown,cooldown_interval_seconds >= 300 AND cooldown_interval_seconds <= 604800"`
@@ -101,7 +129,11 @@ func (degradationSettings0019) TableName() string { return "degradation_settings
 // Up0019 creates the degradation monitor schema. The settings singleton is left
 // for the control plane to seed so its defaults live in one place.
 func Up0019(db *gorm.DB) error {
-	if err := db.AutoMigrate(SchemaModels0019()...); err != nil {
+	models := SchemaModels0019()
+	if db.Dialector.Name() == "mysql" {
+		models[len(models)-1] = &degradationRunMySQL0019{}
+	}
+	if err := db.AutoMigrate(models...); err != nil {
 		return fmt.Errorf("create degradation schema: %w", err)
 	}
 	return nil
