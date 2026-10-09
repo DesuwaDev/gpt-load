@@ -36,6 +36,7 @@ const (
 	Volcengine       ID = "volcengine"
 	OpenRouter       ID = "openrouter"
 	Cline            ID = "cline"
+	CommandCode      ID = "commandcode"
 	Jev              ID = "jev"
 	Groq             ID = "groq"
 	XAI              ID = "xai"
@@ -64,6 +65,7 @@ const (
 	ProviderMultiProtocolGateway ProviderKind = "multi_protocol_gateway"
 	ProviderOpenAICompatible     ProviderKind = "openai_compatible"
 	ProviderCline                ProviderKind = "cline"
+	ProviderCommandCode          ProviderKind = "commandcode"
 	ProviderAzureOpenAI          ProviderKind = "azure_openai"
 	ProviderAWSBedrock           ProviderKind = "aws_bedrock"
 	ProviderGoogleVertex         ProviderKind = "google_vertex"
@@ -116,6 +118,7 @@ func (kind ProviderKind) Valid() bool {
 		ProviderMultiProtocolGateway,
 		ProviderOpenAICompatible,
 		ProviderCline,
+		ProviderCommandCode,
 		ProviderAzureOpenAI,
 		ProviderAWSBedrock,
 		ProviderGoogleVertex,

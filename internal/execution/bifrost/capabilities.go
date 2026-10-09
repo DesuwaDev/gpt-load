@@ -20,7 +20,7 @@ func (manager *RuntimeManager) ValidateRouteCapability(
 	}
 	if _, sdkBacked := sdkProviderSpecFor(providerKind); !sdkBacked &&
 		providerKind != channel.ProviderOpenAICompatible && providerKind != channel.ProviderMultiProtocolGateway &&
-		providerKind != channel.ProviderJev && providerKind != channel.ProviderCline {
+		providerKind != channel.ProviderJev && providerKind != channel.ProviderCline && providerKind != channel.ProviderCommandCode {
 		return fmt.Errorf("provider is not implemented by Bifrost")
 	}
 	if route.RouteMode == execution.RouteConverted {
@@ -77,7 +77,7 @@ func nativeRouteImplemented(
 		return (providerKind == channel.ProviderOpenAICompatible || providerKind == channel.ProviderMultiProtocolGateway) && (operation == execution.OperationRerank || operation == execution.OperationProbe)
 	}
 	switch providerKind {
-	case channel.ProviderCline:
+	case channel.ProviderCline, channel.ProviderCommandCode:
 		return clientProtocol == protocol.OpenAICompletions && standardProtocolOperation(clientProtocol, operation)
 	case channel.ProviderOpenAI:
 		if clientProtocol == protocol.OpenAIEmbeddings {

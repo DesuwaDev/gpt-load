@@ -39,6 +39,20 @@ This facade is not connected to the existing HTTP data plane.
 
 The complete MIT License text is distributed in `LICENSES/MIT.txt`.
 
+## commandcode-api-proxy
+
+- Package: `commandcode-api-proxy` (npm)
+- Version: `0.4.1`
+- Copyright: 2026 thaolaptrinh
+- License: MIT License
+
+GPT-Load's Command Code channel reimplements the `/alpha/generate` request,
+header, and event-stream translation described by this package in Go, and embeds
+its model catalog metadata (`internal/execution/bifrost/commandcode_models.json`).
+No code from the package is executed or distributed.
+
+The complete MIT License text is distributed in `LICENSES/MIT.txt`.
+
 ## Inno Setup Simplified Chinese Messages
 
 - Source: `jrsoftware/issrc` `Files/Languages/ChineseSimplified.isl`

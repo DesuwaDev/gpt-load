@@ -278,7 +278,8 @@ func resolveSDKProviderConfig(resolved channel.ResolvedTarget) (schemas.ModelPro
 		}
 		return customProviderKey(schemas.OpenAI, baseURL), baseURL, true, nil
 	}
-	if resolved.ProviderKind != channel.ProviderOpenAICompatible && resolved.ProviderKind != channel.ProviderCline {
+	if resolved.ProviderKind != channel.ProviderOpenAICompatible && resolved.ProviderKind != channel.ProviderCline &&
+		resolved.ProviderKind != channel.ProviderCommandCode {
 		return "", "", false, fmt.Errorf("unsupported provider kind %q", resolved.ProviderKind)
 	}
 	baseURL, configured, err := targetBaseURL(resolved.TargetConfig)

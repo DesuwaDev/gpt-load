@@ -46,6 +46,7 @@ const (
 	Volcengine       = spec.Volcengine
 	OpenRouter       = spec.OpenRouter
 	Cline            = spec.Cline
+	CommandCode      = spec.CommandCode
 	Jev              = spec.Jev
 	Groq             = spec.Groq
 	XAI              = spec.XAI
@@ -222,6 +223,7 @@ const (
 	ProviderMultiProtocolGateway = spec.ProviderMultiProtocolGateway
 	ProviderOpenAICompatible     = spec.ProviderOpenAICompatible
 	ProviderCline                = spec.ProviderCline
+	ProviderCommandCode          = spec.ProviderCommandCode
 	ProviderAzureOpenAI          = spec.ProviderAzureOpenAI
 	ProviderAWSBedrock           = spec.ProviderAWSBedrock
 	ProviderGoogleVertex         = spec.ProviderGoogleVertex

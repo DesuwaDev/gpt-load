@@ -36,6 +36,7 @@ const (
 
 type preparedAttempt struct {
 	cline              bool
+	commandCode        *commandCodeAttempt
 	provider           schemas.ModelProvider
 	mode               channel.RouteMode
 	upstreamProtocol   protocol.Protocol
@@ -101,6 +102,9 @@ func (r *Runtime) Execute(parent context.Context, spec execution.AttemptSpec) (r
 	}()
 	if prepared.cline {
 		return r.executeCline(parent, spec, prepared)
+	}
+	if prepared.commandCode != nil {
+		return r.executeCommandCode(parent, spec, prepared)
 	}
 	if prepared.embeddingRequest != nil {
 		return r.executeEmbedding(parent, spec, prepared)
@@ -213,6 +217,9 @@ func (r *Runtime) ExecuteStream(
 	}()
 	if prepared.cline {
 		return r.executeClineStream(parent, spec, prepared, sink)
+	}
+	if prepared.commandCode != nil {
+		return r.executeCommandCodeStream(parent, spec, prepared, sink)
 	}
 	if prepared.passthrough != nil {
 		return r.executeNativeStream(parent, spec, prepared, sink)
@@ -525,6 +532,9 @@ func (r *Runtime) prepare(spec execution.AttemptSpec, stream bool) (preparedAtte
 	}
 	if providerKind == channel.ProviderCline {
 		return r.prepareCline(spec, provider, directKey, secrets, stream, safeQuery)
+	}
+	if providerKind == channel.ProviderCommandCode {
+		return r.prepareCommandCode(spec, provider, directKey, secrets)
 	}
 	if spec.ClientProtocol == protocol.Rerank {
 		return prepareRerank(spec, resolved, provider, directKey, secrets)
@@ -985,7 +995,7 @@ func providerSupportsPassthrough(providerKind channel.ProviderKind) bool {
 
 func providerKindNativeForClient(providerKind channel.ProviderKind, clientProtocol protocol.Protocol) bool {
 	switch providerKind {
-	case channel.ProviderCline:
+	case channel.ProviderCline, channel.ProviderCommandCode:
 		return clientProtocol == protocol.OpenAICompletions
 	case channel.ProviderOpenAI, channel.ProviderOpenAICompatible, channel.ProviderMultiProtocolGateway:
 		return clientProtocol == protocol.OpenAICompletions || clientProtocol == protocol.OpenAIResponses ||
@@ -1287,7 +1297,7 @@ func directKeyForAttempt(
 	switch providerKind {
 	case channel.ProviderOpenAI, channel.ProviderAnthropic, channel.ProviderGemini, channel.ProviderMultiProtocolGateway,
 		channel.ProviderDeepSeek, channel.ProviderOpenRouter, channel.ProviderGroq, channel.ProviderXAI,
-		channel.ProviderOpenAICompatible, channel.ProviderJev, channel.ProviderCline:
+		channel.ProviderOpenAICompatible, channel.ProviderJev, channel.ProviderCline, channel.ProviderCommandCode:
 		if apiKey == "" {
 			return schemas.Key{}, nil, fmt.Errorf("api_key is required")
 		}
