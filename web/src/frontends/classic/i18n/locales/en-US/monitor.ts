@@ -11,6 +11,12 @@ export default {
     help: 'View description',
     scrollHint: 'Scroll horizontally to inspect every column.',
     currentState: 'Current state',
+    autoRefresh: {
+      label: 'Auto refresh',
+      off: 'Auto refresh off',
+      seconds: 'Every {count}s',
+      minutes: 'Every {count} min',
+    },
     tabs: {
       label: 'Monitor sections',
       health: 'Health',
@@ -1325,6 +1331,17 @@ export default {
             'The Fernet envelope is {total} bytes = 9 header + 16 IV + {cipher} ciphertext + 32 HMAC. AES-CBC works in 16-byte blocks with PKCS7 padding, so the plaintext is between {min} and {max} bytes.',
           notFernet: 'Not a valid Fernet envelope.',
           copy: 'Copy turn state',
+        },
+        requestBody: {
+          title: 'Request body',
+          originalSize: 'Original size {size}',
+          copy: 'Copy request body',
+          states: {
+            truncated: 'Overlong strings were truncated; the structure is unchanged',
+            non_json: 'Not a JSON request; the body was not recorded',
+            too_large: 'The request body is too large; the body was not recorded',
+            queue_full: 'The recording queue was busy; the body was not recorded',
+          },
         },
         usage: {
           title: 'Usage & cost',

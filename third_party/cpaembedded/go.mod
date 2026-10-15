@@ -6,11 +6,11 @@ require (
 	github.com/andybalholm/brotli v1.2.6
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
-	github.com/router-for-me/CLIProxyAPI/v8 v8.0.8
+	github.com/router-for-me/CLIProxyAPI/v8 v8.0.28
 	github.com/sirupsen/logrus v1.10.2
-	github.com/tidwall/gjson v1.19.0
+	github.com/tidwall/gjson v1.20.0
 	github.com/tidwall/sjson v1.2.5
-	golang.org/x/net v0.59.0
+	golang.org/x/net v0.60.0
 )
 
 require (

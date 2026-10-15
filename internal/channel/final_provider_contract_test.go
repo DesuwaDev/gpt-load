@@ -43,6 +43,7 @@ func TestFinalRegistryContainsOnlyApprovedChannels(t *testing.T) {
 		Cohere,
 		OpenCodeGo,
 		OpenCodeZen,
+		Modelflare,
 		GPTLoad,
 		NewAPI,
 		CLIProxyAPI,

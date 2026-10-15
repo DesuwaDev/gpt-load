@@ -3,6 +3,7 @@ package gateway
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -63,7 +64,8 @@ func websocketCompleted(id, lane string) []byte {
 
 func waitWebsocketLogs(t *testing.T, sink *recordingRequestLogSink, count int) []telemetry.RequestEvent {
 	t.Helper()
-	deadline := time.After(2 * time.Second)
+	// 日志在连接与 WebRTC 清理完成后才写出，race 模式叠加 CI 并行负载会超过 2s；只放宽失败上限，不影响通过耗时。
+	deadline := time.After(10 * time.Second)
 	ticker := time.NewTicker(time.Millisecond)
 	defer ticker.Stop()
 	for {
@@ -464,6 +466,35 @@ func TestWebsocketPreparationPreservesExplicitControls(t *testing.T) {
 				if req["type"] != nil || req["stream"] != nil || req["model"] != "upstream" || req["generate"] != false || req["previous_response_id"] != "resp_parent" {
 					t.Fatalf("session create-body contract violated: %s", payload)
 				}
+			}
+		})
+	}
+}
+
+func TestWebsocketArrayOverrideUsesPayloadLimit(t *testing.T) {
+	body := []byte(`{"type":"response.create","model":"public","input":[` + strings.Repeat(`{},`, 63) + `{}],"store":false}`)
+	original, err := inspectWebsocketRequest(body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	model := "upstream"
+	for _, size := range []int{128 << 10, 192 << 10} {
+		t.Run(fmt.Sprintf("value_bytes=%d", size), func(t *testing.T) {
+			rules, err := parameteroverride.Compile([]any{map[string]any{"set": map[string]any{
+				"input": map[string]any{"*": map[string]any{"label": strings.Repeat("x", size)}},
+			}}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			selection := scheduler.Selection{UpstreamModelID: &model, Group: state.GroupView{ParameterOverrides: rules}}
+			payload, _, err := prepareWebsocketPayload(body, original, selection)
+			if size == 192<<10 {
+				// 必须由覆盖引擎在分配输出前拒绝，而不是生成大请求后再报协议错误。
+				if !errors.Is(err, parameteroverride.ErrBodyTooLarge) || payload != nil {
+					t.Fatalf("oversized override: bytes=%d err=%v", len(payload), err)
+				}
+			} else if err != nil || len(payload) < 8<<20 || len(payload) > 10<<20 {
+				t.Fatalf("allowed override: bytes=%d err=%v", len(payload), err)
 			}
 		})
 	}
@@ -1169,5 +1200,78 @@ func TestWebsocketCacheAffinityAndConnectionBindingKinds(t *testing.T) {
 	assertAffinityHits(t, events, []bool{false, true, true, false})
 	if events[1].AffinityKind != telemetry.AffinityPromptCacheKey || events[2].AffinityKind != telemetry.AffinityResponseContinuity {
 		t.Fatal("WebSocket affinity kind mismatch")
+	}
+}
+
+func TestWebsocketReportedModelConsistency(t *testing.T) {
+	for _, tc := range []struct {
+		name, first, last string
+		want              telemetry.ModelConsistency
+	}{
+		{"match", "", "upstream", telemetry.ModelConsistencyMatch},
+		{"mismatch", "", "actual-other", telemetry.ModelConsistencyMismatch},
+		{"missing", "", "", telemetry.ModelConsistencyUnknown},
+		{"earlier_mismatch", "actual-other", "upstream", telemetry.ModelConsistencyMismatch},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				c, err := (&websocket.Upgrader{}).Upgrade(w, r, nil)
+				if err != nil {
+					return
+				}
+				defer c.Close()
+				if _, _, err = c.ReadMessage(); err != nil {
+					return
+				}
+				if tc.first != "" {
+					_ = c.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf(`{"type":"response.created","response":{"id":"resp_model","object":"response","status":"in_progress","model":%q}}`, tc.first)))
+				}
+				_ = c.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf(`{"type":"response.completed","response":{"id":"resp_model","object":"response","status":"completed","model":%q,"usage":{"input_tokens":2,"output_tokens":1,"total_tokens":3}}}`, tc.last)))
+
+				if _, _, err = c.ReadMessage(); err != nil {
+					return
+				}
+				_ = c.WriteMessage(websocket.TextMessage, []byte(`{"type":"response.completed","response":{"id":"resp_next","object":"response","status":"completed","usage":{"input_tokens":2,"output_tokens":1,"total_tokens":3}}}`))
+				_, _, _ = c.ReadMessage()
+			}))
+			defer upstream.Close()
+			h, engine, _ := websocketTestHandler(t, upstream.URL, channel.CLIProxyAPI)
+			sink := &recordingRequestLogSink{}
+			h.requestLogSink = sink
+			server := httptest.NewServer(engine)
+			defer server.Close()
+			c := dialGatewayWebsocket(t, server.URL)
+			defer c.Close()
+			if err := c.WriteMessage(websocket.TextMessage, []byte(`{"type":"response.create","model":"public","input":"hello"}`)); err != nil {
+				t.Fatal(err)
+			}
+			count := 1
+			if tc.first != "" {
+				count++
+			}
+			for i := 0; i < count; i++ {
+				if _, _, err := c.ReadMessage(); err != nil {
+					t.Fatal(err)
+				}
+			}
+			e := waitWebsocketLogs(t, sink, 1)[0]
+			if e.Status != telemetry.RequestStatusSuccess {
+				t.Fatalf("unexpected status %s", e.Status)
+			}
+			if e.ModelConsistency != tc.want {
+				t.Fatalf("consistency=%s want=%s", e.ModelConsistency, tc.want)
+			}
+			if err := c.WriteMessage(websocket.TextMessage, []byte(`{"type":"response.create","model":"public","input":"next"}`)); err != nil {
+				t.Fatal(err)
+			}
+			if _, _, err := c.ReadMessage(); err != nil {
+				t.Fatal(err)
+			}
+			next := waitWebsocketLogs(t, sink, 2)[1]
+			if next.Status != telemetry.RequestStatusSuccess || next.UpstreamReportedModel != "" || next.ModelConsistency != telemetry.ModelConsistencyUnknown {
+				t.Fatalf("next turn status=%s model=%q consistency=%s", next.Status, next.UpstreamReportedModel, next.ModelConsistency)
+			}
+
+		})
 	}
 }

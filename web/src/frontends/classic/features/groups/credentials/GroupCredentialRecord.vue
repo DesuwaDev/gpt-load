@@ -17,6 +17,7 @@ import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import type { CredentialItemDto, CredentialMark, ProxyMutation } from '@/api/control/types'
+import type { CredentialBatchTestItem } from '@shared/credential-test-batch'
 import ProxyConfigEditor from '@/components/config/ProxyConfigEditor.vue'
 import ProxyScopeIndicator from '@/components/config/ProxyScopeIndicator.vue'
 import AppButton from '@/components/ui/AppButton.vue'
@@ -39,6 +40,7 @@ const props = defineProps<{
   rowIndex: number
   selected: boolean
   busy: boolean
+  testState?: CredentialBatchTestItem
   expanded: boolean
   weightEditorOpen: boolean
   resolveCopyValue: (id: number) => Promise<string>
@@ -95,6 +97,34 @@ const recentLabel = computed(() =>
         failure: n(props.item.recent_failure_count),
       }),
 )
+const testTone = computed(() => {
+  switch (props.testState?.state) {
+    case 'passed':
+      return 'success'
+    case 'failed':
+      return 'danger'
+    case 'inconclusive':
+      return 'warning'
+    default:
+      return 'neutral'
+  }
+})
+const testDetail = computed(() => {
+  const result = props.testState
+  if (!result) return ''
+  return [
+    result.latency === undefined
+      ? ''
+      : t('credentialBatchTest.latency', { value: n(result.latency) }),
+    result.reason === 'request_failed'
+      ? t('credentialBatchTest.requestFailed')
+      : result.reason
+        ? t('group.credentials.test.reason.' + result.reason)
+        : '',
+  ]
+    .filter(Boolean)
+    .join(' · ')
+})
 const recoveryLabel = computed(() => {
   if (props.item.recovery.mode === 'none') return t('group.credentials.recovery.none')
   if (props.item.recovery.at_ms !== null)
@@ -104,7 +134,7 @@ const recoveryLabel = computed(() => {
   return t(`group.credentials.recovery.${props.item.recovery.mode}`)
 })
 const failureLabel = computed(() =>
-  props.item.recent_failure_count === 0
+  props.item.last_status_code === null && props.item.last_failure_category === 'ambiguous'
     ? t('group.credentials.none')
     : `${presentCredentialFailureCategory(t, props.item.last_failure_category)}${
         props.item.last_status_code === null ? '' : ` · ${props.item.last_status_code}`
@@ -278,7 +308,21 @@ function runMenuAction(
         <span class="group-credential-record__mobile-label">{{
           t('group.credentials.columns.recent')
         }}</span>
-        <span>{{ recentLabel }}</span>
+        <AppTooltip v-if="testState" :content="testDetail" :disabled="!testDetail">
+          <span class="group-credential-record__test">
+            <StatusBadge
+              :tone="testTone"
+              :icon="testState.state === 'running' ? 'progress' : undefined"
+              size="compact"
+            >
+              {{ t('credentialBatchTest.states.' + testState.state) }}
+            </StatusBadge>
+            <span v-if="testDetail" class="group-credential-record__test-detail">{{
+              testDetail
+            }}</span>
+          </span>
+        </AppTooltip>
+        <span v-else>{{ recentLabel }}</span>
       </div>
 
       <div class="ledger-record-list__cell group-credential-record__actions" role="cell">
@@ -490,6 +534,18 @@ function runMenuAction(
 </template>
 
 <style scoped>
+.group-credential-record__test {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-1);
+}
+.group-credential-record__test-detail {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-meta);
+  color: var(--color-text-muted);
+}
 .group-credential-record {
   align-items: stretch;
   padding: 0;

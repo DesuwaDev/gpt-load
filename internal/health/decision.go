@@ -59,6 +59,7 @@ func (effect Effect) Valid() bool {
 // DecisionContext contains the existing request and credential policy inputs
 // that are not part of provider error evidence.
 type DecisionContext struct {
+	ErrorRules               ErrorRules
 	DefaultRateLimitCooldown time.Duration
 	CredentialRefreshable    bool
 	Method                   string
@@ -74,6 +75,8 @@ type Decision struct {
 	Effect        Effect
 	CooldownUntil time.Time
 	RuleID        RuleID
+	// QuotaCooldown 标记可随额度恢复解除的内置限额冷却，不依赖 RuleID。
+	QuotaCooldown bool
 }
 
 func (decision Decision) ShouldRetry() bool {

@@ -20,12 +20,14 @@ import {
   AppButton,
   AppCollectionState,
   AppConfirmDialog,
+  AppExternalLink,
+  AppFormSection,
   AppIcon,
   AppIconButton,
   AppNotice,
   AppProtocolTag,
   AppSearchSelect,
-  AppSegmentedField,
+  AppSegmentedControl,
   AppTextArea,
   AppTextField,
 } from '@modern/components/ui'
@@ -214,7 +216,7 @@ const credentialPlaceholder = computed(() =>
 const proxyOptions = computed(() => [
   { value: 'inherit', label: t('groupCreate.proxyInherit') },
   { value: 'direct', label: t('groupCreate.proxyDirect') },
-  { value: 'custom', label: t('proxies.select') },
+  { value: 'custom', label: t('settingsForm.proxy.custom') },
 ])
 function cancelDiscovery(): void {
   discoveryController?.abort()
@@ -631,9 +633,7 @@ useMessageSource(() => (errorText.value ? { text: errorText.value, tone: 'danger
             ref="credentialInput"
             v-model="credentials"
             :label="t('groupCreate.credentials')"
-            :description="
-              t(structured ? 'groupCreate.structuredHelp' : 'groupCreate.credentialsHelp')
-            "
+            :hint="t(structured ? 'groupCreate.structuredHelp' : 'groupCreate.credentialsHelp')"
             :placeholder="credentialPlaceholder"
             :rows="6"
             mono
@@ -641,7 +641,16 @@ useMessageSource(() => (errorText.value ? { text: errorText.value, tone: 'danger
             spellcheck="false"
             :disabled="inputLocked"
             :error="attempted ? credentialError : undefined"
-          />
+          >
+            <template v-if="channel.partner" #label-extra>
+              <span class="modern-group-create-partner"
+                >{{ t('groupCreate.partnerChannel') }} ·
+                <AppExternalLink :href="channel.partner.signupURL"
+                  >{{ t('groupCreate.partnerSignup', { name: channel.name }) }} ↗</AppExternalLink
+                ></span
+              >
+            </template>
+          </AppTextArea>
           <p v-if="!subscription" class="modern-group-create-count">
             {{ t('groupCreate.credentialCount', { count: n(count) }) }}
           </p>
@@ -689,21 +698,30 @@ useMessageSource(() => (errorText.value ? { text: errorText.value, tone: 'danger
                 :disabled="inputLocked"
                 :error="attempted ? priceError : undefined"
               />
-              <AppSegmentedField
+              <AppFormSection
                 v-if="channel.proxy"
-                v-model="proxyMode"
-                :label="t('groupCreate.proxy')"
-                :options="proxyOptions"
-                :disabled="inputLocked || stages.length > 0"
-                :description="stages.length ? t('subscriptions.proxyLocked') : undefined"
-              />
-              <ProxySelect
-                v-if="channel.proxy && proxyMode === 'custom'"
-                ref="proxyInput"
-                v-model="proxyID"
-                :disabled="inputLocked || stages.length > 0"
-                :error="attempted ? proxyError : undefined"
-              />
+                :title="t('groupCreate.proxy')"
+                :hint="stages.length ? t('subscriptions.proxyLocked') : undefined"
+                compact
+              >
+                <template #actions>
+                  <AppSegmentedControl
+                    v-model="proxyMode"
+                    :label="t('groupCreate.proxy')"
+                    :options="proxyOptions"
+                    appearance="field"
+                    size="xs"
+                    :disabled="inputLocked || stages.length > 0"
+                  />
+                </template>
+                <ProxySelect
+                  v-if="proxyMode === 'custom'"
+                  ref="proxyInput"
+                  v-model="proxyID"
+                  :disabled="inputLocked || stages.length > 0"
+                  :error="attempted ? proxyError : undefined"
+                />
+              </AppFormSection>
             </div>
           </details>
         </template>
@@ -835,6 +853,18 @@ useMessageSource(() => (errorText.value ? { text: errorText.value, tone: 'danger
   flex-wrap: wrap;
   align-items: center;
   gap: var(--modern-space-1);
+}
+.modern-group-create-partner {
+  color: var(--modern-muted);
+  white-space: nowrap;
+}
+.modern-group-create-partner a {
+  color: var(--modern-accent);
+  text-decoration: none;
+}
+.modern-group-create-partner a:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 .modern-group-create-count {
   margin-top: calc(-1 * var(--modern-space-2));

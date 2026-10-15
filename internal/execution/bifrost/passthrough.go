@@ -17,6 +17,7 @@ import (
 	"gpt-load/internal/execution"
 	"gpt-load/internal/execution/geminiembedding"
 	"gpt-load/internal/execution/geminiimage"
+	"gpt-load/internal/execution/responsemodel"
 	"gpt-load/internal/platform/httpheader"
 	"gpt-load/internal/protocol"
 )
@@ -134,7 +135,7 @@ func sanitizeNativeRequestBody(spec execution.AttemptSpec, stream bool) ([]byte,
 		}
 		return encodeNativeJSONObject(object)
 	case spec.ClientProtocol == protocol.OpenAIResponses &&
-		(spec.Operation == execution.OperationResponsesCompact || spec.Operation == execution.OperationResponsesInputTokens):
+		(spec.Operation == execution.OperationResponsesCompact || spec.Operation == execution.OperationResponsesInputTokens || spec.Operation == execution.OperationWebSearch):
 		object, err := decodeNativeJSONObject(spec.Body)
 		if err != nil {
 			return nil, err
@@ -405,6 +406,11 @@ complete:
 		return startedUnaryFailure(status, headers, execution.ErrorKindInternal, "encoded upstream response cannot be safely forwarded")
 	}
 	model := openAIResponseModel(bodyBytes, spec.UpstreamModel)
+	if responsemodel.IsConversation(spec.ClientProtocol, spec.Operation) {
+		modelObserver := responsemodel.New(spec.ClientProtocol, spec.UpstreamModel)
+		modelObserver.ObserveJSON(bodyBytes)
+		model = modelObserver.Model
+	}
 	if status >= http.StatusOK && status < http.StatusMultipleChoices {
 		if prepared.mode == channel.RouteConverted && spec.ClientProtocol == protocol.OpenAIImages {
 			var err error
@@ -575,7 +581,8 @@ func (r *Runtime) executeNativeStream(
 	status := 0
 	var headers http.Header
 	requestID := ""
-	model := spec.UpstreamModel
+	modelObserver := responsemodel.New(spec.ClientProtocol, spec.UpstreamModel)
+	model := ""
 	var usageEvidence *execution.UsageEvidence
 	var errorBody bytes.Buffer
 	firstData := execution.NewFirstResponseSSEObserver(parent)
@@ -635,7 +642,8 @@ func (r *Runtime) executeNativeStream(
 						}
 					}
 				}
-				return finishNativeStream(status, headers, requestID, model, usageEvidence, errorBody.Bytes(), prepared.secrets)
+				modelObserver.FinishSSE()
+				return finishNativeStream(status, headers, requestID, modelObserver.Model, usageEvidence, errorBody.Bytes(), prepared.secrets)
 			}
 			if chunk == nil {
 				cancelCall()
@@ -674,6 +682,8 @@ func (r *Runtime) executeNativeStream(
 				} else {
 					var err error
 					firstData(data)
+					modelObserver.ObserveSSE(data)
+					model = modelObserver.Model
 					data, err = firstEventGate.push(data)
 					if err != nil {
 						cancelCall()
@@ -737,8 +747,8 @@ func usageEvidenceFromPassthroughForSpec(
 	spec execution.AttemptSpec,
 	source *schemas.BifrostPassthroughUsage,
 ) (*execution.UsageEvidence, error) {
-	// 转换路由由转换器提供用量证据；原生 OpenAI Embeddings 不经过透传。
-	if spec.ClientProtocol == protocol.OpenAIImages || spec.ClientProtocol == protocol.OpenAIEmbeddings ||
+	// 搜索不计模型用量；转换路由由转换器提供证据，原生 OpenAI Embeddings 不经过透传。
+	if spec.Operation == execution.OperationWebSearch || spec.ClientProtocol == protocol.OpenAIImages || spec.ClientProtocol == protocol.OpenAIEmbeddings ||
 		spec.ClientProtocol == protocol.Rerank || spec.ClientProtocol == protocol.Decisions {
 		return nil, nil
 	}

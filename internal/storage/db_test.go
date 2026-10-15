@@ -701,6 +701,7 @@ func TestAutoMigrateCreatesUsageJournalAndMigrationLedger(t *testing.T) {
 		"0035_remove_request_log_output_timing",
 		"0036_request_log_client_ip",
 		"0037_group_priority",
+		"0038_request_body_recording",
 	}
 	if !reflect.DeepEqual(migrationIDs, wantMigrationIDs) {
 		t.Fatalf("schema_migrations IDs = %v, want %v", migrationIDs, wantMigrationIDs)

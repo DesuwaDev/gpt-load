@@ -139,6 +139,8 @@ var migrations = []migration{
 	{ID: migrationfiles.ID0035, Up: migrationfiles.Up0035, Validate: migrationfiles.Validate0035, ValidateRecoverable: migrationfiles.ValidateRecoverable0035},
 	{ID: migrationfiles.ID0036, Up: migrationfiles.Up0036, Validate: migrationfiles.Validate0036, ValidateRecoverable: migrationfiles.ValidateRecoverable0036},
 	{ID: migrationfiles.ID0037, Up: migrationfiles.Up0037, Validate: migrationfiles.Validate0037, ValidateRecoverable: migrationfiles.ValidateRecoverable0037},
+	// 上游 0030 (request_body_recording) 顺延为 0038。
+	{ID: migrationfiles.ID0038, Up: migrationfiles.Up0038, Validate: migrationfiles.Validate0038, ValidateRecoverable: migrationfiles.ValidateRecoverable0038},
 }
 
 func applyMigrations(db *gorm.DB) error {

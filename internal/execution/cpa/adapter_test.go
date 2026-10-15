@@ -1033,7 +1033,7 @@ func TestAdapterStreamsEverySupportedClientProtocolThroughCPA(t *testing.T) {
 				}
 				return nil
 			})
-			if result.Error != nil || fake.calls != 1 || fake.request.Format != test.wantFormat || result.UpstreamProtocol != test.wantAPI {
+			if result.Error != nil || result.Model != "" || fake.calls != 1 || fake.request.Format != test.wantFormat || result.UpstreamProtocol != test.wantAPI {
 				t.Fatalf("result=%#v calls=%d request=%#v", result, fake.calls, fake.request)
 			}
 			if strings.Join(data, "") != strings.Join(test.wantData, "") {
@@ -1249,10 +1249,10 @@ func TestAdapterRewritesStreamModelAliasForEveryProtocol(t *testing.T) {
 		operation execution.Operation
 		payload   string
 	}{
-		{name: "OpenAI Chat", protocol: protocol.OpenAICompletions, operation: execution.OperationChatCompletion, payload: `{"model":"upstream-model","choices":[{"finish_reason":"stop"}]}`},
-		{name: "OpenAI Responses", protocol: protocol.OpenAIResponses, operation: execution.OperationResponsesCreate, payload: "data: {\"type\":\"response.completed\",\"response\":{\"model\":\"upstream-model\"}}\n\n"},
-		{name: "Anthropic", protocol: protocol.Anthropic, operation: execution.OperationChatCompletion, payload: "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"model\":\"upstream-model\"}}\n\nevent: message_stop\ndata: {\"type\":\"message_stop\"}"},
-		{name: "Gemini", protocol: protocol.Gemini, operation: execution.OperationChatCompletion, payload: `{"modelVersion":"upstream-model","candidates":[{"finishReason":"STOP"}]}`},
+		{name: "OpenAI Chat", protocol: protocol.OpenAICompletions, operation: execution.OperationChatCompletion, payload: `{"model":"reported-model","choices":[{"finish_reason":"stop"}]}`},
+		{name: "OpenAI Responses", protocol: protocol.OpenAIResponses, operation: execution.OperationResponsesCreate, payload: "data: {\"type\":\"response.completed\",\"response\":{\"model\":\"reported-model\"}}\n\n"},
+		{name: "Anthropic", protocol: protocol.Anthropic, operation: execution.OperationChatCompletion, payload: "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"model\":\"reported-model\"}}\n\nevent: message_stop\ndata: {\"type\":\"message_stop\"}"},
+		{name: "Gemini", protocol: protocol.Gemini, operation: execution.OperationChatCompletion, payload: `{"modelVersion":"reported-model","candidates":[{"finishReason":"STOP"}]}`},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -1277,7 +1277,7 @@ func TestAdapterRewritesStreamModelAliasForEveryProtocol(t *testing.T) {
 				}
 				return nil
 			})
-			if result.Error != nil || !strings.Contains(wire.String(), "public-model") || strings.Contains(wire.String(), "upstream-model") {
+			if result.Error != nil || result.Model != "reported-model" || !strings.Contains(wire.String(), "public-model") || strings.Contains(wire.String(), "reported-model") {
 				t.Fatalf("result = %#v, wire = %q", result, wire.String())
 			}
 		})
@@ -1700,17 +1700,32 @@ func TestStreamModelObserverSniffing(t *testing.T) {
 func TestSuccessfulStreamTerminalUsesObservedModel(t *testing.T) {
 	t.Parallel()
 
-	spec := execution.AttemptSpec{
-		UpstreamModel: "gpt-6-astra",
-	}
-
-	resMismatch := successfulStreamTerminal(protocol.OpenAIResponses, spec, nil, nil, "gpt-5.6-luna")
+	resMismatch := successfulStreamTerminal(protocol.OpenAIResponses, "gpt-5.6-luna", nil, nil)
 	if resMismatch.Model != "gpt-5.6-luna" {
 		t.Fatalf("successfulStreamTerminal() Model = %q, want gpt-5.6-luna", resMismatch.Model)
 	}
 
-	resFallback := successfulStreamTerminal(protocol.OpenAIResponses, spec, nil, nil, "")
-	if resFallback.Model != "gpt-6-astra" {
-		t.Fatalf("successfulStreamTerminal() fallback Model = %q, want gpt-6-astra", resFallback.Model)
+	// 未观测到模型时保持为空，由网关区分“未观测”与“观测一致”，不再回填请求模型。
+	resUnobserved := successfulStreamTerminal(protocol.OpenAIResponses, "", nil, nil)
+	if resUnobserved.Model != "" {
+		t.Fatalf("successfulStreamTerminal() unobserved Model = %q, want empty", resUnobserved.Model)
+	}
+}
+
+func TestAdapterDoesNotInventMissingUnaryModel(t *testing.T) {
+	adapter, _, _, keys, row := newAdapterFixture(t, credentialJSON("access", "refresh", time.Now().Add(time.Hour)))
+	setCodexExecutor(t, adapter, &fakeExecutor{result: codex.ExecuteResponse{Payload: []byte(`{"id":"resp_1","object":"response","output":[]}`)}})
+	result := adapter.Execute(t.Context(), validSpec(t, row, keys))
+	if result.Error != nil || result.Model != "" {
+		t.Fatalf("result=%+v", result)
+	}
+}
+
+func TestUnaryProviderSuccessKeepsTokenCountModelContract(t *testing.T) {
+	spec := execution.AttemptSpec{ClientProtocol: protocol.Anthropic, Operation: execution.OperationCountTokens, UpstreamModel: "requested"}
+	response := providerResponse{UpstreamProtocol: protocol.Anthropic, Payload: []byte(`{"input_tokens":3}`)}
+	result := unaryProviderSuccess(nil, spec, response)
+	if result.Model != "requested" || result.Error != nil {
+		t.Fatalf("result=%+v", result)
 	}
 }

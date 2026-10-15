@@ -30,6 +30,8 @@ import (
 
 var reasonWebsocketCapability = reason{400, "websocket_capability_unavailable", "The selected upstream does not support this WebSocket capability."}
 
+const maxWebsocketPayloadBytes = 10 << 20
+
 func websocketFailureReason(result UpstreamResult) reason {
 	if result.Stream.EndReason == StreamEndRedactionFailed {
 		return reasonResponseRedactionFailed
@@ -164,6 +166,7 @@ func (s *websocketConnection) executeTurn(turn websocketTurn) {
 		s.cancel()
 		return
 	}
+	recorder.recordRequestBody(key, turn.body)
 	releaseRequest, failure := h.acquireRequestConcurrency(key.ID)
 	if failure != nil {
 		reject(*failure)
@@ -347,7 +350,7 @@ func (s *websocketConnection) executeTurn(turn websocketTurn) {
 			Err: fmt.Errorf("%w: candidate preparation failed", ErrUpstreamProtocol), ErrorSummary: summary,
 			ExecutionError: &execution.ErrorEvidence{Kind: execution.ErrorKindInternal, OriginHint: execution.ErrorOriginInternal,
 				ScopeHint: scope, Code: code, Summary: summary}}
-		decision := judgeUpstreamResult(result, h.now(), health.DecisionContext{Operation: execution.OperationResponsesCreate, Method: http.MethodPost})
+		decision := judgeUpstreamResult(result, h.now(), health.DecisionContext{ErrorRules: selection.Group.ErrorRules, Operation: execution.OperationResponsesCreate, Method: http.MethodPost})
 		index := recorder.recordAttempt(selection, nil, result, decision, started, recorder.now())
 		h.applyGroupDecisionEffect(selection.Group, ref, 0, decision, 0, h.now(), optionalModelValue(selection.UpstreamModelID))
 		if decision.Effect == health.EffectSkipGroup {
@@ -441,7 +444,7 @@ func (s *websocketConnection) executeTurn(turn websocketTurn) {
 		} else {
 			payload, err = snapshot.RequestRedaction.Apply(payload)
 		}
-		if err != nil || len(payload) > 10<<20 {
+		if err != nil || len(payload) > maxWebsocketPayloadBytes {
 			reject(reasonRedactionFailed)
 			return
 		}
@@ -638,7 +641,7 @@ func (s *websocketConnection) executeTurn(turn websocketTurn) {
 				break
 			}
 		}
-		decision := judgeUpstreamResult(result, h.now(), health.DecisionContext{DefaultRateLimitCooldown: fixedCooldown, CredentialRefreshable: selection.Group.ConnectionType == "subscription", Method: http.MethodPost, Operation: execution.OperationResponsesCreate})
+		decision := judgeUpstreamResult(result, h.now(), health.DecisionContext{ErrorRules: selection.Group.ErrorRules, DefaultRateLimitCooldown: fixedCooldown, CredentialRefreshable: selection.Group.ConnectionType == "subscription", Method: http.MethodPost, Operation: execution.OperationResponsesCreate})
 		var index int
 		if result.Stream.EndReason == StreamEndNone {
 			index = recorder.recordAttempt(selection, credential.secrets, result, decision, started, recorder.now())
@@ -736,7 +739,7 @@ func sameWebsocketIdentity(a, b state.CredentialRef) bool {
 }
 
 func prepareWebsocketPayload(body []byte, original websocketRequest, selection scheduler.Selection) ([]byte, websocketRequest, error) {
-	effectiveBody, _, err := selection.Group.ParameterOverrides.Apply(protocol.OpenAIResponses, execution.OperationResponsesCreate, *original.metadata.Model, body)
+	effectiveBody, _, err := selection.Group.ParameterOverrides.ApplyWithLimit(protocol.OpenAIResponses, execution.OperationResponsesCreate, *original.metadata.Model, body, maxWebsocketPayloadBytes)
 	if err != nil {
 		return nil, original, err
 	}
@@ -755,7 +758,7 @@ func prepareWebsocketPayload(body []byte, original websocketRequest, selection s
 		}
 	}
 	payload, err := json.Marshal(effective.fields)
-	if len(payload) > 10<<20 {
+	if len(payload) > maxWebsocketPayloadBytes {
 		return nil, original, ErrUpstreamProtocol
 	}
 	return payload, effective, err
@@ -940,6 +943,7 @@ func (s *websocketConnection) runWebsocketAttempt(ctx context.Context, cancel co
 	observer := newStreamEventObserver(input.Dialect, newUsageCaptureBoundary().newStreamForRequest(input.Dialect, input.ObserveUsage))
 	result := UpstreamResult{UpstreamProtocol: protocol.OpenAIResponses, InjectedTurnState: input.ResolvedCodexTurnState()}
 	var responseID string
+	var confirmedInterrupt *websocketInterrupt
 	var timedOut atomic.Bool
 	first := newStreamWatchdog(websocketCancelCloser{cancel, &timedOut}, time.Until(firstByteDeadline))
 	if !firstByteDeadline.IsZero() {
@@ -1014,10 +1018,13 @@ func (s *websocketConnection) runWebsocketAttempt(ctx context.Context, cancel co
 			return ErrUpstreamProtocol
 		}
 		var response struct {
-			ID     string `json:"id"`
-			Object string `json:"object"`
-			Model  string `json:"model"`
-			Status string `json:"status"`
+			ID                string `json:"id"`
+			Object            string `json:"object"`
+			Model             string `json:"model"`
+			Status            string `json:"status"`
+			IncompleteDetails struct {
+				Reason string `json:"reason"`
+			} `json:"incomplete_details"`
 		}
 		if len(event.Response) > 0 && json.Unmarshal(event.Response, &response) != nil {
 			return ErrUpstreamProtocol
@@ -1092,7 +1099,7 @@ func (s *websocketConnection) runWebsocketAttempt(ctx context.Context, cancel co
 				return err
 			}
 		}
-		if response.Model != "" {
+		if response.Model != "" && (!result.ResponseModelMismatch || response.Model != input.UpstreamModelID) {
 			result.UpstreamReportedModel = response.Model
 			result.ResponseModelObserved = true
 			result.ResponseModelMismatch = response.Model != input.UpstreamModelID
@@ -1117,7 +1124,13 @@ func (s *websocketConnection) runWebsocketAttempt(ctx context.Context, cancel co
 				if !exists {
 					s.parentOrder = append(s.parentOrder, response.ID)
 				}
-				s.parents[response.ID] = websocketParent{lane: lane, complete: observer.sawTerminal && !providerError && observer.terminalDisposition == dialect.StreamEventCompleted, autoSelection: recorder.autoSelection()}
+				interrupted := prior.interruptRequested && response.Status == "incomplete" && response.IncompleteDetails.Reason == "interrupted"
+				if interrupted && observer.terminalDisposition == dialect.StreamEventIncomplete {
+					confirmedInterrupt = prior.interrupt
+				}
+				s.parents[response.ID] = websocketParent{lane: lane,
+					complete:           observer.sawTerminal && !providerError && (observer.terminalDisposition == dialect.StreamEventCompleted || interrupted),
+					interruptRequested: prior.interruptRequested, interrupt: prior.interrupt, autoSelection: recorder.autoSelection()}
 				for len(s.parentOrder) > s.handler.websocketLimits.responses {
 					delete(s.parents, s.parentOrder[0])
 					s.parentOrder = s.parentOrder[1:]
@@ -1213,6 +1226,18 @@ func (s *websocketConnection) runWebsocketAttempt(ctx context.Context, cancel co
 			Summary: "Response content could not be restored safely.",
 		}
 		result.ErrorSummary = result.ExecutionError.Summary
+	}
+	// 原始 incomplete 已交付；只有匹配的中断确认与成功写入均成立，才按正常交互收尾记账。
+	if confirmedInterrupt != nil && result.Stream.EndReason == StreamEndProviderIncomplete &&
+		observer.terminalForwarded && result.Err == nil && result.ExecutionError == nil {
+		select {
+		case <-confirmedInterrupt.done:
+			if confirmedInterrupt.err == nil && ctx.Err() == nil && s.ctx.Err() == nil {
+				result.Stream = StreamObservation{EndReason: StreamEndCleanEOF}
+			}
+		case <-ctx.Done():
+		case <-s.ctx.Done():
+		}
 	}
 	return result
 }

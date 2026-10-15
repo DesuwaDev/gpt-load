@@ -171,9 +171,10 @@ func TestExternalDatabaseLifecycle(t *testing.T) {
 		"0035_remove_request_log_output_timing",
 		"0036_request_log_client_ip",
 		"0037_group_priority",
+		"0038_request_body_recording",
 	}
 	if !slices.Equal(migrationIDs, wantMigrationIDs) {
-		t.Fatalf("migration ledger = %v, want complete 0001-0037 chain", migrationIDs)
+		t.Fatalf("migration ledger = %v, want complete 0001-0038 chain", migrationIDs)
 	}
 	if !db.Migrator().HasIndex("usage_stats", "idx_usage_stats_group_bucket") {
 		t.Fatal("usage_stats group activity index is missing")

@@ -16,6 +16,7 @@ import (
 	"gpt-load/internal/channel"
 	"gpt-load/internal/connection"
 	"gpt-load/internal/execution"
+	"gpt-load/internal/health"
 	"gpt-load/internal/jev"
 	"gpt-load/internal/outboundproxy"
 	"gpt-load/internal/parameteroverride"
@@ -88,19 +89,20 @@ func externalModelName(model ModelConfig) string {
 }
 
 type AccessKeyConfig struct {
-	ConcurrencyLimit *int64
-	KeyPrefix        string
-	PriceMultiplier  *pricing.PriceMultiplier
-	ID               uint
-	Name             string
-	KeyHash          string
-	KeySuffix        string
-	Status           AccessKeyStatus
-	Filters          FilterSet
-	ExpiresAtMS      *int64
-	AllowedPeerCIDRs []netip.Prefix
-	RPMLimit         int64
-	CostLimitRules   []accessquota.Rule
+	ConcurrencyLimit  *int64
+	KeyPrefix         string
+	PriceMultiplier   *pricing.PriceMultiplier
+	ID                uint
+	Name              string
+	KeyHash           string
+	KeySuffix         string
+	Status            AccessKeyStatus
+	Filters           FilterSet
+	ExpiresAtMS       *int64
+	AllowedPeerCIDRs  []netip.Prefix
+	RPMLimit          int64
+	CostLimitRules    []accessquota.Rule
+	RecordRequestBody bool
 }
 
 type AccessKeyStatus string
@@ -180,6 +182,7 @@ type GroupView struct {
 	CredentialConcurrencyLimit int64
 	Proxy                      outboundproxy.Effective
 	ParameterOverrides         parameteroverride.Rules
+	ErrorRules                 health.ErrorRules
 }
 
 type GroupCatalogView struct {
@@ -193,18 +196,19 @@ type GroupCatalogView struct {
 }
 
 type AccessKeyView struct {
-	ConcurrencyLimit *int64
-	KeyPrefix        string
-	PriceMultiplier  pricing.PriceMultiplier
-	ID               uint
-	Name             string
-	KeySuffix        string
-	Status           AccessKeyStatus
-	Filters          FilterSet
-	ExpiresAtMS      *int64
-	AllowedPeerCIDRs []netip.Prefix
-	RPMLimit         int64
-	CostLimitRules   []accessquota.Rule
+	ConcurrencyLimit  *int64
+	KeyPrefix         string
+	PriceMultiplier   pricing.PriceMultiplier
+	ID                uint
+	Name              string
+	KeySuffix         string
+	Status            AccessKeyStatus
+	Filters           FilterSet
+	ExpiresAtMS       *int64
+	AllowedPeerCIDRs  []netip.Prefix
+	RPMLimit          int64
+	CostLimitRules    []accessquota.Rule
+	RecordRequestBody bool
 }
 
 type ConfigSnapshot struct {
@@ -377,6 +381,7 @@ func Compile(input CompileInput) (*ConfigSnapshot, error) {
 			ConnectionType:             connection.Normalize(group.ConnectionType),
 			Proxy:                      groupProxy,
 			ParameterOverrides:         resolved.ParameterOverrides,
+			ErrorRules:                 resolved.ErrorRules,
 		}
 		params, err := input.ChannelRegistry.ValidateParams(group.ChannelID, group.Params)
 		if err != nil {
@@ -423,14 +428,15 @@ func newAccessKeyView(input AccessKeyConfig) AccessKeyView {
 	return AccessKeyView{
 		PriceMultiplier: resolvePriceMultiplier(input.PriceMultiplier),
 		ID:              input.ID, Name: input.Name, Status: input.Status,
-		KeySuffix:        input.KeySuffix,
-		KeyPrefix:        input.KeyPrefix,
-		Filters:          cloneFilterSet(input.Filters),
-		ExpiresAtMS:      cloneAccessKeyExpiry(input.ExpiresAtMS),
-		AllowedPeerCIDRs: cloneAllowedPeerCIDRs(input.AllowedPeerCIDRs),
-		RPMLimit:         input.RPMLimit,
-		ConcurrencyLimit: cloneAccessKeyExpiry(input.ConcurrencyLimit),
-		CostLimitRules:   rules,
+		KeySuffix:         input.KeySuffix,
+		KeyPrefix:         input.KeyPrefix,
+		Filters:           cloneFilterSet(input.Filters),
+		ExpiresAtMS:       cloneAccessKeyExpiry(input.ExpiresAtMS),
+		AllowedPeerCIDRs:  cloneAllowedPeerCIDRs(input.AllowedPeerCIDRs),
+		RPMLimit:          input.RPMLimit,
+		ConcurrencyLimit:  cloneAccessKeyExpiry(input.ConcurrencyLimit),
+		CostLimitRules:    rules,
+		RecordRequestBody: input.RecordRequestBody,
 	}
 }
 

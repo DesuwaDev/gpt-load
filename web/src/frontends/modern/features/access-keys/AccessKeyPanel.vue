@@ -3,7 +3,7 @@ import { protocolLabel } from '@modern/i18n/protocols'
 import { Eye, EyeOff, RefreshCw, Trash2 } from '@lucide/vue'
 import { useQuery } from '@tanstack/vue-query'
 import { DialogRoot } from 'reka-ui'
-import { computed, nextTick, onScopeDispose, ref, watch } from 'vue'
+import { computed, nextTick, onScopeDispose, ref, useId, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
   accessDetailKey,
@@ -17,6 +17,7 @@ import {
   type AccessKey,
 } from '@modern/api/access-keys'
 import { getGroupWorkspace, groupQueryKey } from '@modern/api/groups'
+import { getSettings, settingsKey } from '@modern/api/settings'
 import { useMessageSource } from '@modern/app/messages'
 import {
   AppProtocolTag,
@@ -76,6 +77,13 @@ const groups = useQuery({
   queryKey: groupQueryKey,
   queryFn: ({ signal }) => getGroupWorkspace(client, signal),
 })
+// 预取日志保留天数，开启记录的确认框才能直接给出具体天数；读取失败时使用通用说明。
+const retention = useQuery({
+  queryKey: settingsKey,
+  queryFn: ({ signal }) => getSettings(client, signal),
+  select: (data) => data.values.request_log_retention_days,
+  gcTime: 0,
+})
 const base = ref<AccessKey>()
 const usageRow = computed(() => (props.mode === 'detail' ? query.data.value : undefined))
 const draft = ref<AccessDraft>(draftFor())
@@ -92,6 +100,16 @@ const showKey = ref(false)
 const revealing = ref(false)
 const deleteOpen = ref(false)
 const resetOpen = ref(false)
+const recordConfirmOpen = ref(false)
+const recordNoteId = useId()
+const recordConfirmDescription = computed(() =>
+  t('accessKeys.recordRequestBody.confirmDescription', {
+    retention:
+      retention.data.value === undefined
+        ? t('accessKeys.recordRequestBody.retentionDefault')
+        : t('accessKeys.recordRequestBody.retentionDays', { days: retention.data.value }),
+  }),
+)
 let submission: { payload: string; operation: string } | undefined
 const dirty = computed(
   () =>
@@ -235,6 +253,19 @@ function generate(): void {
   } catch {
     error.value = t('accessKeys.failed')
   }
+}
+function setRecordRequestBody(value: boolean): void {
+  if (pending.value) return
+  // 关闭立即生效；开启必须先在确认框中确认。
+  if (value && !draft.value.recordRequestBody) {
+    recordConfirmOpen.value = true
+    return
+  }
+  draft.value.recordRequestBody = value
+}
+function confirmRecordRequestBody(): void {
+  recordConfirmOpen.value = false
+  if (!pending.value) draft.value.recordRequestBody = true
 }
 async function requestSave(): Promise<void> {
   if (pending.value || revealing.value) return
@@ -548,10 +579,31 @@ onScopeDispose(() => {
               :disabled="pending"
               :error="fieldError('expires')"
             />
+            <div class="modern-access-setting">
+              <span>{{ t('accessKeys.recordRequestBody.label') }}</span
+              ><AppSwitch
+                :model-value="draft.recordRequestBody"
+                :label="t('accessKeys.recordRequestBody.label')"
+                :aria-describedby="recordNoteId"
+                size="sm"
+                :disabled="pending"
+                @update:model-value="setRecordRequestBody"
+              />
+            </div>
+            <p :id="recordNoteId" class="modern-access-note">
+              {{ t('accessKeys.recordRequestBody.description') }}
+            </p>
           </AppFormSection>
           <AppFormSection
             :title="t('accessKeys.scope')"
-            :description="t('accessKeys.scopeHelp')"
+            :hint="
+              [
+                t('accessKeys.scopeHelp'),
+                groups.data.value?.autoModels?.length ? t('autoModel.permissionsHint') : '',
+              ]
+                .filter(Boolean)
+                .join('\n')
+            "
             compact
           >
             <div class="modern-access-setting">
@@ -639,9 +691,6 @@ onScopeDispose(() => {
               :error="fieldError('models')"
             />
             <p v-if="modelMismatch" class="modern-access-note">{{ t('accessKeys.mismatch') }}</p>
-            <p v-if="groups.data.value?.autoModels?.length" class="modern-access-note">
-              {{ t('autoModel.permissionsHint') }}
-            </p>
           </AppFormSection>
           <AccessKeyQuotaEditor
             v-model="draft.rules"
@@ -655,7 +704,7 @@ onScopeDispose(() => {
             <AppTextField
               v-model="draft.concurrency"
               :label="t('concurrency.label')"
-              :description="t('concurrency.overrideHelp')"
+              :hint="t('concurrency.overrideHelp')"
               :placeholder="t('concurrency.inherit')"
               inputmode="numeric"
               size="sm"
@@ -666,7 +715,7 @@ onScopeDispose(() => {
               <AppTextField
                 v-model="draft.rpm"
                 :label="t('accessKeys.rpm')"
-                :description="t('accessKeys.rpmHelp')"
+                :hint="t('accessKeys.rpmHelp')"
                 inputmode="numeric"
                 size="sm"
                 :disabled="pending"
@@ -698,7 +747,7 @@ onScopeDispose(() => {
               v-if="draft.source !== 'all'"
               v-model="draft.cidrs"
               :label="t('accessKeys.cidrs')"
-              :description="t('accessKeys.cidrHelp')"
+              :hint="t('accessKeys.cidrHelp')"
               :rows="3"
               :disabled="pending"
               :error="fieldError('cidrs')"
@@ -768,6 +817,15 @@ onScopeDispose(() => {
     @pending="pending = $event"
     @close="resetOpen = false"
     @reset="quotaReset"
+  />
+  <AppConfirmDialog
+    :open="recordConfirmOpen"
+    :title="t('accessKeys.recordRequestBody.confirmTitle')"
+    :description="recordConfirmDescription"
+    :confirm-label="t('accessKeys.recordRequestBody.confirm')"
+    tone="danger"
+    @cancel="recordConfirmOpen = false"
+    @confirm="confirmRecordRequestBody"
   />
 </template>
 <style scoped>

@@ -16,7 +16,7 @@ func TestAccessKeyConcurrencyMigrationAddsDefaultZeroAndPreservesRows(t *testing
 		Name: "legacy", KeyValue: "ciphertext", KeyHash: "legacy-hash",
 		KeySuffix: "cafe", Status: "active", Filters: models.JSON(`{}`),
 	}
-	if err := db.Omit("ExpiresAtMS", "PriceMultiplierMicros", "KeyPrefix", "ConcurrencyLimit").
+	if err := db.Omit("ExpiresAtMS", "PriceMultiplierMicros", "KeyPrefix", "ConcurrencyLimit", "RecordRequestBody").
 		Create(&accessKey).Error; err != nil {
 		t.Fatalf("create legacy access key: %v", err)
 	}

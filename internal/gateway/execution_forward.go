@@ -13,7 +13,9 @@ import (
 
 	"gpt-load/internal/dialect"
 	"gpt-load/internal/execution"
+	"gpt-load/internal/execution/responsemodel"
 	"gpt-load/internal/health"
+	"gpt-load/internal/platform/contentcoding"
 	platformheader "gpt-load/internal/platform/httpheader"
 	"gpt-load/internal/platform/redact"
 	"gpt-load/internal/protocol"
@@ -52,6 +54,14 @@ type rpmObservedWebsocketSession struct {
 func (session *rpmObservedWebsocketSession) ExecuteTurn(ctx context.Context, payload []byte, emit func(context.Context, []byte) error) execution.WebsocketResult {
 	session.store.Record(rpm.Credential, session.credentialID, false, time.Now())
 	return session.WebsocketSession.ExecuteTurn(ctx, payload, emit)
+}
+
+func (session *rpmObservedWebsocketSession) Interrupt(ctx context.Context, payload []byte) error {
+	sender, ok := session.WebsocketSession.(execution.WebsocketInterrupter)
+	if !ok {
+		return execution.ErrWebsocketInterruptUnsupported
+	}
+	return sender.Interrupt(ctx, payload)
 }
 
 func NewExecutionForwarder(executor execution.Executor) *ExecutionForwarder {
@@ -808,12 +818,17 @@ func (forwarder *ExecutionForwarder) prepareBufferedResult(
 		if err != nil {
 			return executionRepresentationFailure(result, err)
 		}
+		// 仅补回原生压缩正文的观测；普通正文可能已在执行层改写为客户端别名。
+		if !result.ResponseModelObserved && input.RouteMode == execution.RouteNative &&
+			responsemodel.IsConversation(input.ClientProtocol, input.Operation) {
+			encoding, err := contentcoding.ParseContentEncoding(headerFieldValues(result.Header, "Content-Encoding"))
+			if err == nil && encoding != contentcoding.Identity {
+				applyResponseModelObservation(&result, prepared.modelObservation)
+			}
+		}
 		result.Header = prepared.headers
 		result.Body = prepared.downstream
 		result.ClassificationBody = prepared.inspectable
-		if prepared.modelObservation.observed {
-			applyResponseModelObservation(&result, prepared.modelObservation)
-		}
 		return result
 	}
 	if result.ExecutionError != nil &&
@@ -981,6 +996,7 @@ func newExecutionAttemptSpec(input ForwardInput) (execution.AttemptSpec, error) 
 		Header:                   headers,
 		ConfiguredHeaders:        configuredHeaders,
 		ConfiguredParameters:     input.ConfiguredParameters,
+		RemovedParameterPaths:    input.RemovedParameterPaths,
 		Body:                     input.Request.Body,
 		IncludeUsage:             input.ObserveUsage,
 		ForceCredentialRefresh:   input.ForceCredentialRefresh,

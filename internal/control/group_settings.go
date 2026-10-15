@@ -11,6 +11,7 @@ import (
 
 	"gpt-load/internal/channel"
 	"gpt-load/internal/execution"
+	"gpt-load/internal/health"
 	"gpt-load/internal/outboundproxy"
 	"gpt-load/internal/platform/config"
 	"gpt-load/internal/platform/encryption"
@@ -38,6 +39,7 @@ type GroupSettingsResponse struct {
 	Overrides                  config.Settings              `json:"overrides"`
 	Effective                  GroupEffectiveConfigResponse `json:"effective"`
 	Proxy                      outboundproxy.View           `json:"proxy"`
+	DefaultErrorRules          []health.ErrorRule           `json:"default_error_rules"`
 }
 
 type GroupSettingsUpdateRequest struct {
@@ -150,6 +152,7 @@ func groupSettingsResponse(
 		selected, _ = target.PreferredProtocol(execution.OperationProbe, model)
 	}
 	return GroupSettingsResponse{
+		DefaultErrorRules:  system.ErrorRules.Rules(),
 		Priority:           group.Priority,
 		ValidationProtocol: optionalValidationProtocol(selected), ValidationProtocols: protocols,
 		PriceMultiplier:            priceMultiplierResponse(group.PriceMultiplierMicros),

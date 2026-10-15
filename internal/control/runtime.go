@@ -13,6 +13,7 @@ import (
 	"gpt-load/internal/health"
 	"gpt-load/internal/platform/encryption"
 	"gpt-load/internal/state"
+	subscriptionproviders "gpt-load/internal/subscription/providers"
 )
 
 const (
@@ -72,6 +73,7 @@ type Runtime struct {
 	operationRecovery  operationRecoveryRuntime
 	degradation        degradationMonitorRuntime
 	catalogSync        catalogSyncRuntime
+	cpaModelCatalog    catalogSyncRuntime
 	oauthCallback      *OAuthCallbackManager
 	manager            *state.Manager
 	validationInterval time.Duration
@@ -91,6 +93,7 @@ func NewRuntime(
 	requestLogCleaner RequestLogCleaner,
 	operationRecovery *Service,
 	catalogSync *CatalogSyncCoordinator,
+	cpaModelCatalog *subscriptionproviders.ModelCatalogUpdater,
 ) *Runtime {
 	runtime := &Runtime{
 		registry:           registry,
@@ -98,6 +101,7 @@ func NewRuntime(
 		stageCleaner:       operationRecovery,
 		operationRecovery:  operationRecovery,
 		catalogSync:        catalogSync,
+		cpaModelCatalog:    cpaModelCatalog,
 		manager:            manager,
 		validationInterval: defaultValidationInterval,
 		validationJitter: func() time.Duration {
@@ -164,6 +168,13 @@ func (runtime *Runtime) Run(ctx context.Context) {
 		go func() {
 			defer wait.Done()
 			runtime.catalogSync.Run(ctx)
+		}()
+	}
+	if runtime.cpaModelCatalog != nil {
+		wait.Add(1)
+		go func() {
+			defer wait.Done()
+			runtime.cpaModelCatalog.Run(ctx)
 		}()
 	}
 	if runtime.oauthCallback != nil {
