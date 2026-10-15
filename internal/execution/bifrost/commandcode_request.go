@@ -483,11 +483,10 @@ func commandCodeMessages(source []commandCodeChatMessage) ([]commandCodeMessage,
 				system = append(system, text)
 			}
 		case "tool":
-			text, allText, err := commandCodeTextContent(message.Content)
+			// 与官方 CLI 一致只保留文本部件：图片等非文本部件若整体序列化成字符串，
+			// base64 数据会按文本计入上下文，导致上游误报提示窗口超限。
+			text, _, err := commandCodeTextContent(message.Content)
 			if err != nil {
-				return nil, "", err
-			}
-			if !allText {
 				text = string(bytes.TrimSpace(message.Content))
 			}
 			messages = append(messages, commandCodeMessage{Role: "tool", Content: []commandCodePart{{
@@ -527,7 +526,36 @@ func commandCodeMessages(source []commandCodeChatMessage) ([]commandCodeMessage,
 			return nil, "", fmt.Errorf("unsupported Chat message role %q", message.Role)
 		}
 	}
-	return pruneCommandCodeDanglingTools(messages), strings.Join(system, "\n\n"), nil
+	return pruneCommandCodeDanglingTools(mergeCommandCodeTurns(messages)), strings.Join(system, "\n\n"), nil
+}
+
+// mergeCommandCodeTurns 把连续的同角色 user/assistant 消息合并为一条部件消息。
+// 协议转换会把一轮里的多个内容块拆成多条消息，而官方 CLI 每轮只发一条。
+func mergeCommandCodeTurns(messages []commandCodeMessage) []commandCodeMessage {
+	merged := make([]commandCodeMessage, 0, len(messages))
+	for _, message := range messages {
+		last := len(merged) - 1
+		if last < 0 || message.Role == "tool" || merged[last].Role != message.Role {
+			merged = append(merged, message)
+			continue
+		}
+		parts := append(commandCodeParts(merged[last].Content), commandCodeParts(message.Content)...)
+		merged[last] = commandCodeMessage{Role: message.Role, Content: parts}
+	}
+	return merged
+}
+
+func commandCodeParts(content any) []commandCodePart {
+	switch value := content.(type) {
+	case []commandCodePart:
+		return append([]commandCodePart(nil), value...)
+	case string:
+		if value == "" {
+			return nil
+		}
+		return []commandCodePart{{"type": "text", "text": value}}
+	}
+	return nil
 }
 
 // commandCodeTextContent 读取字符串或文本部件数组；第二个返回值表示内容是否全部为文本。

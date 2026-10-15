@@ -797,3 +797,106 @@ func TestCommandCodeVersionResolver(t *testing.T) {
 		t.Fatalf("invalid override must be ignored, got %q", got)
 	}
 }
+
+// TestCommandCodeToolResultDropsNonTextParts 防止工具结果里的图片以 base64 文本计入上下文，
+// 并验证一轮中被拆开的多个内容块重新合并为一条消息，与官方 CLI 一致。
+func TestCommandCodeToolResultDropsNonTextParts(t *testing.T) {
+	image := "data:image/png;base64," + strings.Repeat("QUJD", 4096)
+	chat := `{"messages":[
+		{"role":"system","content":"sys"},
+		{"role":"user","content":"ctx"},
+		{"role":"user","content":[{"type":"text","text":"read it"}]},
+		{"role":"assistant","content":"Reading."},
+		{"role":"assistant","content":null,"tool_calls":[{"id":"c1","type":"function","function":{"name":"Read","arguments":"{}"}}]},
+		{"role":"tool","tool_call_id":"c1","content":[{"type":"text","text":"a.go"},{"type":"image_url","image_url":{"url":"` + image + `"}}]},
+		{"role":"user","content":"next"}],
+		"tools":[{"type":"function","function":{"name":"Read","parameters":{"type":"object"}}}]}`
+	plan, err := buildCommandCodeRequest([]byte(chat), "deepseek-v4-pro", time.Unix(0, 0))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(plan.body, []byte("base64")) {
+		t.Fatalf("tool result image leaked into the prompt (%d bytes)", len(plan.body))
+	}
+	var decoded struct {
+		Params struct {
+			Messages []struct {
+				Role    string          `json:"role"`
+				Content json.RawMessage `json:"content"`
+			} `json:"messages"`
+		} `json:"params"`
+	}
+	if err := json.Unmarshal(plan.body, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	var roles []string
+	for _, message := range decoded.Params.Messages {
+		roles = append(roles, message.Role)
+	}
+	if got := strings.Join(roles, ","); got != "user,assistant,tool,user" {
+		t.Fatalf("roles = %s", got)
+	}
+	want := map[int]string{
+		0: `[{"text":"ctx","type":"text"},{"text":"read it","type":"text"}]`,
+		1: `[{"text":"Reading.","type":"text"},{"input":{},"toolCallId":"c1","toolName":"Read","type":"tool-call"}]`,
+		2: `[{"output":{"type":"text","value":"a.go"},"toolCallId":"c1","toolName":"Read","type":"tool-result"}]`,
+	}
+	for index, content := range want {
+		if got := string(decoded.Params.Messages[index].Content); got != content {
+			t.Fatalf("message %d = %s, want %s", index, got, content)
+		}
+	}
+}
+
+// TestCommandCodeConvertedToolResultImages 覆盖 Claude Code 与 Codex 的真实形态：
+// 工具结果带截图时，上游请求体不应携带图片数据。
+func TestCommandCodeConvertedToolResultImages(t *testing.T) {
+	setCommandCodeTestVersion(t)
+	image := strings.Repeat("QUJD", 4096)
+	cases := []struct {
+		name     string
+		protocol protocol.Protocol
+		body     string
+	}{
+		{"anthropic", protocol.Anthropic, `{"model":"client-model","max_tokens":64,"system":[{"type":"text","text":"sys"}],
+			"tools":[{"name":"Shot","input_schema":{"type":"object"}}],"messages":[
+			{"role":"user","content":[{"type":"text","text":"ctx"},{"type":"text","text":"take a shot"}]},
+			{"role":"assistant","content":[{"type":"text","text":"Taking."},{"type":"tool_use","id":"toolu_1","name":"Shot","input":{}}]},
+			{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_1","content":[{"type":"text","text":"captured"},{"type":"image","source":{"type":"base64","media_type":"image/png","data":"` + image + `"}}]},{"type":"text","text":"describe"}]}]}`},
+		{"responses", protocol.OpenAIResponses, `{"model":"client-model","tools":[{"type":"function","name":"Shot","parameters":{"type":"object"}}],"input":[
+			{"role":"user","content":"take a shot"},
+			{"type":"function_call","call_id":"call_1","name":"Shot","arguments":"{}"},
+			{"type":"function_call_output","call_id":"call_1","output":[{"type":"input_text","text":"captured"},{"type":"input_image","image_url":"data:image/png;base64,` + image + `"}]},
+			{"role":"user","content":"describe"}]}`},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			capture := &commandCodeCapture{}
+			server := commandCodeServer(t, capture, http.StatusOK, "application/x-ndjson",
+				`{"type":"text-delta","text":"ok"}`+"\n", `{"type":"finish","finishReason":"stop"}`+"\n")
+			defer server.Close()
+			runtime := newRuntimeForTest(t, testRuntimeOptions{allowPrivateNetwork: true})
+			result := runtime.Execute(t.Context(), commandCodeSpec(t, server.URL, testCase.protocol, testCase.body))
+			if result.Error != nil {
+				t.Fatalf("error = %+v", result.Error)
+			}
+			capture.mu.Lock()
+			defer capture.mu.Unlock()
+			raw, _ := json.Marshal(capture.body)
+			if bytes.Contains(raw, []byte(image[:64])) {
+				t.Fatalf("tool result image leaked into upstream body (%d bytes)", len(raw))
+			}
+			if !bytes.Contains(raw, []byte(`"value":"captured"`)) {
+				t.Fatalf("tool result text missing: %s", raw)
+			}
+			messages, _ := capture.body["params"].(map[string]any)["messages"].([]any)
+			for index := 1; index < len(messages); index++ {
+				previous, _ := messages[index-1].(map[string]any)
+				current, _ := messages[index].(map[string]any)
+				if current["role"] != "tool" && previous["role"] == current["role"] {
+					t.Fatalf("consecutive %v messages not merged: %s", current["role"], raw)
+				}
+			}
+		})
+	}
+}
