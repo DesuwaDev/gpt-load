@@ -9,17 +9,25 @@
     "deepseek/deepseek-v4-pro",
     "deepseek/deepseek-v4-flash",
     "deepseek/deepseek-v4-flash-vision-exp",
+    "deepseek/deepseek-v4-flash-fast",
+    "deepseek/deepseek-v4.1-flash",
+    "deepseek/deepseek-v4.1-flash-fast",
     "zai-org/GLM-5.3",
     "z-ai/glm-5.3-flash",
+    "z-ai/glm-5.3-flashx",
     "zai-org/GLM-5.2",
     "zai-org/GLM-5.2-Fast",
     "zai-org/GLM-5.1",
     "zai-org/GLM-5",
     "MiniMaxAI/MiniMax-M3",
+    "MiniMaxAI/MiniMax-M3-Free",
     "MiniMaxAI/MiniMax-M2.7",
     "minimax/minimax-m3-free",
     "minimax/minimax-m2.7-free",
     "MiniMaxAI/MiniMax-M2.5",
+    "xiaomi/mimo-v2.6-pro",
+    "xiaomi/mimo-v2.6-pro-ultraspeed",
+    "xiaomi/mimo-v2.6-flash",
     "moonshotai/Kimi-K3",
     "moonshotai/Kimi-K2.7-Code",
     "moonshotai/Kimi-K2.7-Code-Highspeed",
@@ -33,23 +41,42 @@
     "Qwen/Qwen3.7-Flash",
     "Qwen/Qwen3.6-Max-Preview",
     "Qwen/Qwen3.6-Plus",
+    "meituan/LongCat-2.0",
+    "meituan/LongCat-2.0:free",
+    "stepfun/Step-5-Preview",
     "stepfun/Step-3.7-Flash",
     "stepfun/Step-3.5-Flash",
     "xiaomi/mimo-v2.5-pro",
     "xiaomi/mimo-v2.5",
+    "Qwen/Qwen3.8-Omni-Flash",
+    "Qwen/Qwen3.8-Max-Prime",
+    "Qwen/Qwen3.8-Max-0902",
     "xai/grok-4.6",
+    "xai/grok-4.7",
+    "mistral/mistral-large-4",
     "xai/grok-4.5",
     "nvidia/nemotron-3-ultra-550b-a55b",
+    "nvidia/nemotron-3.5-super-vl",
     "thinkingmachines/inkling",
     "thinkingmachines/inkling-small",
+    "stealth/space-bunny-alpha",
+    "stealth/pixel-canary",
+    "stealth/glyph-cluster:free",
+    "stealth/cat-jam:free",
     "tencent/hy4-preview",
     "tencent/hy3-paid",
     "tencent/Hy3",
     "meta/muse-spark-1.2",
     "meta/muse-spark-1.2-contributor",
+    "meta/muse-spark-1.3",
+    "meta/muse-spark-1.3-contributor",
+    "meta/muse-spark-open",
+    "meta/muse-wonder-1.0",
     "meta/muse-spark-1.1",
     "sakana/fugu-ultra",
-    "poolside/laguna-s-2.1-free"
+    "poolside/laguna-s-2.1-free",
+    "inclusionai/ling-3.1-flash:free",
+    "inclusionai/ling-3.1-flash"
   ],
   "shortAliases": {
     "deepseek-v4-pro": "deepseek/deepseek-v4-pro",
@@ -129,23 +156,35 @@
     "muse-spark-1.1": "meta/muse-spark-1.1",
     "fugu": "sakana/fugu-ultra",
     "fugu-ultra": "sakana/fugu-ultra",
-    "laguna": "poolside/laguna-s-2.1-free"
+    "laguna": "poolside/laguna-s-2.1-free",
+    "deepseek-v4.1-flash": "deepseek/deepseek-v4.1-flash",
+    "deepseek-v4.1": "deepseek/deepseek-v4.1-flash",
+    "deepseek-v4.1-flash-fast": "deepseek/deepseek-v4.1-flash-fast",
+    "deepseek-v4-flash-fast": "deepseek/deepseek-v4-flash-fast"
   },
   "modelNames": {
     "deepseek/deepseek-v4-pro": "DeepSeek V4 Pro",
     "deepseek/deepseek-v4-flash": "DeepSeek V4 Flash",
     "deepseek/deepseek-v4-flash-vision-exp": "DeepSeek V4 Flash Vision (exp)",
+    "deepseek/deepseek-v4-flash-fast": "DeepSeek V4 Flash Fast",
+    "deepseek/deepseek-v4.1-flash": "DeepSeek V4.1 Flash",
+    "deepseek/deepseek-v4.1-flash-fast": "DeepSeek V4.1 Flash Fast",
     "zai-org/GLM-5.3": "GLM-5.3",
     "z-ai/glm-5.3-flash": "GLM-5.3 Flash",
+    "z-ai/glm-5.3-flashx": "GLM-5.3 FlashX",
     "zai-org/GLM-5.2": "GLM-5.2",
     "zai-org/GLM-5.2-Fast": "GLM-5.2 Fast",
     "zai-org/GLM-5.1": "GLM-5.1",
     "zai-org/GLM-5": "GLM-5",
     "MiniMaxAI/MiniMax-M3": "MiniMax M3",
+    "MiniMaxAI/MiniMax-M3-Free": "MiniMax M3",
     "MiniMaxAI/MiniMax-M2.7": "MiniMax M2.7",
     "minimax/minimax-m3-free": "MiniMax M3 (Free)",
     "minimax/minimax-m2.7-free": "MiniMax M2.7 (Free)",
     "MiniMaxAI/MiniMax-M2.5": "MiniMax M2.5",
+    "xiaomi/mimo-v2.6-pro": "MiMo V2.6 Pro",
+    "xiaomi/mimo-v2.6-pro-ultraspeed": "MiMo V2.6 Pro UltraSpeed",
+    "xiaomi/mimo-v2.6-flash": "MiMo V2.6 Flash",
     "moonshotai/Kimi-K3": "Kimi K3",
     "moonshotai/Kimi-K2.7-Code": "Kimi K2.7 Code",
     "moonshotai/Kimi-K2.7-Code-Highspeed": "Kimi K2.7 Code Highspeed",
@@ -159,40 +198,67 @@
     "Qwen/Qwen3.7-Flash": "Qwen 3.7 Flash",
     "Qwen/Qwen3.6-Max-Preview": "Qwen 3.6 Max Preview",
     "Qwen/Qwen3.6-Plus": "Qwen 3.6 Plus",
+    "meituan/LongCat-2.0": "LongCat 2.0",
+    "meituan/LongCat-2.0:free": "LongCat 2.0 (Free)",
+    "stepfun/Step-5-Preview": "Step 5 Preview",
     "stepfun/Step-3.7-Flash": "Step 3.7 Flash",
     "stepfun/Step-3.5-Flash": "Step 3.5 Flash",
     "xiaomi/mimo-v2.5-pro": "MiMo V2.5 Pro",
     "xiaomi/mimo-v2.5": "MiMo V2.5",
+    "Qwen/Qwen3.8-Omni-Flash": "Qwen 3.8 Omni Flash",
+    "Qwen/Qwen3.8-Max-Prime": "Qwen 3.8 Max Prime",
+    "Qwen/Qwen3.8-Max-0902": "Qwen 3.8 Max 0902",
     "xai/grok-4.6": "Grok 4.6",
+    "xai/grok-4.7": "Grok 4.7",
+    "mistral/mistral-large-4": "Mistral Large 4",
     "xai/grok-4.5": "Grok 4.5",
     "nvidia/nemotron-3-ultra-550b-a55b": "Nemotron 3 Ultra",
+    "nvidia/nemotron-3.5-super-vl": "Nemotron 3.5 Super VL",
     "thinkingmachines/inkling": "Inkling",
     "thinkingmachines/inkling-small": "Inkling Small",
+    "stealth/space-bunny-alpha": "Space Bunny Alpha",
+    "stealth/pixel-canary": "Pixel Canary",
+    "stealth/glyph-cluster:free": "Glyph Cluster",
+    "stealth/cat-jam:free": "Cat Jam",
     "tencent/hy4-preview": "Tencent Hy4 Preview",
     "tencent/hy3-paid": "Tencent Hy3",
     "tencent/Hy3": "Hy3",
     "meta/muse-spark-1.2": "Muse Spark 1.2",
     "meta/muse-spark-1.2-contributor": "Muse Spark 1.2 Contributor",
+    "meta/muse-spark-1.3": "Muse Spark 1.3",
+    "meta/muse-spark-1.3-contributor": "Muse Spark 1.3 Contributor",
+    "meta/muse-spark-open": "Muse Spark Open",
+    "meta/muse-wonder-1.0": "Muse Wonder",
     "meta/muse-spark-1.1": "Muse Spark 1.1",
     "sakana/fugu-ultra": "Fugu Ultra",
-    "poolside/laguna-s-2.1-free": "Laguna S 2.1 (Free)"
+    "poolside/laguna-s-2.1-free": "Laguna S 2.1 (Free)",
+    "inclusionai/ling-3.1-flash:free": "Ling 3.1 Flash (Free)",
+    "inclusionai/ling-3.1-flash": "Ling 3.1 Flash"
   },
   "contextWindows": {
-    "deepseek/deepseek-v4-pro": 1048576,
-    "deepseek/deepseek-v4-flash": 1048576,
-    "deepseek/deepseek-v4-flash-vision-exp": 1048576,
+    "deepseek/deepseek-v4-pro": 1000000,
+    "deepseek/deepseek-v4-flash": 1000000,
+    "deepseek/deepseek-v4-flash-vision-exp": 1000000,
+    "deepseek/deepseek-v4-flash-fast": 1000000,
+    "deepseek/deepseek-v4.1-flash": 1000000,
+    "deepseek/deepseek-v4.1-flash-fast": 1000000,
     "zai-org/GLM-5.3": 1000000,
     "z-ai/glm-5.3-flash": 1048576,
-    "zai-org/GLM-5.2": 1048576,
-    "zai-org/GLM-5.2-Fast": 1048576,
+    "z-ai/glm-5.3-flashx": 1000000,
+    "zai-org/GLM-5.2": 1000000,
+    "zai-org/GLM-5.2-Fast": 1000000,
     "zai-org/GLM-5.1": 200000,
     "zai-org/GLM-5": 200000,
-    "MiniMaxAI/MiniMax-M3": 1048576,
-    "MiniMaxAI/MiniMax-M2.7": 204800,
-    "minimax/minimax-m3-free": 1048576,
+    "MiniMaxAI/MiniMax-M3": 1000000,
+    "MiniMaxAI/MiniMax-M3-Free": 1000000,
+    "MiniMaxAI/MiniMax-M2.7": 200000,
+    "minimax/minimax-m3-free": 1000000,
     "minimax/minimax-m2.7-free": 197000,
     "MiniMaxAI/MiniMax-M2.5": 200000,
-    "moonshotai/Kimi-K3": 1048576,
+    "xiaomi/mimo-v2.6-pro": 1048576,
+    "xiaomi/mimo-v2.6-pro-ultraspeed": 1048576,
+    "xiaomi/mimo-v2.6-flash": 1048576,
+    "moonshotai/Kimi-K3": 1000000,
     "moonshotai/Kimi-K2.7-Code": 256000,
     "moonshotai/Kimi-K2.7-Code-Highspeed": 262000,
     "moonshotai/Kimi-K2.6": 256000,
@@ -200,47 +266,103 @@
     "Qwen/Qwen3.8-Max": 1000000,
     "Qwen/Qwen3.8-Flash": 1000000,
     "Qwen/Qwen3.8-27B": 262144,
-    "Qwen/Qwen3.7-Max": 1048576,
-    "Qwen/Qwen3.7-Plus": 1048576,
-    "Qwen/Qwen3.7-Flash": 1048576,
-    "Qwen/Qwen3.6-Max-Preview": 262144,
-    "Qwen/Qwen3.6-Plus": 1048576,
+    "Qwen/Qwen3.7-Max": 1000000,
+    "Qwen/Qwen3.7-Plus": 1000000,
+    "Qwen/Qwen3.7-Flash": 1000000,
+    "Qwen/Qwen3.6-Max-Preview": 200000,
+    "Qwen/Qwen3.6-Plus": 200000,
+    "meituan/LongCat-2.0": 1048576,
+    "meituan/LongCat-2.0:free": 1048576,
+    "stepfun/Step-5-Preview": 1000000,
     "stepfun/Step-3.7-Flash": 256000,
-    "stepfun/Step-3.5-Flash": 1048576,
-    "xiaomi/mimo-v2.5-pro": 1048576,
-    "xiaomi/mimo-v2.5": 1048576,
+    "stepfun/Step-3.5-Flash": 262144,
+    "xiaomi/mimo-v2.5-pro": 1000000,
+    "xiaomi/mimo-v2.5": 1000000,
+    "Qwen/Qwen3.8-Omni-Flash": 1000000,
+    "Qwen/Qwen3.8-Max-Prime": 1000000,
+    "Qwen/Qwen3.8-Max-0902": 1000000,
     "xai/grok-4.6": 500000,
+    "xai/grok-4.7": 500000,
+    "mistral/mistral-large-4": 524288,
     "xai/grok-4.5": 500000,
-    "nvidia/nemotron-3-ultra-550b-a55b": 1048576,
+    "nvidia/nemotron-3-ultra-550b-a55b": 1000000,
+    "nvidia/nemotron-3.5-super-vl": 262144,
     "thinkingmachines/inkling": 256000,
     "thinkingmachines/inkling-small": 1000000,
+    "stealth/space-bunny-alpha": 1000000,
+    "stealth/pixel-canary": 262144,
+    "stealth/glyph-cluster:free": 256000,
+    "stealth/cat-jam:free": 1048576,
     "tencent/hy4-preview": 1048576,
     "tencent/hy3-paid": 262144,
     "tencent/Hy3": 262144,
     "meta/muse-spark-1.2": 1048576,
     "meta/muse-spark-1.2-contributor": 1048576,
+    "meta/muse-spark-1.3": 1048576,
+    "meta/muse-spark-1.3-contributor": 1048576,
+    "meta/muse-spark-open": 1048576,
+    "meta/muse-wonder-1.0": 1048576,
     "meta/muse-spark-1.1": 1048576,
     "sakana/fugu-ultra": 1000000,
-    "poolside/laguna-s-2.1-free": 256000
+    "poolside/laguna-s-2.1-free": 256000,
+    "inclusionai/ling-3.1-flash:free": 262144,
+    "inclusionai/ling-3.1-flash": 262144
   },
   "reasoningEfforts": {
+    "MiniMaxAI/MiniMax-M3-Free": [
+      "low",
+      "medium",
+      "high"
+    ],
     "deepseek/deepseek-v4-pro": [
+      "off",
       "high",
       "max"
     ],
     "deepseek/deepseek-v4-flash": [
+      "off",
       "high",
       "max"
     ],
     "deepseek/deepseek-v4-flash-vision-exp": [
+      "off",
       "high",
       "max"
     ],
-    "zai-org/GLM-5.3": [
+    "deepseek/deepseek-v4-flash-fast": [
+      "low",
+      "high",
+      "max"
+    ],
+    "deepseek/deepseek-v4.1-flash": [
+      "off",
+      "low",
+      "high",
+      "max"
+    ],
+    "deepseek/deepseek-v4.1-flash-fast": [
+      "off",
+      "low",
+      "high",
+      "max"
+    ],
+    "moonshotai/Kimi-K3": [
+      "low",
       "high",
       "max"
     ],
     "z-ai/glm-5.3-flash": [
+      "low",
+      "high",
+      "max"
+    ],
+    "z-ai/glm-5.3-flashx": [
+      "low",
+      "high",
+      "max"
+    ],
+    "zai-org/GLM-5.3": [
+      "low",
       "high",
       "max"
     ],
@@ -248,12 +370,143 @@
       "high",
       "max"
     ],
-    "xai/grok-4.6": [
+    "MiniMaxAI/MiniMax-M3": [
       "low",
       "medium",
       "high"
     ],
+    "minimax/minimax-m3-free": [
+      "low",
+      "medium",
+      "high"
+    ],
+    "Qwen/Qwen3.8-Omni-Flash": [
+      "low",
+      "medium",
+      "xhigh"
+    ],
+    "Qwen/Qwen3.8-Max-Prime": [
+      "low",
+      "medium",
+      "xhigh"
+    ],
+    "Qwen/Qwen3.8-Max-0902": [
+      "low",
+      "medium",
+      "xhigh"
+    ],
+    "Qwen/Qwen3.8-Max": [
+      "low",
+      "medium",
+      "xhigh"
+    ],
+    "Qwen/Qwen3.8-27B": [
+      "low",
+      "medium",
+      "xhigh"
+    ],
+    "Qwen/Qwen3.8-Flash": [
+      "low",
+      "medium",
+      "xhigh"
+    ],
+    "stepfun/Step-5-Preview": [
+      "low",
+      "medium",
+      "high"
+    ],
+    "tencent/hy4-preview": [
+      "low",
+      "medium",
+      "high"
+    ],
+    "sakana/fugu-ultra": [
+      "high",
+      "xhigh"
+    ],
+    "nvidia/nemotron-3.5-super-vl": [
+      "low",
+      "medium",
+      "high"
+    ],
+    "stealth/glyph-cluster:free": [
+      "low",
+      "medium",
+      "high",
+      "xhigh"
+    ],
+    "stealth/cat-jam:free": [
+      "low",
+      "medium",
+      "high",
+      "xhigh",
+      "max"
+    ],
+    "inclusionai/ling-3.1-flash": [
+      "low",
+      "medium",
+      "high"
+    ],
+    "meta/muse-spark-1.1": [
+      "low",
+      "medium",
+      "high",
+      "xhigh"
+    ],
+    "meta/muse-spark-1.2": [
+      "low",
+      "medium",
+      "high",
+      "xhigh"
+    ],
+    "meta/muse-spark-1.2-contributor": [
+      "low",
+      "medium",
+      "high",
+      "xhigh"
+    ],
+    "meta/muse-spark-1.3": [
+      "low",
+      "medium",
+      "high",
+      "xhigh",
+      "max"
+    ],
+    "meta/muse-spark-1.3-contributor": [
+      "low",
+      "medium",
+      "high",
+      "xhigh"
+    ],
+    "meta/muse-spark-open": [
+      "low",
+      "medium",
+      "high"
+    ],
+    "meta/muse-wonder-1.0": [
+      "low",
+      "medium",
+      "high",
+      "xhigh"
+    ],
     "xai/grok-4.5": [
+      "low",
+      "medium",
+      "high"
+    ],
+    "xai/grok-4.6": [
+      "low",
+      "medium",
+      "high",
+      "xhigh"
+    ],
+    "xai/grok-4.7": [
+      "low",
+      "medium",
+      "high",
+      "xhigh"
+    ],
+    "mistral/mistral-large-4": [
       "low",
       "medium",
       "high"

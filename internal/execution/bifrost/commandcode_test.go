@@ -672,10 +672,14 @@ func TestCommandCodeReasoningEffortClipping(t *testing.T) {
 		{"deepseek/deepseek-v4-pro", "low", "high"},
 		{"deepseek/deepseek-v4-pro", "max", "max"},
 		{"deepseek/deepseek-v4-pro", "xhigh", "high"},
-		{"xai/grok-4.6", "max", "high"},
+		{"xai/grok-4.5", "max", "high"},
 		{"xai/grok-4.6", "minimal", "low"},
 		{"unknown/model", "medium", "medium"},
-		{"deepseek/deepseek-v4-pro", "none", ""},
+		{"deepseek/deepseek-v4-pro", "none", "off"},
+		{"deepseek/deepseek-v4.1-flash", "off", "off"},
+		{"deepseek/deepseek-v4.1-flash", "minimal", "low"},
+		{"xai/grok-4.6", "none", ""},
+		{"unknown/model", "none", ""},
 		{"deepseek/deepseek-v4-pro", "", ""},
 	}
 	for _, testCase := range cases {
@@ -896,6 +900,43 @@ func TestCommandCodeConvertedToolResultImages(t *testing.T) {
 				if current["role"] != "tool" && previous["role"] == current["role"] {
 					t.Fatalf("consecutive %v messages not merged: %s", current["role"], raw)
 				}
+			}
+		})
+	}
+}
+
+// TestCommandCodeThinkingDisabled 验证各协议的“关闭思考”都翻译为官方 CLI 的 off，
+// 未声明时仍省略字段交给上游默认值。
+func TestCommandCodeThinkingDisabled(t *testing.T) {
+	setCommandCodeTestVersion(t)
+	cases := []struct {
+		name     string
+		protocol protocol.Protocol
+		body     string
+		want     any
+	}{
+		{"anthropic disabled", protocol.Anthropic, `{"model":"m","max_tokens":64,"thinking":{"type":"disabled"},"messages":[{"role":"user","content":"hi"}]}`, "off"},
+		{"anthropic absent", protocol.Anthropic, `{"model":"m","max_tokens":64,"messages":[{"role":"user","content":"hi"}]}`, nil},
+		{"responses none", protocol.OpenAIResponses, `{"model":"m","reasoning":{"effort":"none"},"input":"hi"}`, "off"},
+		{"chat none", protocol.OpenAICompletions, `{"model":"m","reasoning_effort":"none","messages":[{"role":"user","content":"hi"}]}`, "off"},
+		{"chat thinking disabled", protocol.OpenAICompletions, `{"model":"m","thinking":{"type":"disabled"},"messages":[{"role":"user","content":"hi"}]}`, "off"},
+		{"chat enable_thinking false", protocol.OpenAICompletions, `{"model":"m","enable_thinking":false,"messages":[{"role":"user","content":"hi"}]}`, "off"},
+		{"chat thinking enabled", protocol.OpenAICompletions, `{"model":"m","thinking":{"type":"enabled"},"messages":[{"role":"user","content":"hi"}]}`, nil},
+		{"gemini zero budget", protocol.Gemini, `{"contents":[{"role":"user","parts":[{"text":"hi"}]}],"generationConfig":{"thinkingConfig":{"thinkingBudget":0}}}`, "off"},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			capture := &commandCodeCapture{}
+			server := commandCodeServer(t, capture, http.StatusOK, "application/x-ndjson",
+				`{"type":"text-delta","text":"ok"}`+"\n", `{"type":"finish","finishReason":"stop"}`+"\n")
+			defer server.Close()
+			runtime := newRuntimeForTest(t, testRuntimeOptions{allowPrivateNetwork: true})
+			result := runtime.Execute(t.Context(), commandCodeSpec(t, server.URL, testCase.protocol, testCase.body))
+			if result.Error != nil {
+				t.Fatalf("error = %+v", result.Error)
+			}
+			if got := capture.params(t)["reasoning_effort"]; got != testCase.want {
+				t.Fatalf("reasoning_effort = %v, want %v", got, testCase.want)
 			}
 		})
 	}

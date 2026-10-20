@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -26,7 +27,7 @@ const (
 	commandCodeGeneratePath = "/alpha/generate"
 	commandCodeModelsPath   = "/provider/v1/models"
 	// 上游会拒绝版本缺失或过旧的 CLI 身份；拉取最新版本失败时退回此版本。
-	commandCodeFallbackCLIVersion = "1.79.2"
+	commandCodeFallbackCLIVersion = "1.84.0"
 	commandCodeCLIVersionEnv      = "CC_CLI_VERSION"
 	commandCodeNodeVersion        = "v22.20.0"
 	commandCodeWorkingDir         = "/workspace/project"
@@ -70,20 +71,28 @@ func commandCodeClosedModel(id string) bool {
 	return false
 }
 
+const commandCodeEffortOff = "off"
+
 var commandCodeEffortRank = map[string]int{"low": 0, "medium": 1, "high": 2, "xhigh": 3, "max": 4}
 
 // commandCodeReasoningEffort 把请求的思考强度收敛到模型支持的档位。上游对不支持的档位
 // 会静默改写，这里按“不超过请求档位的最高档，否则取最低档”就近裁剪以保留调用方意图；
-// 未收录的模型原样透传。none 表示不请求思考，由上游使用默认值。
+// 未收录的模型原样透传。关闭思考时与官方 CLI 一样仅对支持 off 的模型发送 off，
+// 其余模型无法关闭，省略字段由上游使用默认值。
 func commandCodeReasoningEffort(model, requested string) string {
 	requested = strings.ToLower(strings.TrimSpace(requested))
+	supported := commandCodeModels.ReasoningEfforts[model]
 	switch requested {
-	case "", "none":
+	case "":
+		return ""
+	case "none", "off", "disabled":
+		if slices.Contains(supported, commandCodeEffortOff) {
+			return commandCodeEffortOff
+		}
 		return ""
 	case "minimal":
 		requested = "low"
 	}
-	supported := commandCodeModels.ReasoningEfforts[model]
 	if len(supported) == 0 {
 		return requested
 	}
@@ -93,6 +102,9 @@ func commandCodeReasoningEffort(model, requested string) string {
 	}
 	best, lowest := "", ""
 	for _, effort := range supported {
+		if effort == commandCodeEffortOff {
+			continue
+		}
 		if effort == requested {
 			return effort
 		}
@@ -294,6 +306,11 @@ type commandCodeChatRequest struct {
 	Reasoning           *struct {
 		Effort string `json:"effort"`
 	} `json:"reasoning"`
+	// Thinking 与 EnableThinking 是 DeepSeek、Qwen 等兼容接口关闭思考的常见写法。
+	Thinking *struct {
+		Type string `json:"type"`
+	} `json:"thinking"`
+	EnableThinking *bool `json:"enable_thinking"`
 }
 
 type commandCodeChatMessage struct {
@@ -405,6 +422,10 @@ func buildCommandCodeRequest(chatBody []byte, model string, now time.Time) (comm
 	effort := chat.ReasoningEffort
 	if effort == "" && chat.Reasoning != nil {
 		effort = chat.Reasoning.Effort
+	}
+	if effort == "" && ((chat.Thinking != nil && strings.EqualFold(chat.Thinking.Type, "disabled")) ||
+		(chat.EnableThinking != nil && !*chat.EnableThinking)) {
+		effort = "none"
 	}
 	maxTokens := nonNullJSON(chat.MaxTokens)
 	if maxTokens == nil {
