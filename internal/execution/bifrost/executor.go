@@ -248,6 +248,7 @@ func (r *Runtime) ExecuteStream(
 	defer preResponse.stop()
 
 	bifrostContext := r.newStreamingSDKContext(callContext, spec, prepared.directKey)
+	captureStreamErrorStatus(bifrostContext, prepared.upstreamProtocol)
 	enableConvertedWireCapture(bifrostContext, prepared)
 	setTypedRequestURL(bifrostContext, prepared.typedURL)
 	outcomeChannel := make(chan streamSDKResult, 1)
@@ -544,6 +545,9 @@ func (r *Runtime) prepare(spec execution.AttemptSpec, stream bool) (preparedAtte
 	}
 	if spec.ClientProtocol == protocol.Decisions {
 		return prepareDecisions(spec, resolved, provider, directKey, secrets)
+	}
+	if spec.ClientProtocol == protocol.AudioSpeech {
+		return prepareAudioSpeech(spec, resolved, provider, directKey, secrets)
 	}
 	if spec.ClientProtocol == protocol.Mistral {
 		return prepareMistral(spec, resolved, provider, directKey, secrets)
@@ -1095,6 +1099,8 @@ func supportedRequestShape(spec execution.AttemptSpec, stream bool) bool {
 		return !stream && spec.RouteMode == execution.RouteNative && spec.Operation == execution.OperationRerank && spec.Method == http.MethodPost && spec.Path == "/v1/rerank"
 	case protocol.Decisions:
 		return !stream && spec.RouteMode == execution.RouteNative && spec.Operation == execution.OperationDecisionsCreate && spec.Method == http.MethodPost && spec.Path == "/v1/systemone"
+	case protocol.AudioSpeech:
+		return audioSpeechRequestShape(spec, stream)
 	case protocol.Mistral:
 		return mistralRequestShape(spec, stream)
 	case protocol.OpenAIEmbeddings:
@@ -1514,7 +1520,11 @@ func (r *Runtime) newStreamingSDKContext(parent context.Context, spec execution.
 	// 保留 SDK 原始读取器及其终止标记，只旁路观察转换前的字节。
 	bifrostContext.SetValue(schemas.BifrostContextKeySSEReaderFactory, &providerUtils.SSEReaderFactory{
 		NewDataReader: func(reader io.Reader) providerUtils.SSEDataReader {
-			return providerUtils.GetSSEDataReader(nil, execution.ObserveFirstResponseReader(parent, reader))
+			dataReader := providerUtils.GetSSEDataReader(nil, execution.ObserveFirstResponseReader(parent, reader))
+			if capture, _ := bifrostContext.Value(streamErrorStatusKey{}).(*streamErrorStatus); capture != nil {
+				return &streamErrorDataReader{SSEDataReader: dataReader, status: capture}
+			}
+			return dataReader
 		},
 		NewEventReader: func(reader io.Reader) providerUtils.SSEEventReader {
 			return providerUtils.GetSSEEventReader(nil, execution.ObserveFirstResponseReader(parent, reader))

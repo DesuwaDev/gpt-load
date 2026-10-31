@@ -210,6 +210,10 @@ func (s *Server) HTTPModule() httproute.Module {
 				"/model-prices",
 				s.handleListModelPrices,
 			),
+			controlRoute("control.model-prices.sources", http.MethodGet, "/model-prices/sources", s.handleModelPriceSources),
+			controlRoute("control.model-prices.batch", http.MethodPost, "/model-prices/batch",
+				s.auditMutation(newMutationDescriptor("model_prices_batch", "model_price", staticMutationLocator("model-prices:batch"))),
+				s.handleBatchModelPrices),
 			controlRoute(
 				"control.model-prices.sync",
 				http.MethodPost,
@@ -274,6 +278,7 @@ func (s *Server) HTTPModule() httproute.Module {
 			controlRoute("control.route.inspect", http.MethodPost, "/route/inspect", s.handleRouteInspect),
 			controlRoute("control.settings.get", http.MethodGet, "/settings", s.handleGetSettings),
 			controlRoute("control.settings.request-redaction.validate", http.MethodPost, "/settings/request-redaction/validate", s.handleValidateRequestRedaction),
+			controlRoute("control.settings.request-redaction.preview", http.MethodPost, "/settings/request-redaction/preview", s.handlePreviewRequestRedaction),
 			controlRoute(
 				"control.settings.update",
 				http.MethodPut,

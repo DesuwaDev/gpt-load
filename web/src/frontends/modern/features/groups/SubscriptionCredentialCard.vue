@@ -48,7 +48,7 @@ const creditBalanceLabel = computed(() => {
   const credits = observation.value?.credits
   if (credits?.unlimited) return t('credentialCards.creditUnlimited')
   const balance = Number(credits?.balance)
-  return Number.isFinite(balance) && balance > 0 ? n(balance, { maximumFractionDigits: 20 }) : ''
+  return Number.isFinite(balance) && balance > 0 ? n(Math.ceil(balance)) : ''
 })
 const creditLabel = computed(() => {
   const expirations = observation.value?.creditExpirations ?? []
@@ -418,5 +418,22 @@ useLoadingActivity(() => Boolean(props.pending))
   background: var(--modern-accent-soft);
   font-size: var(--modern-font-size-caption);
   font-variant-numeric: tabular-nums;
+}
+@media (max-width: 760px) {
+  .modern-subscription-card-name-line {
+    flex-wrap: wrap;
+  }
+  .modern-subscription-card-name {
+    flex-basis: 100%;
+  }
+  .modern-subscription-card-rpm {
+    margin-left: auto;
+  }
+  .modern-subscription-card-subtitle {
+    flex-wrap: wrap;
+  }
+  .modern-subscription-card-status-actions {
+    max-width: 100%;
+  }
 }
 </style>

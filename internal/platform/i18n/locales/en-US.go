@@ -2,6 +2,7 @@ package locales
 
 // MessagesEnUS contains English (US) control-plane translations.
 var MessagesEnUS = map[string]string{
+	"demo.restricted":                            "This action is unavailable in the demo. Upstream requests, authorization, and network probes are disabled.",
 	"access_key.custom_invalid":                  "Use up to 256 visible ASCII characters without spaces or control characters.",
 	"access_key.admin_conflict":                  "The administrator key cannot be used as an access key.",
 	"access_key.exists":                          "This access key already exists. Use a different key.",
@@ -26,6 +27,9 @@ var MessagesEnUS = map[string]string{
 	"model_price.unpriced_confirmation_required": "Marking a model price as unpriced requires explicit confirmation",
 	"model_price.referenced":                     "The model price is still referenced by Groups",
 	"model_price.automatic_delete_forbidden":     "Automatic model prices cannot be deleted manually",
+	"model_price.reference_cycle":                "A model cannot follow itself or form a cycle; choose another model",
+	"model_price.source_referenced":              "Cannot remove {{.source}}: {{.dependents}} still follow it. Change their source or switch to manual pricing first",
+	"model_price.source_unavailable":             "The reference price source is no longer available; select another source",
 	"auth.invalid_key":                           "Invalid authorization key",
 	"auth.forbidden":                             "The current key cannot access this feature",
 	"auth.locked":                                "Too many authentication attempts; try again later",

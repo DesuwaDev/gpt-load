@@ -8,11 +8,12 @@ import "github.com/router-for-me/CLIProxyAPI/v8/gptload-embedded/modelcatalog"
 const (
 	// Codex 的执行身份与模型模板共用同一份客户端契约。
 	CodexClientVersion       = modelcatalog.ClientVersion
-	ClaudeClientVersion      = "2.1.299"
-	GrokClientVersion        = "1.0.52"
-	AntigravityClientVersion = "2.23.0"
+	ClaudeClientVersion      = "2.1.310"
+	GrokClientVersion        = "1.0.70"
+	AntigravityClientVersion = "2.26.0"
 
 	claudeUserAgent          = "claude-cli/" + ClaudeClientVersion + " (external, cli)"
 	claudeBootstrapUserAgent = "claude-code/" + ClaudeClientVersion
-	antigravityUserAgent     = "antigravity/hub/" + AntigravityClientVersion + " darwin/arm64"
+	// cl 来自 Hub 2.26.0 官方 darwin-arm 包的 build.CL，须随版本一起核对。
+	antigravityUserAgent = "antigravity/hub/" + AntigravityClientVersion + " (aidev_client; os_type=darwin; arch=arm64; cl=1005016104)"
 )

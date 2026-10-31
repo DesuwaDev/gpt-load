@@ -11,6 +11,8 @@ import {
   AppTextField,
 } from '@modern/components/ui'
 import { useRedactionValidation } from './use-redaction-validation'
+import RequestRedactionPreview from './RequestRedactionPreview.vue'
+import RequestRedactionQuickAdd from './RequestRedactionQuickAdd.vue'
 
 const props = defineProps<{ modelValue: RedactionRule[]; disabled?: boolean }>()
 const emit = defineEmits<{
@@ -68,11 +70,14 @@ defineExpose({ add, canAdd })
         {{ t('requestRedaction.presets.' + preset.key) }}
       </AppButton>
     </div>
+    <RequestRedactionPreview :rules="modelValue" :disabled="invalid" />
+    <RequestRedactionQuickAdd :disabled="!canAdd" @add="add" />
     <AppRulesEmpty v-if="!modelValue.length" />
     <div v-if="modelValue.length" class="modern-redaction-heading">
       <span class="modern-redaction-mode-label">
         {{ t('requestRedaction.pattern') }}
         <AppIconButton
+          touchable
           :icon="CircleHelp"
           :label="t('requestRedaction.syntax')"
           size="xxs"
@@ -82,6 +87,7 @@ defineExpose({ add, canAdd })
       <span class="modern-redaction-mode-label">
         {{ t('requestRedaction.mode') }}
         <AppIconButton
+          touchable
           :icon="CircleHelp"
           :label="t('requestRedaction.modeHelp')"
           size="xxs"
@@ -96,6 +102,7 @@ defineExpose({ add, canAdd })
           <span class="modern-redaction-mode-label">
             {{ t('requestRedaction.pattern') }}
             <AppIconButton
+              touchable
               :icon="CircleHelp"
               :label="t('requestRedaction.syntax')"
               size="xxs"
@@ -127,6 +134,7 @@ defineExpose({ add, canAdd })
           <span class="modern-redaction-mode-label">
             {{ t('requestRedaction.mode') }}
             <AppIconButton
+              touchable
               :icon="CircleHelp"
               :label="t('requestRedaction.modeHelp')"
               size="xxs"
@@ -260,7 +268,7 @@ defineExpose({ add, canAdd })
     display: none;
   }
   .modern-redaction-row {
-    grid-template-columns: minmax(0, 1fr) var(--modern-control-sm);
+    grid-template-columns: minmax(0, 1fr) var(--modern-touch-target);
   }
   .modern-redaction-row > :first-child {
     grid-column: 1 / -1;

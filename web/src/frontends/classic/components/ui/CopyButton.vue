@@ -13,15 +13,20 @@ const props = withDefaults(
     failureLabel: string
     size?: 'md' | 'compact' | 'xs'
     variant?: 'default' | 'ghost'
+    /** 上游的紧凑写法：等价于 size="compact" + variant="ghost"。 */
+    compact?: boolean
   }>(),
   {
     size: 'compact',
     variant: 'default',
+    compact: false,
   },
 )
+const resolvedSize = computed(() => (props.compact ? 'compact' : props.size))
+const resolvedVariant = computed(() => (props.compact ? 'ghost' : props.variant))
 const iconSize = computed(() => {
-  if (props.size === 'xs') return 13
-  if (props.size === 'compact') return 14
+  if (resolvedSize.value === 'xs') return 13
+  if (resolvedSize.value === 'compact') return 14
   return 16
 })
 const { copy: copyValue, fallbackText, pending, reset } = useClipboardCopy()
@@ -55,7 +60,10 @@ onBeforeUnmount(() => window.clearTimeout(resetTimer))
 </script>
 
 <template>
-  <span class="copy-control" :class="[`copy-control--${size}`, `copy-control--${variant}`]">
+  <span
+    class="copy-control"
+    :class="[`copy-control--${resolvedSize}`, `copy-control--${resolvedVariant}`]"
+  >
     <button
       type="button"
       :aria-label="label"
@@ -83,6 +91,8 @@ onBeforeUnmount(() => window.clearTimeout(resetTimer))
 .copy-control {
   position: relative;
   display: inline-flex;
+  flex: none;
+  vertical-align: middle;
 }
 .copy-control button {
   display: inline-flex;
@@ -133,6 +143,14 @@ onBeforeUnmount(() => window.clearTimeout(resetTimer))
   border-color: transparent;
   background: var(--color-surface-sunken);
   color: var(--color-text);
+}
+.copy-control button:hover:not(:disabled) {
+  background: var(--color-surface-sunken);
+  color: var(--color-action);
+}
+.copy-control button:disabled {
+  cursor: wait;
+  opacity: 0.55;
 }
 .copy-control__feedback {
   position: absolute;

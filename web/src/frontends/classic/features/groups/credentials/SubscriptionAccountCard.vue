@@ -195,7 +195,7 @@ const creditBalanceLabel = computed(() => {
   const credits = snapshot.value?.credits
   if (credits?.unlimited) return t('group.credentials.subscription.creditUnlimited')
   const balance = Number(credits?.balance)
-  return Number.isFinite(balance) && balance > 0 ? n(balance, { maximumFractionDigits: 20 }) : ''
+  return Number.isFinite(balance) && balance > 0 ? n(Math.ceil(balance)) : ''
 })
 function isAccountWideQuotaWindow(window: CredentialQuotaWindowDto): boolean {
   return window.scope === 'account'
@@ -508,12 +508,14 @@ const dailyIncompleteHint = computed(() =>
     ? t('group.credentials.subscription.dailyIncomplete')
     : undefined,
 )
-const failureLabel = computed(() =>
-  props.item.last_status_code === null && props.item.last_failure_category === 'ambiguous'
-    ? t('group.credentials.none')
-    : `${presentCredentialFailureCategory(t, props.item.last_failure_category)}${
-        props.item.last_status_code === null ? '' : ` · ${props.item.last_status_code}`
-      }`,
+const failureLabel = computed(
+  () =>
+    props.item.last_failure_summary ||
+    (props.item.last_status_code === null && props.item.last_failure_category === 'ambiguous'
+      ? t('group.credentials.none')
+      : `${presentCredentialFailureCategory(t, props.item.last_failure_category)}${
+          props.item.last_status_code === null ? '' : ` · ${props.item.last_status_code}`
+        }`),
 )
 const observationErrorKeys: Readonly<Record<string, string>> = {
   observation_access_denied: 'group.credentials.subscription.observationError.accessDenied',
@@ -1355,7 +1357,7 @@ function runMenuAction(
             </dl>
             <dl>
               <dt>{{ t('group.credentials.detailsFailure') }}</dt>
-              <dd>{{ failureLabel }}</dd>
+              <dd class="subscription-account__failure-summary">{{ failureLabel }}</dd>
             </dl>
             <dl>
               <dt>{{ t('group.credentials.detailsConsecutive') }}</dt>
@@ -2265,6 +2267,10 @@ function runMenuAction(
   font-variant-numeric: tabular-nums;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.subscription-account__diagnostics .subscription-account__failure-summary {
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 .subscription-account__models {
   display: flex;

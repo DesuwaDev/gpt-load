@@ -35,6 +35,7 @@ var (
 	reasonInvalidProtocolRequest        = reason{Status: http.StatusBadRequest, Code: "invalid_protocol_request", Message: "Invalid protocol request."}
 	reasonResponseBindingNotFound       = reason{Status: http.StatusBadRequest, Code: "response_binding_not_found", Message: "Previous response ownership could not be located."}
 	reasonModelRequiredByFilter         = reason{Status: http.StatusBadRequest, Code: "model_required_by_filter", Message: "A model is required by the access key filter."}
+	reasonAdvisorModelUnavailable       = reason{Status: http.StatusBadRequest, Code: "advisor_model_unavailable", Message: "The advisor model must be provided by the selected group and allowed by the access key."}
 	reasonNoCandidate                   = reason{Status: http.StatusServiceUnavailable, Code: "no_available_candidate", Message: "No available upstream candidate."}
 	reasonUpstreamRateLimited           = reason{Status: http.StatusTooManyRequests, Code: "upstream_rate_limited", Message: "Upstream rate limit exceeded."}
 	reasonUpstreamConnect               = reason{Status: http.StatusBadGateway, Code: "upstream_connect_failed", Message: "Could not connect to an upstream service."}
@@ -43,7 +44,16 @@ var (
 	reasonResponseRedactionFailed       = reason{Status: http.StatusBadGateway, Code: "response_redaction_failed", Message: "Response content could not be restored safely."}
 	reasonProtocolConversionUnsupported = reason{Status: http.StatusUnprocessableEntity, Code: "protocol_conversion_unsupported", Message: "No upstream target could preserve or convert the request."}
 	reasonRequestTooLarge               = reason{Status: http.StatusRequestEntityTooLarge, Code: "request_too_large", Message: "Request body is too large."}
-	reasonUnsupportedContentEncoding    = reason{
+	// reasonEncryptedContentRecoveryExhausted renders after the one-time
+	// same-credential replay with the rejected encrypted state stripped still
+	// failed. Retrying again cannot help: the encrypted continuation context
+	// does not change between attempts.
+	reasonEncryptedContentRecoveryExhausted = reason{
+		Status:  http.StatusBadRequest,
+		Code:    "encrypted_content_recovery_exhausted",
+		Message: "Upstream rejected the continuation context after the gateway rebuilt inline history and retried once. Resend with readable conversation history or start a new conversation.",
+	}
+	reasonUnsupportedContentEncoding = reason{
 		Status:  http.StatusUnsupportedMediaType,
 		Code:    "unsupported_content_encoding",
 		Message: "Unsupported Content-Encoding.",

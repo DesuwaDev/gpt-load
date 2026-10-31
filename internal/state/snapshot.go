@@ -81,6 +81,11 @@ type ModelConfig struct {
 	Alias string
 }
 
+// ExternalName 是客户端可见、访问密钥模型过滤使用的模型名。
+func (model ModelConfig) ExternalName() string {
+	return externalModelName(model)
+}
+
 func externalModelName(model ModelConfig) string {
 	if alias := strings.TrimSpace(model.Alias); alias != "" {
 		return alias
@@ -516,10 +521,10 @@ func appendExecutionTargets(
 				execution.OperationImagesEdit,
 				execution.OperationEmbeddingsCreate, execution.OperationRerank,
 				execution.OperationDecisionsCreate,
+				execution.OperationAudioSpeech,
 				execution.OperationMistralOCR,
 				execution.OperationMistralFIM,
 				execution.OperationMistralAudioTranscription,
-				execution.OperationMistralAudioSpeech,
 				execution.OperationMistralModeration,
 				execution.OperationMistralChatModeration,
 				execution.OperationMistralClassification,

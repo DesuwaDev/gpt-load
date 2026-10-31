@@ -50,10 +50,6 @@
 <td><strong>PackyCode</strong><br>PackyCode 是一家稳定、高效的 API 中转服务商。一句话接入主流大模型。统一域名、统一密钥、智能容灾切换，97% 可用性。人民币1:1充值，无汇率无手续费坑，新用户首充立享折扣 + $1免费体验额度，多分组折扣低至 2 折起，提供专属Codex/Claude Code高速通道。<a href="https://www.packyapi.ai/register?aff=ahiS" target="_blank" rel="sponsored noopener noreferrer">点此链接注册，立即开始使用！</a></td>
 </tr>
 <tr>
-<td width="180"><a href="https://sidrune.ai/register?source=github&amp;campaign=gptload&amp;promo=gptload" target="_blank" rel="sponsored noopener noreferrer"><img src="./screenshot/sidrune-ai.png" alt="Sidrune AI" width="150"></a></td>
-<td><strong>一个入口，接入并管理全球主流AI模型</strong><br>Sidrune AI面向个人开发者、技术团队与企业，通过统一API接入并管理全球主流AI模型；通过多线路动态调度提升可用性，模型表现、响应时间与费用透明可查。根据不同模型与线路，API调用成本较官方或基准价格可降低40%—98%。立即访问并注册，即可获得 $3 API 额度。（<a href="https://sidrune.ai/register?source=github&amp;campaign=gptload&amp;promo=gptload" target="_blank" rel="sponsored noopener noreferrer">专属链接</a>）</td>
-</tr>
-<tr>
 <td width="180"><a href="https://www.axisnow.io/zh"><img src="./screenshot/axisnow.jpg" alt="AxisNow" width="150"></a></td>
 <td>保护并加速网站与 API，<strong>兼顾中国大陆</strong>及全球的访问体验，并通过客户端 SDK，将加速与安全能力延伸至原生/移动 App — <strong>自建私有部署 CDN｜订阅式高防 CDN｜自主可控、灵活组合的 CDN 网络。</strong></td>
 </tr>
@@ -76,6 +72,12 @@
 - **统一管理 API Key 与订阅账号** — Codex、Claude、Antigravity、Grok 等订阅渠道与 API Key 渠道共享凭据管理、调度和健康体系。
 - **内置调度与故障隔离** — 多凭据调度、可配置权重、重试、冷却、黑名单与会话亲和，降低单个凭据过载或失效的影响。
 - **可观测、易部署、数据自持** — 提供健康、路由、日志、用量与成本估算；单个 Go 二进制内嵌管理界面，支持 SQLite、MySQL、PostgreSQL 和本地凭据加密。
+
+## 在线演示
+
+[https://demo.gpt-load.com](https://demo.gpt-load.com)
+
+登录密钥：`gpt-load-demo`
 
 ## 快速开始
 
@@ -148,7 +150,8 @@ Codex、Claude、Antigravity 的 OAuth 客户端使用固定回调端口。Compo
 | OpenAI Images           | `POST /v1/images/...`                                              |
 | OpenAI Embeddings       | `POST /v1/embeddings`                                              |
 | Rerank                  | `POST /v1/rerank`                                                  |
-| Mistral 原生            | `/v1/ocr`、`/v1/audio/...` |
+| Audio Speech            | `POST /v1/audio/speech`                                            |
+| Mistral 原生            | `/v1/ocr`、`/v1/audio/transcriptions` |
 | Anthropic Messages      | `POST /v1/messages`                                                |
 | Gemini                  | `/v1beta/models/...`                                               |
 | Gemini Embeddings       | `POST /v1beta/models/{model}:embedContent` / `:batchEmbedContents` |

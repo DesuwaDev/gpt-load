@@ -50,10 +50,6 @@ API キー、サブスクリプションアカウント、トラフィック制�
 <td><strong>PackyCode</strong><br>PackyCode は、安定性と効率性を重視した AI API 中継サービスです。ひとつの API エンドポイントと API キーで主要な大規模モデルに接続できます。統一ドメイン、統一キー、スマートな障害切り替えに対応し、可用性は 97% としています。人民元で 1:1 チャージでき、為替差損や追加手数料の心配はありません。新規ユーザーは初回チャージ割引と $1 の無料体験クレジットを受け取れ、複数グループでは最大 80% の割引、Codex／Claude Code 専用の高速ルートも利用できます。<a href="https://www.packyapi.ai/register?aff=ahiS" target="_blank" rel="sponsored noopener noreferrer">リンクから登録して、すぐに利用を開始できます。</a></td>
 </tr>
 <tr>
-<td width="180"><a href="https://sidrune.ai/register?source=github&amp;campaign=gptload&amp;promo=gptload" target="_blank" rel="sponsored noopener noreferrer"><img src="./screenshot/sidrune-ai.png" alt="Sidrune AI" width="150"></a></td>
-<td><strong>一つの入口で、世界の主要AIモデルに接続・管理</strong><br>Sidrune AIは、個人開発者、技術チーム、企業向けに、統一APIで世界の主要AIモデルへの接続と管理を提供します。複数経路の動的なスケジューリングで可用性を高め、モデルの性能、応答時間、料金を透明に確認できます。モデルや経路によっては、API利用料を公式価格または基準価格より40%〜98%抑えられます。今すぐアクセスして登録すると、$3分のAPIクレジットを受け取れます。（<a href="https://sidrune.ai/register?source=github&amp;campaign=gptload&amp;promo=gptload" target="_blank" rel="sponsored noopener noreferrer">専用リンク</a>）</td>
-</tr>
-<tr>
 <td width="180"><a href="https://www.axisnow.io/zh"><img src="./screenshot/axisnow.jpg" alt="AxisNow" width="150"></a></td>
 <td>ウェブサイトと API を保護・高速化し、<strong>中国本土</strong>および世界各地のアクセス体験にも配慮し、クライアント SDK を通じて高速化とセキュリティの機能をネイティブ／モバイルアプリにまで拡張します — <strong>自社構築・プライベート運用 CDN｜サブスクリプション型高防御 CDN｜自主的に制御でき、柔軟に組み合わせられる CDN ネットワーク。</strong></td>
 </tr>
@@ -76,6 +72,12 @@ API キー、サブスクリプションアカウント、トラフィック制�
 - **API キーとサブスクリプションを統一管理** — Codex、Claude、Antigravity、Grok と API キーチャネルで、認証情報管理・スケジューリング・健全性管理を共通化します。
 - **スケジューリングと障害分離を内蔵** — 複数認証情報のスケジューリング、設定可能なウェイト、リトライ、クールダウン、ブラックリスト、セッションアフィニティにより、過負荷や失効の影響を抑えます。
 - **可観測で導入しやすく、データを自己管理** — 健全性、ルート、ログ、使用量、コスト概算を確認でき、SQLite、MySQL、PostgreSQL とローカル認証情報暗号化を単一バイナリで利用できます。
+
+## オンラインデモ
+
+[https://demo.gpt-load.com](https://demo.gpt-load.com)
+
+ログインキー：`gpt-load-demo`
 
 ## クイックスタート
 
@@ -148,7 +150,8 @@ SSH やリモートブラウザ経由で操作する場合、ブラウザの `lo
 | OpenAI Images           | `POST /v1/images/...`                                              |
 | OpenAI Embeddings       | `POST /v1/embeddings`                                              |
 | Rerank                  | `POST /v1/rerank`                                                  |
-| Mistral ネイティブ      | `/v1/ocr`、`/v1/audio/...` |
+| Audio Speech            | `POST /v1/audio/speech`                                            |
+| Mistral ネイティブ      | `/v1/ocr`、`/v1/audio/transcriptions` |
 | Anthropic Messages      | `POST /v1/messages`                                                |
 | Gemini                  | `/v1beta/models/...`                                               |
 | Gemini Embeddings       | `POST /v1beta/models/{model}:embedContent` / `:batchEmbedContents` |

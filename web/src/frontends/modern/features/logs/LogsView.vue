@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useMobileLayout } from '@modern/app/use-mobile-layout'
+import LogMobileRow from './LogMobileRow.vue'
 import { Eye, ScrollText } from '@lucide/vue'
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/vue-query'
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
@@ -7,6 +9,7 @@ import { useRouter } from 'vue-router'
 import {
   getLogs,
   getLogAccessKeys,
+  logStatuses,
   logsKey,
   type LogFilterName,
   type LogQuery,
@@ -37,7 +40,7 @@ import LogDetailPanel from './LogDetailPanel.vue'
 import LogFilterLink from './LogFilterLink.vue'
 import LogFilters from './LogFilters.vue'
 import LogTableCell from './LogTableCell.vue'
-import { useLogColumns } from './log-columns'
+import { useLogColumns, type LogColumnId } from './log-columns'
 import {
   logFilterOptions,
   logStateKeys,
@@ -48,6 +51,7 @@ import {
 } from './log-filters'
 import { logTime } from './log-display'
 
+const isMobile = useMobileLayout()
 const router = useRouter()
 const client = useApiClient()
 const cache = useQueryClient()
@@ -59,7 +63,29 @@ const state = useURLState<LogRouteState>(
   (query) => parseLogState(query, admin.value),
   serializeLogState,
 )
-const columns = useLogColumns(admin.value)
+function columnLabel(fields: readonly LogColumnId[]): string {
+  return t(fields.length > 1 ? 'logs.columnGroups.' + fields[0] : 'logs.columns.' + fields[0])
+}
+// 表头和结果徽标的文字随界面语言变长，列宽至少容纳当前语言的文字，避免截断或换行。
+const textContext = document.createElement('canvas').getContext('2d')
+const rootStyle = getComputedStyle(document.documentElement)
+const token = (name: string) => rootStyle.getPropertyValue(name).trim()
+const captionSize = parseFloat(token('--modern-font-size-caption'))
+function captionWidth(text: string, tracking = 0): number {
+  if (!textContext) return 0
+  textContext.font = `${token('--modern-weight-medium')} ${captionSize}px ${token('--modern-font-sans')}`
+  return Math.ceil(textContext.measureText(text).width + tracking * captionSize * text.length)
+}
+function columnMinWidth(fields: readonly LogColumnId[]): number {
+  const header = captionWidth(columnLabel(fields), parseFloat(token('--modern-tracking-label')))
+  if (!fields.includes('status')) return header
+  // 结果徽标在文字外还有圆点、间距和左右内边距，各占一个 space-1-5。
+  const badge =
+    Math.max(...logStatuses.map((status) => captionWidth(t('logs.values.' + status)))) +
+    4 * parseFloat(token('--modern-space-1-5'))
+  return Math.max(header, badge)
+}
+const columns = useLogColumns(admin.value, columnMinWidth)
 const frame = ref<InstanceType<typeof AppListFrame>>()
 const range = ref(resolveTimeRange({ ...state.value.filters, preset: state.value.preset }))
 const displayedFilters = computed(() => ({ ...state.value.filters, ...range.value }))
@@ -298,6 +324,7 @@ useMessageSource(() =>
     >
       <template #actions
         ><LogColumnPicker
+          v-if="!isMobile"
           :columns="columns.available"
           :selected="columns.selected.value"
           @toggle="columns.toggle"
@@ -318,14 +345,15 @@ useMessageSource(() =>
     </div>
     <AppListFrame
       ref="frame"
+      mobile-flow
       class="modern-log-table"
-      role="table"
-      :aria-colcount="columns.cells.value.length + 1"
+      :role="isMobile ? undefined : 'table'"
+      :aria-colcount="isMobile ? undefined : columns.cells.value.length + 1"
       :label="t('logs.title')"
       :loading="fetching && Boolean(query.data.value)"
       :style="columns.style.value"
     >
-      <template #header>
+      <template v-if="!isMobile" #header>
         <div class="modern-log-row modern-log-table-head" role="row">
           <div
             v-for="cell in columns.cells.value"
@@ -334,15 +362,7 @@ useMessageSource(() =>
             class="modern-log-column-heading"
             :class="{ 'is-numeric': cell.numeric }"
           >
-            <AppOverflowText
-              :text="
-                t(
-                  cell.fields.length > 1
-                    ? 'logs.columnGroups.' + cell.fields[0]
-                    : 'logs.columns.' + cell.fields[0],
-                )
-              "
-            />
+            <AppOverflowText :text="columnLabel(cell.fields)" />
           </div>
           <div class="modern-log-row-action" role="columnheader" :aria-label="t('logs.details')">
             <span class="modern-log-action-heading"
@@ -364,61 +384,72 @@ useMessageSource(() =>
           t('collection.reset')
         }}</AppButton></AppCollectionState
       >
-      <article
-        v-for="row in rows"
-        v-else
-        :key="row.request_id"
-        role="row"
-        class="modern-log-row modern-log-record"
-        :class="{ 'is-selected': state.detail === row.request_id }"
-      >
-        <div
-          v-for="cell in columns.forRow(row)"
-          :key="cell.id"
-          role="cell"
-          :aria-colindex="cell.index + 1"
-          :aria-colspan="cell.span > 1 ? cell.span : undefined"
-          class="modern-log-cell"
-          :class="{ 'is-numeric': cell.numeric }"
-          :style="cell.span > 1 ? { gridColumn: 'span ' + cell.span } : undefined"
-        >
-          <div v-if="cell.error" class="modern-log-error-summary">
-            <LogFilterLink
-              v-if="row.error_code"
-              :label="t('logs.filterByValue', { value: row.error_code })"
-              @click="filterFromRow({ error_code: row.error_code })"
-            >
-              <AppOverflowText class="modern-log-error-code" :text="row.error_code" />
-            </LogFilterLink>
-            <AppOverflowText v-else class="modern-log-error-code" text="—" />
-            <AppOverflowText :text="row.error_summary || '—'" tabindex="0" />
-          </div>
-          <LogTableCell
-            v-else
+      <template v-else>
+        <template v-for="row in rows" :key="row.request_id">
+          <LogMobileRow
+            v-if="isMobile"
             :row="row"
-            :fields="cell.fields"
-            :peer="cell.peer"
             :admin="admin"
             :groups="groupMap"
             :channels="channelMap"
             @open="showDetail(row.request_id)"
-            @filter="filterFromRow"
           />
-        </div>
-        <div
-          class="modern-log-row-action"
-          role="cell"
-          :aria-colindex="columns.cells.value.length + 1"
-        >
-          <AppIconButton
-            class="modern-log-detail-action"
-            :icon="Eye"
-            :label="t('logs.details')"
-            size="xs"
-            @click="showDetail(row.request_id)"
-          />
-        </div>
-      </article>
+          <article
+            v-else
+            role="row"
+            class="modern-log-row modern-log-record"
+            :class="{ 'is-selected': state.detail === row.request_id }"
+          >
+            <div
+              v-for="cell in columns.forRow(row)"
+              :key="cell.id"
+              role="cell"
+              :aria-colindex="cell.index + 1"
+              :aria-colspan="cell.span > 1 ? cell.span : undefined"
+              class="modern-log-cell"
+              :class="{ 'is-numeric': cell.numeric }"
+              :data-label="cell.error ? t('logs.columns.error_summary') : columnLabel(cell.fields)"
+              :style="cell.span > 1 ? { '--modern-log-cell-span': cell.span } : undefined"
+            >
+              <div v-if="cell.error" class="modern-log-error-summary">
+                <LogFilterLink
+                  v-if="row.error_code"
+                  :label="t('logs.filterByValue', { value: row.error_code })"
+                  @click="filterFromRow({ error_code: row.error_code })"
+                >
+                  <AppOverflowText class="modern-log-error-code" :text="row.error_code" />
+                </LogFilterLink>
+                <AppOverflowText v-else class="modern-log-error-code" text="—" />
+                <AppOverflowText :text="row.error_summary || '—'" tabindex="0" />
+              </div>
+              <LogTableCell
+                v-else
+                :row="row"
+                :fields="cell.fields"
+                :peer="cell.peer"
+                :admin="admin"
+                :groups="groupMap"
+                :channels="channelMap"
+                @open="showDetail(row.request_id)"
+                @filter="filterFromRow"
+              />
+            </div>
+            <div
+              class="modern-log-row-action"
+              role="cell"
+              :aria-colindex="columns.cells.value.length + 1"
+            >
+              <AppIconButton
+                class="modern-log-detail-action"
+                :icon="Eye"
+                :label="t('logs.details')"
+                size="xs"
+                @click="showDetail(row.request_id)"
+              />
+            </div>
+          </article>
+        </template>
+      </template>
       <template #footer
         ><AppPagination
           mode="total"
@@ -465,8 +496,8 @@ useMessageSource(() =>
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
-  gap: var(--modern-space-2);
-  padding-bottom: var(--modern-space-4);
+  gap: var(--modern-page-statusbar-gap);
+  padding-bottom: var(--modern-page-statusbar-bottom);
 }
 .modern-log-statusbar > :first-child {
   flex-shrink: 0;
@@ -491,6 +522,12 @@ useMessageSource(() =>
   overflow: hidden;
   background: var(--modern-surface);
 }
+/* 两侧都预留滚动条位置时，Chromium 的横向滚动范围比可视宽度多算一个滚动条宽度，
+   滚到最右会来回修正；宽表只在右侧预留，并关闭横向回弹。 */
+.modern-log-table :deep(.modern-list-scroll) {
+  scrollbar-gutter: stable;
+  overscroll-behavior-x: none;
+}
 .modern-log-row {
   display: grid;
   grid-template-columns: var(--modern-log-columns);
@@ -502,7 +539,7 @@ useMessageSource(() =>
 }
 .modern-log-table-head {
   --modern-log-row-surface: var(--modern-subtle);
-  min-height: var(--modern-control-sm);
+  min-height: var(--modern-control-xs);
   border-bottom: var(--modern-line-width) solid var(--modern-border);
   background: var(--modern-log-row-surface);
   color: var(--modern-control-placeholder);
@@ -514,12 +551,13 @@ useMessageSource(() =>
   display: flex;
   align-items: center;
   min-width: 0;
-  padding-block: var(--modern-space-2);
+  padding-block: var(--modern-space-1-5);
 }
+/* 双行单元格的每行固定为徽标高度，行距只留最小内边距。 */
 .modern-log-record {
   --modern-log-row-surface: var(--modern-surface);
-  min-height: calc(var(--modern-space-12) + var(--modern-space-1));
-  padding-block: var(--modern-space-2);
+  min-height: var(--modern-space-12);
+  padding-block: var(--modern-space-1);
   border-bottom: var(--modern-line-width) solid var(--modern-border);
   background: var(--modern-log-row-surface);
   color: var(--modern-text);
@@ -541,6 +579,8 @@ useMessageSource(() =>
   box-shadow: inset var(--modern-focus-width) 0 0 var(--modern-accent);
 }
 .modern-log-cell {
+  --modern-log-cell-span: 1;
+  grid-column: span var(--modern-log-cell-span);
   min-width: 0;
   overflow: hidden;
 }
@@ -599,16 +639,50 @@ useMessageSource(() =>
   color: var(--modern-accent);
 }
 .modern-log-table :deep(.modern-pagination) {
-  padding-inline: var(--modern-space-3);
+  padding: var(--modern-space-2) var(--modern-space-3);
 }
 @media (max-width: 760px) {
-  .modern-logs-workspace {
-    --modern-log-action-width: calc(
-      var(--modern-touch-target) + var(--modern-space-4) + var(--modern-line-width)
-    );
+  .modern-log-table {
+    border: 0;
+    border-radius: 0;
+    background: transparent;
   }
-  .modern-log-action-heading {
-    width: var(--modern-touch-target);
+  .modern-logs-workspace {
+    flex: none;
+  }
+  .modern-log-table-head {
+    display: none;
+  }
+  .modern-log-record {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    min-width: 0;
+    gap: var(--modern-space-3);
+    padding: var(--modern-space-4) var(--modern-space-3);
+  }
+  .modern-log-cell {
+    display: grid;
+    grid-column: auto;
+    align-content: start;
+    gap: var(--modern-space-1);
+  }
+  .modern-log-cell::before {
+    content: attr(data-label);
+    color: var(--modern-muted);
+    font-size: var(--modern-font-size-caption);
+  }
+  .modern-log-cell.is-numeric,
+  .modern-log-cell.is-numeric :deep(.modern-log-cell-stack) {
+    justify-items: start;
+    text-align: left;
+  }
+  .modern-log-cell:has(.modern-log-error-summary) {
+    grid-column: 1 / -1;
+  }
+  .modern-log-row-action {
+    position: static;
+    justify-content: flex-end;
+    padding: 0;
+    border: 0;
   }
 }
 </style>

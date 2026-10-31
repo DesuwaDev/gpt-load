@@ -28,6 +28,7 @@ import (
 	"gpt-load/internal/platform/encryption"
 	"gpt-load/internal/platform/httpclient"
 	"gpt-load/internal/platform/httproute"
+	"gpt-load/internal/platform/memlimit"
 	"gpt-load/internal/platform/redact"
 	"gpt-load/internal/pricing"
 	"gpt-load/internal/provideradapter"
@@ -46,11 +47,12 @@ import (
 )
 
 // BuildContainer creates the 2.0 runtime foundation dependency graph.
-func BuildContainer() (*dig.Container, error) {
+func BuildContainer(configure ...func(*dig.Container) error) (*dig.Container, error) {
 	dependencyContainer := dig.New()
 
 	providers := []any{
 		config.Load,
+		memlimit.Detect,
 		func(cfg *config.Config) (encryption.Service, error) {
 			return encryption.NewServiceWithKeyFile(cfg.EncryptionKey, cfg.DataDir)
 		},
@@ -182,6 +184,7 @@ func BuildContainer() (*dig.Container, error) {
 		dialect.NewAnthropic,
 		dialect.NewGemini,
 		dialect.NewGeminiEmbeddings,
+		dialect.NewAudioSpeech,
 		dialect.NewMistral,
 		func(
 			openAI *dialect.OpenAI,
@@ -193,10 +196,12 @@ func BuildContainer() (*dig.Container, error) {
 			anthropic *dialect.Anthropic,
 			gemini *dialect.Gemini,
 			geminiEmbeddings *dialect.GeminiEmbeddings,
+			audioSpeech *dialect.AudioSpeech,
 			mistral *dialect.Mistral,
 		) dialect.Set {
 			return dialect.NewSet(
-				openAI, openAIResponses, openAIImages, openAIEmbeddings, rerank, decisions, anthropic, gemini, geminiEmbeddings, mistral,
+				openAI, openAIResponses, openAIImages, openAIEmbeddings, rerank, decisions, anthropic, gemini, geminiEmbeddings,
+				audioSpeech, mistral,
 			)
 		},
 		func(registry *channel.Registry) (*bifrostexecutor.RuntimeManager, error) {
@@ -263,12 +268,20 @@ func BuildContainer() (*dig.Container, error) {
 			return nil, err
 		}
 	}
+	// Demo 在解析依赖前替换配置和后台任务；普通启动不传入任何覆盖。
+	for _, setup := range configure {
+		if err := setup(dependencyContainer); err != nil {
+			return nil, err
+		}
+	}
 	if err := dependencyContainer.Decorate(func(
 		handler *gateway.Handler,
 		adapter *cpaexecutor.Adapter,
 		cfg *config.Config,
+		memory memlimit.Memory,
 	) *gateway.Handler {
 		handler.ConfigureCodexLive(adapter, cfg.CodexLive)
+		handler.ConfigureRequestBodyLimit(memory)
 		return handler
 	}); err != nil {
 		return nil, err

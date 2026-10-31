@@ -2,6 +2,7 @@ package locales
 
 // MessagesZhCN contains Simplified Chinese control-plane translations.
 var MessagesZhCN = map[string]string{
+	"demo.restricted":                            "演示环境不支持此操作；真实上游调用、授权和网络探测已关闭",
 	"access_key.custom_invalid":                  "密钥最多 256 个字符，仅支持英文字母、数字和英文符号，不允许空白。",
 	"access_key.admin_conflict":                  "不能使用管理员密钥作为访问密钥。",
 	"access_key.exists":                          "此访问密钥已存在，请使用其他密钥。",
@@ -26,6 +27,9 @@ var MessagesZhCN = map[string]string{
 	"model_price.unpriced_confirmation_required": "将模型价格标记为未定价需要明确确认",
 	"model_price.referenced":                     "模型价格仍被分组引用",
 	"model_price.automatic_delete_forbidden":     "自动模型价格不能手动删除",
+	"model_price.reference_cycle":                "不能关联自身或形成循环，请选择其他模型",
+	"model_price.source_referenced":              "无法移除 {{.source}}：{{.dependents}} 仍在关联它，请先更换关联或转为手动价格",
+	"model_price.source_unavailable":             "参考价格来源已不可用，请重新选择",
 	"auth.invalid_key":                           "无效的授权密钥",
 	"auth.forbidden":                             "当前密钥无权访问此功能",
 	"auth.locked":                                "认证尝试过多，请稍后重试",
