@@ -486,25 +486,6 @@ export default {
           custom: 'Custom',
         },
       },
-      turnState: {
-        title: 'Codex turn state injection',
-        hint: 'Every upstream request from this credential overrides X-Codex-Turn-State with this value. Blank disables injection.',
-        placeholder: 'Paste an X-Codex-Turn-State',
-        active: 'Injecting',
-        inactive: 'Not injecting',
-        length: '{count} characters',
-        invalid: 'Single-line printable ASCII only',
-        models: 'Model scope',
-        modelsHint:
-          'Inject only for these models. Comma-separated; a trailing * matches by prefix. Blank means every model. Requests with no identifiable model are injected anyway.',
-        modelsPlaceholder: 'gpt-5.1-codex, gpt-5*',
-        modelsAll: 'Every model',
-        modelsScoped: 'Scoped to models',
-        modelsInvalid:
-          'Model names allow letters, digits and - _ . : / with an optional trailing *',
-        apply: 'Save',
-        clear: 'Clear',
-      },
       customGateway: {
         title: 'Custom Gateway (Base URL)',
         hint: 'Specify a custom gateway endpoint for this credential, overriding group defaults. Leave blank to use group gateway.',

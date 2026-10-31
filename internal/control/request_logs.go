@@ -78,8 +78,6 @@ type requestLogAttemptResponse struct {
 	RouteMode         *channel.RouteMode                `json:"route_mode"`
 	UpstreamModel     *string                           `json:"upstream_model"`
 	UpstreamRequestID *string                           `json:"upstream_request_id"`
-	UpstreamTurnState *string                           `json:"upstream_turn_state"`
-	InjectedTurnState *string                           `json:"injected_turn_state"`
 	DispatchState     *execution.DispatchState          `json:"dispatch_state"`
 	ResponseStarted   bool                              `json:"response_started"`
 	UpstreamProtocol  *protocol.Protocol                `json:"upstream_protocol"`
@@ -169,8 +167,6 @@ type requestLogItemResponse struct {
 	CredentialID              *uint                        `json:"credential_id"`
 	CredentialName            string                       `json:"credential_name"`
 	RouteMode                 *channel.RouteMode           `json:"route_mode"`
-	UpstreamTurnState         *string                      `json:"upstream_turn_state"`
-	InjectedTurnState         *string                      `json:"injected_turn_state"`
 	UsageState                usage.State                  `json:"usage_state"`
 	CostState                 pricing.CostState            `json:"cost_state"`
 	PricingCompleteness       pricing.Completeness         `json:"pricing_completeness"`
@@ -519,8 +515,6 @@ func sanitizeAccessKeyRequestLog(record requestlog.Record) requestlog.Record {
 	record.CredentialID = 0
 	record.RouteMode = ""
 	record.UpstreamProtocol = ""
-	record.UpstreamTurnState = ""
-	record.InjectedTurnState = ""
 	record.Attempts = []requestlog.Attempt{}
 	if record.RequestAudit != nil {
 		auditCopy := *record.RequestAudit
@@ -1300,8 +1294,6 @@ func mapRequestLogItemResponse(
 		CredentialID:            usageCost.credentialID,
 		CredentialName:          credentialLabelFor(credentialLabels, usageCost.credentialID),
 		RouteMode:               routeMode,
-		UpstreamTurnState:       nullableRequestLogModel(record.UpstreamTurnState),
-		InjectedTurnState:       nullableRequestLogModel(record.InjectedTurnState),
 		UsageState:              record.UsageState,
 		CostState:               record.CostState,
 		PricingCompleteness:     record.PricingCompleteness,
@@ -1472,8 +1464,6 @@ func mapRequestLogAttempt(
 		RouteMode:         routeMode,
 		UpstreamModel:     nullableRequestLogModel(attempt.UpstreamModel),
 		UpstreamRequestID: nullableRequestLogModel(attempt.UpstreamRequestID),
-		UpstreamTurnState: nullableRequestLogModel(attempt.UpstreamTurnState),
-		InjectedTurnState: nullableRequestLogModel(attempt.InjectedTurnState),
 		DispatchState:     dispatchState,
 		ResponseStarted:   attempt.ResponseStarted,
 		UpstreamProtocol:  upstreamProtocol,

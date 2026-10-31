@@ -22,7 +22,6 @@ import (
 	"gpt-load/internal/execution"
 	"gpt-load/internal/execution/responsealias"
 	"gpt-load/internal/execution/responsemodel"
-	platformheader "gpt-load/internal/platform/httpheader"
 	platformredact "gpt-load/internal/platform/redact"
 	"gpt-load/internal/protocol"
 	"gpt-load/internal/reasoning"
@@ -45,26 +44,6 @@ var subscriptionResponseHeaderNames = [...]string{
 	"X-Amzn-Requestid",
 	"Retry-After",
 }
-
-// observedTurnState 从上游原始响应头里取 X-Codex-Turn-State。它不进
-// subscriptionResponseHeaderNames：那份白名单决定客户端能看到什么，而这里只是
-// 一次尝试的观测值，沿 AttemptResult/StreamResult 的专有字段带给请求日志。
-func observedTurnState(headers http.Header) string {
-	value := strings.TrimSpace(headers.Get(platformheader.CodexTurnStateName))
-	if value == "" || len(value) > maxObservedTurnStateBytes || !utf8.ValidString(value) {
-		return ""
-	}
-	for _, character := range value {
-		if character < 0x20 || character == 0x7f {
-			return ""
-		}
-	}
-	return value
-}
-
-// 观测到的 state 实测在 300 字符上下，留一个数量级的余量即可；超限的一律丢弃，
-// 截断后的 state 既不能复用也会误导排查。
-const maxObservedTurnStateBytes = 4096
 
 type Adapter struct {
 	credentials credentialPreparer
@@ -132,14 +111,8 @@ func (a *Adapter) ValidateRouteCapability(
 // provider bridge selected by the compiled channel definition.
 func (a *Adapter) Execute(ctx context.Context, spec execution.AttemptSpec) (result execution.AttemptResult) {
 	spec = execution.NewAttemptSpec(spec)
-	// turnState 在拿到上游响应头后赋值；用 defer 回填可以覆盖所有返回分支，包括
-	// 错误路径，而不必给每个终局构造函数都加一个参数。
-	var turnState string
 	defer func() {
 		normalizeCPAImagesAttemptResult(spec, &result)
-		if result.UpstreamTurnState == "" {
-			result.UpstreamTurnState = turnState
-		}
 	}()
 	provider, baseURL, err := a.validateSpec(spec)
 	if err != nil {
@@ -243,7 +216,6 @@ func (a *Adapter) Execute(ctx context.Context, spec execution.AttemptSpec) (resu
 		)
 		a.recordPassiveQuotaObservation(spec, response.QuotaObservedAt, response.QuotaWindows, response.Credits)
 	}
-	turnState = observedTurnState(response.Headers)
 	if err != nil {
 		result := unaryExecutionError(execCtx, provider, err, credential)
 		if spec.Operation == execution.OperationWebSearch && response.StatusCode != 0 && !result.ResponseStarted {
@@ -325,17 +297,12 @@ func (a *Adapter) ExecuteStream(
 	sink execution.StreamSink,
 ) (result execution.StreamResult) {
 	spec = execution.NewAttemptSpec(spec)
-	// 与 Execute 同理：终局 StreamResult 有十余个返回点，回填比逐个透传参数可靠。
-	var turnState string
 	streamModel := &streamModelObserver{}
 	defer func() {
 		if result.Model == "" && streamModel.result() != "" {
 			result.Model = streamModel.result()
 		}
 		normalizeCPAImagesStreamResult(spec, &result)
-		if result.UpstreamTurnState == "" {
-			result.UpstreamTurnState = turnState
-		}
 	}()
 	if sink == nil {
 		return streamNotSent(execution.ErrorKindInvalidRequest, "stream sink is required", "")
@@ -404,7 +371,6 @@ func (a *Adapter) ExecuteStream(
 	if response != nil {
 		upstreamProtocol = effectiveUpstreamProtocol(provider, response.UpstreamProtocol)
 		a.recordPassiveQuotaObservation(spec, response.QuotaObservedAt, response.QuotaWindows, response.Credits)
-		turnState = observedTurnState(response.Headers)
 	}
 	if err != nil {
 		result := unaryExecutionError(streamCtx, provider, err, credential)

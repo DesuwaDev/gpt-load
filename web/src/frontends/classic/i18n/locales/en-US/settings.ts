@@ -18,7 +18,7 @@ export default {
       saveFailed: 'Unable to save your preference. Allow browser storage for this site and retry.',
       unavailable: 'Unavailable',
       unavailableNote:
-        'The modern interface is temporarily disabled: turn-state monitoring, credential turn state, and quota markers only exist in the classic interface. Browsers already on the modern interface switch back to classic on their next visit.',
+        'The modern interface is temporarily disabled: quota markers only exist in the classic interface. Browsers already on the modern interface switch back to classic on their next visit.',
       modern: {
         title: 'Modern',
         description: 'A modern management interface with sidebar navigation.',

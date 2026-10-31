@@ -318,12 +318,6 @@ export interface CredentialItemDto {
   /** mark 为 '' 时 mark_note 必为空；mark 为 'custom' 时 mark_note 即标签文字。 */
   mark: CredentialMark
   mark_note: string
-  /** 每次请求强制注入的 X-Codex-Turn-State；'' 表示不注入。 */
-  codex_turn_state: string
-  /** 把注入限定在这些模型上，逗号分隔；'' 表示不限模型。 */
-  codex_turn_state_models: string
-  /** 注入值的写入时刻，用于时效倒计时；0 表示没有注入值或无法计时。 */
-  codex_turn_state_set_at_ms: number
   configured_status: CredentialConfiguredStatus
   effective_status: CredentialStatus
   weight: number

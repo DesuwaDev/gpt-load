@@ -940,22 +940,6 @@ export default {
         filteredTitle: '没有匹配当前筛选条件的日志',
         filteredDescription: '调整或重置筛选条件后重试。',
       },
-      turnState: {
-        tooltip: '轮次状态长度 {chars} 字符（{blocks} 块密文）',
-        tooltipRaw: '轮次状态长度 {chars} 字符',
-      },
-      turnStatePick: {
-        trigger: '取状态',
-        scanning: '正在扫描...',
-        triggerHint: '从最近日志中提取上游回带的最新轮次状态并复制',
-        toastCopied: '已复制最新轮次状态（{chars} 字符 · {credential}）',
-        toastCopiedSpread:
-          '已复制最新轮次状态（{chars} 字符 · {credential}，共命中 {total} 条，分布在 {credentials} 个凭据）',
-        none: '最近的 {scanned} 条日志里，未找到上游回带的可用轮次状态。',
-        noLogs: '没有符合当前筛选的请求日志。',
-        failed: '扫描失败，稍后再试。',
-        unknownCredential: '未知凭据',
-      },
       options: {
         groupsFailed: '无法加载分组筛选选项；日志列表不受影响。',
         accessKeysFailed: '无法加载访问密钥筛选选项；日志列表不受影响。',
@@ -1285,19 +1269,6 @@ export default {
         modelObservation: '上游返回模型观测',
         requestedModel: '上游请求模型',
         reportedModel: '上游返回模型',
-        turnState: {
-          title: 'Codex 轮次状态',
-          hint: '网关注入与上游回带的 X-Codex-Turn-State。没有「注入」条目就说明本次没有注入（没配、或被凭据的限定模型挡掉）。请求未完成但某次尝试有值时同样会列出。',
-          injected: '注入',
-          observed: '回带',
-          sources: '来源尝试',
-          length: '{count} 字符',
-          blocks: '密文 {count} 块',
-          blocksHint:
-            'Fernet 封装共 {total} 字节 = 9 头部 + 16 IV + {cipher} 密文 + 32 HMAC。AES-CBC 按 16 字节分块、PKCS7 填充，所以明文在 {min}–{max} 字节之间。',
-          notFernet: '非有效 Fernet 结构。',
-          copy: '复制轮次状态',
-        },
         requestBody: {
           title: '请求内容',
           originalSize: '原始大小 {size}',

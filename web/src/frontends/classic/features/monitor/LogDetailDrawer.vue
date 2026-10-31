@@ -25,7 +25,6 @@ import OverflowTooltip from '@/components/ui/OverflowTooltip.vue'
 import QueryFeedback from '@/components/ui/QueryFeedback.vue'
 import SkeletonSurface from '@/components/ui/SkeletonSurface.vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
-import { parseFernetToken, type FernetToken } from '@/lib/fernet'
 import {
   formatByteSize,
   formatEstimatedCost,
@@ -76,41 +75,6 @@ const finalAttempt = computed(() => {
     ) ?? attempts[0]
   )
 })
-// 轮次状态按「方向 + 值」去重：重试链上同一个 state 往往连续出现多次，逐条列出只会
-// 淹没差异。这里只依赖 attempts，所以请求没跑完、只要某次尝试有过 state 就仍然能显示
-// 和复制。注入项排在回带项前面——先看发出去的是什么，再看上游换回了什么。
-const turnStates = computed(() => {
-  const groups: {
-    kind: 'injected' | 'observed'
-    value: string
-    sequences: number[]
-    fernet: FernetToken | null
-  }[] = []
-  function collect(kind: 'injected' | 'observed'): void {
-    for (const attempt of log.value?.attempts ?? []) {
-      const value = kind === 'injected' ? attempt.injected_turn_state : attempt.upstream_turn_state
-      if (!value) continue
-      const existing = groups.find((group) => group.kind === kind && group.value === value)
-      if (existing) {
-        existing.sequences.push(attempt.sequence)
-        continue
-      }
-      const fernet = parseFernetToken(value)
-      groups.push({
-        kind,
-        value,
-        sequences: [attempt.sequence],
-        fernet,
-      })
-    }
-  }
-  collect('injected')
-  collect('observed')
-  return groups
-})
-function turnStateSources(sequences: number[]): string {
-  return sequences.map((sequence) => `#${sequence}`).join(' · ')
-}
 const mainErrorMessage = computed(() => log.value?.error_summary ?? '')
 const mainErrorCode = computed(() => log.value?.error_code ?? '')
 const drawerDescription = computed(() =>
@@ -837,55 +801,6 @@ function decisionRuleLabel(ruleID: string): string {
         </div>
       </section>
 
-      <section
-        v-if="!selfScoped && turnStates.length > 0"
-        class="log-detail__section log-detail__section--turn-state"
-      >
-        <h3>{{ t('monitor.logs.drawer.turnState.title') }}</h3>
-        <p class="log-turn-state__hint">{{ t('monitor.logs.drawer.turnState.hint') }}</p>
-        <div v-for="entry in turnStates" :key="entry.kind + entry.value" class="log-turn-state">
-          <div class="log-turn-state__head">
-            <span class="log-turn-state__kind" :class="`log-turn-state__kind--${entry.kind}`">
-              {{ t(`monitor.logs.drawer.turnState.${entry.kind}`) }}
-            </span>
-            <span
-              v-if="entry.fernet !== null"
-              class="log-turn-state__blocks"
-              :title="
-                t('monitor.logs.drawer.turnState.blocksHint', {
-                  total: entry.fernet.totalBytes,
-                  cipher: entry.fernet.cipherBytes,
-                  min: entry.fernet.plaintextMinBytes,
-                  max: entry.fernet.plaintextMaxBytes,
-                })
-              "
-            >
-              {{ t('monitor.logs.drawer.turnState.blocks', { count: entry.fernet.blocks }) }}
-            </span>
-            <span class="log-turn-state__length">
-              {{ t('monitor.logs.drawer.turnState.length', { count: entry.value.length }) }}
-            </span>
-            <span class="log-turn-state__source">
-              {{ t('monitor.logs.drawer.turnState.sources') }}
-              <code>{{ turnStateSources(entry.sequences) }}</code>
-            </span>
-            <CopyButton
-              class="log-turn-state__copy"
-              size="xs"
-              variant="ghost"
-              :value="entry.value"
-              :label="t('monitor.logs.drawer.turnState.copy')"
-              :success-label="t('common.copied')"
-              :failure-label="t('common.copyFailed')"
-            />
-          </div>
-          <p v-if="entry.fernet === null" class="log-turn-state__note">
-            {{ t('monitor.logs.drawer.turnState.notFernet') }}
-          </p>
-          <code class="log-turn-state__value">{{ entry.value }}</code>
-        </div>
-      </section>
-
       <section class="log-detail__section">
         <h3>{{ t('monitor.logs.drawer.usage.title') }}</h3>
         <dl class="log-detail__grid">
@@ -1210,116 +1125,6 @@ function decisionRuleLabel(ruleID: string): string {
   padding: 16px 0;
 }
 
-.log-detail__section--turn-state {
-  display: grid;
-  gap: 8px;
-}
-
-.log-turn-state__hint {
-  margin: 0;
-  color: var(--color-text-faint);
-  font-size: var(--text-sm);
-}
-
-/* 超出基线的那条整卡片换色：抽屉拉长以后不逐条读徽章也能扫到。 */
-.log-turn-state__alert {
-  margin: 0 0 4px;
-  border-left: 3px solid var(--color-warning);
-  border-radius: var(--radius-control);
-  background: var(--color-warning-bg);
-  padding: 6px 10px;
-  color: var(--color-warning);
-  font-size: var(--text-sm);
-  font-weight: 650;
-  line-height: 1.5;
-}
-
-.log-turn-state {
-  position: relative;
-  display: grid;
-  gap: 6px;
-  border: 1px solid var(--color-border-subtle);
-  border-radius: var(--radius-card);
-  background: var(--color-surface-sunken);
-  padding: 8px 10px;
-}
-
-.log-turn-state__head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px 8px;
-  padding-right: 28px;
-}
-
-.log-turn-state__source,
-.log-turn-state__length {
-  color: var(--color-text-muted);
-  font-size: var(--text-sm);
-  overflow-wrap: anywhere;
-}
-
-.log-turn-state__blocks {
-  color: var(--color-text);
-  font-family: var(--font-mono);
-  font-size: var(--text-sm);
-  font-weight: 650;
-  cursor: help;
-}
-
-.log-turn-state__note {
-  margin: 0;
-  color: var(--color-text-muted);
-  font-size: var(--text-sm);
-  line-height: 1.55;
-}
-
-/* 「注入 / 回带」是这一段最先要读到的信息，用徽章把两个方向拉开距离。 */
-.log-turn-state__kind {
-  border-radius: var(--radius-tag);
-  padding: 1px 8px;
-  font-size: var(--text-label-xs);
-  font-weight: 650;
-}
-
-.log-turn-state__kind--injected {
-  background: var(--color-info-bg);
-  color: var(--color-info);
-}
-
-.log-turn-state__kind--observed {
-  background: var(--color-surface-raised);
-  color: var(--color-text-muted);
-}
-
-.log-turn-state__source code {
-  color: var(--color-text);
-  font-family: var(--font-mono);
-}
-
-.log-turn-state__copy {
-  position: absolute;
-  top: 7px;
-  right: 8px;
-}
-
-/* 轮次状态是要整串复制走的，有复制按钮，值本身设最大高度避免占满整屏。 */
-.log-turn-state__value {
-  display: block;
-  max-height: 2.8em;
-  overflow-y: auto;
-  overflow-wrap: anywhere;
-  color: var(--color-text-muted);
-  font-family: var(--font-mono);
-  font-size: var(--text-label-xs);
-  line-height: 1.4;
-  word-break: break-all;
-  padding: 4px 8px;
-  border-radius: var(--radius-sm);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border-subtle);
-}
-
 .log-detail__attempt-section {
   padding: 8px 0;
 }
@@ -1548,16 +1353,6 @@ function decisionRuleLabel(ruleID: string): string {
 
   .log-detail__wide {
     grid-column: auto;
-  }
-
-  /* 抽屉在这个宽度下满屏，轮次状态那张卡的头部会折成两三行。收一点内外间距 */
-  .log-turn-state {
-    padding: 10px;
-  }
-
-  .log-turn-state__head {
-    gap: 6px 8px;
-    padding-right: 28px;
   }
 }
 </style>

@@ -970,22 +970,6 @@ export default {
         filteredTitle: '現在のフィルターに一致するログはありません',
         filteredDescription: 'フィルターを調整またはリセットして、再試行してください。',
       },
-      turnState: {
-        tooltip: 'ターン状態の長さは {chars} 文字（{blocks} ブロック）',
-        tooltipRaw: 'ターン状態の長さは {chars} 文字',
-      },
-      turnStatePick: {
-        trigger: '状態取得',
-        scanning: 'スキャン中...',
-        triggerHint: '直近のログから上流が返した最新のターン状態を抽出してコピー',
-        toastCopied: '最新のターン状態をコピーしました（{chars} 文字 · {credential}）',
-        toastCopiedSpread:
-          '最新のターン状態をコピーしました（{chars} 文字 · {credential}、計 {total} 件 / {credentials} 個の認証情報）',
-        none: '直近 {scanned} 件のログに上流が返したターン状態は見つかりませんでした。',
-        noLogs: '現在の絞り込み条件に一致するリクエストログがありません。',
-        failed: '走査に失敗しました。しばらくしてから再試行してください。',
-        unknownCredential: '不明な認証情報',
-      },
       options: {
         groupsFailed: 'グループフィルターの選択肢を読み込めません。ログ一覧には影響しません。',
         accessKeysFailed:
@@ -1314,19 +1298,6 @@ export default {
         modelObservation: 'アップストリーム応答モデルの観測',
         requestedModel: 'アップストリーム要求モデル',
         reportedModel: 'アップストリーム応答モデル',
-        turnState: {
-          title: 'Codex ターン状態',
-          hint: 'ゲートウェイが注入した、およびアップストリームが返した X-Codex-Turn-State。「注入」の項目がなければ今回は注入されていません（未設定か、認証情報の対象モデルから外れたかです）。リクエストが完了していなくても、いずれかの試行に値があれば表示されます。',
-          injected: '注入',
-          observed: '返却',
-          sources: '取得元の試行',
-          length: '{count} 文字',
-          blocks: '暗号文 {count} ブロック',
-          blocksHint:
-            'Fernet 全体で {total} バイト = ヘッダ 9 + IV 16 + 暗号文 {cipher} + HMAC 32。AES-CBC は 16 バイト単位で PKCS7 パディングするため、平文は {min}〜{max} バイトの範囲です。',
-          notFernet: '有効な Fernet 構造ではありません。',
-          copy: 'ターン状態をコピー',
-        },
         requestBody: {
           title: 'リクエスト内容',
           originalSize: '元のサイズ {size}',

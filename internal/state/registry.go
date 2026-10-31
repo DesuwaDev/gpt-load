@@ -52,14 +52,9 @@ type CredentialEntry struct {
 	EncryptedValue          string
 	EncryptedProxy          string
 	ProxyFingerprint        string
-	// CodexTurnState 是凭据级强制注入的 X-Codex-Turn-State，空串表示不注入。
-	// 它不是身份，所以不进 CredentialRef：改它不该让在途请求失配。
-	CodexTurnState string
-	// CodexTurnStateModels 把注入限定在指定模型上，逗号分隔，空串表示不限模型。
-	CodexTurnStateModels string
-	quotaRemaining       *float64
-	quotaResetAt         time.Time
-	lastQuotaRejectedAt  time.Time
+	quotaRemaining          *float64
+	quotaResetAt            time.Time
+	lastQuotaRejectedAt     time.Time
 }
 
 type CredentialMeta struct {
@@ -70,10 +65,7 @@ type CredentialMeta struct {
 	WeightManual       *int
 	RPMLimit           int64
 	ConcurrencyLimit   int64
-	CodexTurnState     string
-	// CodexTurnStateModels 把注入限定在指定模型上，逗号分隔，空串表示不限模型。
-	CodexTurnStateModels string
-	ModelCooldowns       map[string]time.Time
+	ModelCooldowns     map[string]time.Time
 }
 
 type CredentialRef struct {
@@ -376,8 +368,6 @@ func samePersistedCredentialConfig(left, right CredentialEntry) bool {
 		left.EncryptedValue != right.EncryptedValue ||
 		left.EncryptedProxy != right.EncryptedProxy ||
 		left.ProxyFingerprint != right.ProxyFingerprint ||
-		left.CodexTurnState != right.CodexTurnState ||
-		left.CodexTurnStateModels != right.CodexTurnStateModels ||
 		left.RPMLimit != right.RPMLimit ||
 		left.ConcurrencyLimit != right.ConcurrencyLimit {
 		return false
@@ -767,12 +757,10 @@ func (r *CredentialRegistry) collectCredentialCandidatesLocked(groupIDs []uint, 
 			meta := CredentialMeta{
 				ID: view.ID, GroupID: view.GroupID,
 				Version: view.Version, IdentityGeneration: view.IdentityGeneration,
-				WeightManual:         cloneWeight(view.WeightManual),
-				RPMLimit:             entry.RPMLimit,
-				ConcurrencyLimit:     entry.ConcurrencyLimit,
-				CodexTurnState:       entry.CodexTurnState,
-				CodexTurnStateModels: entry.CodexTurnStateModels,
-				ModelCooldowns:       view.ModelCooldowns,
+				WeightManual:     cloneWeight(view.WeightManual),
+				RPMLimit:         entry.RPMLimit,
+				ConcurrencyLimit: entry.ConcurrencyLimit,
+				ModelCooldowns:   view.ModelCooldowns,
 			}
 			metas = append(metas, meta)
 		}

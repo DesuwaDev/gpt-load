@@ -976,22 +976,6 @@ export default {
         filteredTitle: 'No logs match the current filters',
         filteredDescription: 'Adjust or reset the filters and try again.',
       },
-      turnState: {
-        tooltip: 'Turn state length is {chars} chars ({blocks} blocks)',
-        tooltipRaw: 'Turn state length is {chars} chars',
-      },
-      turnStatePick: {
-        trigger: 'Pick State',
-        scanning: 'Scanning...',
-        triggerHint: 'Extract and copy the latest upstream turn state from recent logs',
-        toastCopied: 'Copied latest turn state ({chars} chars · {credential})',
-        toastCopiedSpread:
-          'Copied latest turn state ({chars} chars · {credential}, {total} found across {credentials} credentials)',
-        none: 'None of the {scanned} recent logs carry an upstream turn state.',
-        noLogs: 'No request logs match the current filters.',
-        failed: 'Scan failed; try again in a moment.',
-        unknownCredential: 'unknown credential',
-      },
       options: {
         groupsFailed: 'Unable to load Group filter options. The log list is unaffected.',
         accessKeysFailed: 'Unable to load Access key filter options. The log list is unaffected.',
@@ -1319,19 +1303,6 @@ export default {
         modelObservation: 'Upstream response model observation',
         requestedModel: 'Upstream requested model',
         reportedModel: 'Upstream reported model',
-        turnState: {
-          title: 'Codex turn state',
-          hint: 'X-Codex-Turn-State injected by the gateway and returned by the upstream. No "Injected" entry means nothing was injected — either none is configured or the credential model scope excluded this request. Listed even when the request did not complete, as long as an attempt had one.',
-          injected: 'Injected',
-          observed: 'Returned',
-          sources: 'From attempts',
-          length: '{count} characters',
-          blocks: '{count} cipher blocks',
-          blocksHint:
-            'The Fernet envelope is {total} bytes = 9 header + 16 IV + {cipher} ciphertext + 32 HMAC. AES-CBC works in 16-byte blocks with PKCS7 padding, so the plaintext is between {min} and {max} bytes.',
-          notFernet: 'Not a valid Fernet envelope.',
-          copy: 'Copy turn state',
-        },
         requestBody: {
           title: 'Request body',
           originalSize: 'Original size {size}',

@@ -157,10 +157,6 @@ export interface RequestLogAttemptDto {
   route_mode: RequestLogRouteMode | null
   upstream_model: string | null
   upstream_request_id: string | null
-  /** 上游本次尝试回带的 X-Codex-Turn-State；没有时为 null。 */
-  upstream_turn_state: string | null
-  /** 本次尝试实际注入到出站请求的凭据级 X-Codex-Turn-State；没注入时为 null。 */
-  injected_turn_state: string | null
   dispatch_state: RequestLogDispatchState | null
   response_started: boolean
   upstream_protocol: RequestLogUpstreamProtocol | null
@@ -221,8 +217,6 @@ export interface RequestLogItemDto {
   /** 仅供前端展示，由既有名称字段推导，不属于响应字段。 */
   credential_deleted: boolean
   route_mode: RequestLogRouteMode | null
-  upstream_turn_state: string | null
-  injected_turn_state: string | null
   usage_state: RequestLogUsageState
   cost_state: RequestLogCostState
   pricing_completeness: RequestLogPricingCompleteness
@@ -383,8 +377,6 @@ const itemFields = [
   'credential_alias',
   'credential_connection_type',
   'route_mode',
-  'upstream_turn_state',
-  'injected_turn_state',
   'usage_state',
   'cost_state',
   'pricing_completeness',
@@ -553,8 +545,6 @@ function projectAttempt(value: unknown): RequestLogAttemptDto {
     'route_mode',
     'upstream_model',
     'upstream_request_id',
-    'upstream_turn_state',
-    'injected_turn_state',
     'dispatch_state',
     'response_started',
     'upstream_protocol',
@@ -594,8 +584,6 @@ function projectAttempt(value: unknown): RequestLogAttemptDto {
     route_mode: record.route_mode === null ? null : projectEnum(record.route_mode, routeModes),
     upstream_model: projectNullableModel(record.upstream_model),
     upstream_request_id: projectNullableModel(record.upstream_request_id),
-    upstream_turn_state: projectNullableModel(record.upstream_turn_state),
-    injected_turn_state: projectNullableModel(record.injected_turn_state),
     dispatch_state:
       record.dispatch_state === null ? null : projectEnum(record.dispatch_state, dispatchStates),
     response_started: projectBoolean(record.response_started),
@@ -750,8 +738,6 @@ function projectItemRecord(record: Record<string, unknown>): RequestLogItemDto {
     ),
     credential_deleted: record.credential_id !== null && record.credential_name === '',
     route_mode: record.route_mode === null ? null : projectEnum(record.route_mode, routeModes),
-    upstream_turn_state: projectNullableModel(record.upstream_turn_state),
-    injected_turn_state: projectNullableModel(record.injected_turn_state),
     pricing_mode: record.pricing_mode === null ? null : projectPricingMode(record.pricing_mode),
     context_threshold_tokens:
       record.context_threshold_tokens === null

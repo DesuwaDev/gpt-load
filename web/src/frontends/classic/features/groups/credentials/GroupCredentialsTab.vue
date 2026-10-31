@@ -94,7 +94,6 @@ import CredentialBatchBar from './GroupCredentialBatchBar.vue'
 import CredentialBaseUrlDialog from './CredentialBaseUrlDialog.vue'
 import CredentialRecord from './GroupCredentialRecord.vue'
 import CredentialTestDialog from './CredentialTestDialog.vue'
-import CredentialTurnStateDialog from './CredentialTurnStateDialog.vue'
 import SubscriptionAccountCard from './SubscriptionAccountCard.vue'
 import {
   constrainCredentialSearch,
@@ -175,7 +174,6 @@ const credentialTestRequestFailed = ref(false)
 const credentialTestRestoreBlocked = ref(false)
 const credentialTestRestoreError = ref<CredentialTestRestoreError>()
 const baseUrlTarget = ref<CredentialItemDto>()
-const turnStateTarget = ref<CredentialItemDto>()
 const resetOperationKeys = new Map<number, string>()
 const connectionWorkspaceOpen = ref(false)
 const fullActionsOpen = ref(false)
@@ -1413,12 +1411,11 @@ function clearDeletedRouteState(ids: readonly number[]): void {
 
 async function mutateItem(
   item: CredentialItemDto,
-  action: 'weight' | 'toggle' | 'restore' | 'limits' | 'mark' | 'turn-state' | 'base-url',
+  action: 'weight' | 'toggle' | 'restore' | 'limits' | 'mark' | 'base-url',
   value?:
     | string
     | { rpm_limit: number; concurrency_limit: number }
     | { mark: CredentialMark; mark_note: string }
-    | { codex_turn_state: string; codex_turn_state_models: string }
     | { base_url: string },
 ): Promise<void> {
   if (batchBusy.value || pending(item.credential_id)) return
@@ -1435,10 +1432,7 @@ async function mutateItem(
             item.credential_id,
             action === 'weight'
               ? { weight_manual: Number(value) }
-              : (action === 'limits' ||
-                    action === 'mark' ||
-                    action === 'turn-state' ||
-                    action === 'base-url') &&
+              : (action === 'limits' || action === 'mark' || action === 'base-url') &&
                   typeof value === 'object'
                 ? value
                 : { status: item.configured_status === 'active' ? 'disabled' : 'active' },
@@ -1688,15 +1682,6 @@ function applyDialogBaseUrl(payload: { base_url: string }): void {
   if (!baseUrlTarget.value) return
   mutateItem(baseUrlTarget.value, 'base-url', payload)
   baseUrlTarget.value = undefined
-}
-
-function applyDialogTurnState(payload: {
-  codex_turn_state: string
-  codex_turn_state_models: string
-}): void {
-  if (!turnStateTarget.value) return
-  mutateItem(turnStateTarget.value, 'turn-state', payload)
-  turnStateTarget.value = undefined
 }
 
 async function saveCredentialName(item: CredentialItemDto, name: string): Promise<string> {
@@ -2171,15 +2156,8 @@ async function runBatch(
                   mark_note: $event.mark_note,
                 })
               "
-              @turn-state="
-                mutateItem($event.item, 'turn-state', {
-                  codex_turn_state: $event.codex_turn_state,
-                  codex_turn_state_models: $event.codex_turn_state_models,
-                })
-              "
               @base-url="mutateItem($event.item, 'base-url', { base_url: $event.base_url })"
               @edit-base-url="baseUrlTarget = $event"
-              @edit-turn-state="turnStateTarget = $event"
               @refresh="refreshObservation"
               @load-details="loadCredentialUsage"
               @reset="openResetCreditDialog"
@@ -2243,15 +2221,8 @@ async function runBatch(
                 mark_note: $event.mark_note,
               })
             "
-            @turn-state="
-              mutateItem($event.item, 'turn-state', {
-                codex_turn_state: $event.codex_turn_state,
-                codex_turn_state_models: $event.codex_turn_state_models,
-              })
-            "
             @base-url="mutateItem($event.item, 'base-url', { base_url: $event.base_url })"
             @edit-base-url="baseUrlTarget = $event"
-            @edit-turn-state="turnStateTarget = $event"
             @test="openCredentialTest"
             @toggle="mutateItem($event, 'toggle')"
             @restore="mutateItem($event, 'restore')"
@@ -2300,16 +2271,6 @@ async function runBatch(
       :busy="baseUrlTarget !== undefined && pending(baseUrlTarget.credential_id)"
       @update:open="!$event && (baseUrlTarget = undefined)"
       @apply="applyDialogBaseUrl"
-    />
-    <CredentialTurnStateDialog
-      :open="turnStateTarget !== undefined"
-      :mask="turnStateTarget?.account?.email ?? turnStateTarget?.mask ?? ''"
-      :value="turnStateTarget?.codex_turn_state ?? ''"
-      :models="turnStateTarget?.codex_turn_state_models ?? ''"
-      :set-at-ms="turnStateTarget?.codex_turn_state_set_at_ms"
-      :busy="turnStateTarget !== undefined && pending(turnStateTarget.credential_id)"
-      @update:open="!$event && (turnStateTarget = undefined)"
-      @apply="applyDialogTurnState"
     />
     <AppConfirmDialog
       appearance="ledger"

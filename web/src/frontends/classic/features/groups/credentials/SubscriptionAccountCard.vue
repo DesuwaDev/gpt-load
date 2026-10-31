@@ -10,7 +10,6 @@ import {
   Gauge,
   Globe,
   KeyRound,
-  Layers,
   LoaderCircle,
   PencilLine,
   RefreshCw,
@@ -86,14 +85,6 @@ const emit = defineEmits<{
   limits: [payload: { item: CredentialItemDto; rpm_limit: number; concurrency_limit: number }]
   mark: [payload: { item: CredentialItemDto; mark: CredentialMark; mark_note: string }]
   'edit-base-url': [item: CredentialItemDto]
-  'edit-turn-state': [item: CredentialItemDto]
-  'turn-state': [
-    payload: {
-      item: CredentialItemDto
-      codex_turn_state: string
-      codex_turn_state_models: string
-    },
-  ]
   'base-url': [
     payload: {
       item: CredentialItemDto
@@ -645,14 +636,7 @@ function applyMark(payload: { mark: CredentialMark; mark_note: string }): void {
 const isCodex = computed(() => props.channelId === 'codex' || Boolean(props.item.account.base_url))
 
 function runMenuAction(
-  action:
-    | 'download'
-    | 'refresh-credential'
-    | 'toggle'
-    | 'restore'
-    | 'remove'
-    | 'custom-gateway'
-    | 'turn-state',
+  action: 'download' | 'refresh-credential' | 'toggle' | 'restore' | 'remove' | 'custom-gateway',
 ): void {
   menuOpen.value = false
   switch (action) {
@@ -673,9 +657,6 @@ function runMenuAction(
       return
     case 'custom-gateway':
       emit('edit-base-url', props.item)
-      return
-    case 'turn-state':
-      emit('edit-turn-state', props.item)
       return
   }
 }
@@ -862,20 +843,6 @@ function runMenuAction(
               <Globe :size="12" aria-hidden="true" />
               <span>{{ t('group.credentials.subscription.customGateway') }}</span>
             </StatusBadge>
-            <StatusBadge
-              v-if="item.codex_turn_state"
-              class="subscription-account__turn-state subscription-account__badge--clickable"
-              tone="warning"
-              size="compact"
-              :title="t('group.credentials.turnState.active')"
-              role="button"
-              tabindex="0"
-              @click="emit('edit-turn-state', item)"
-              @keydown.enter="emit('edit-turn-state', item)"
-            >
-              <Layers :size="12" aria-hidden="true" />
-              <span>{{ t('group.credentials.turnState.active') }}</span>
-            </StatusBadge>
           </div>
           <div class="subscription-account__actions">
             <span
@@ -939,13 +906,6 @@ function runMenuAction(
                     <span>{{ t('group.credentials.customGateway.title') }}</span>
                     <span v-if="item.account.base_url" class="subscription-account__menu-chip">
                       {{ t('group.credentials.customGateway.active') }}
-                    </span>
-                  </button>
-                  <button type="button" :disabled="busy" @click="runMenuAction('turn-state')">
-                    <Layers :size="15" aria-hidden="true" />
-                    <span>{{ t('group.credentials.turnState.title') }}</span>
-                    <span v-if="item.codex_turn_state" class="subscription-account__menu-chip">
-                      {{ t('group.credentials.turnState.active') }}
                     </span>
                   </button>
                   <div class="subscription-account__menu-divider"></div>
@@ -2420,7 +2380,7 @@ function runMenuAction(
   width: auto;
   /* 菜单顶部放了 2×2 的标记选择器，min-width 要能容下两列选项和自定义输入框。 */
   min-width: 212px;
-  /* width: auto 会跟着内容一路撑开，轮次状态那段说明在竖屏手机上足以把菜单顶出屏幕。
+  /* width: auto 会跟着内容一路撑开，较长的说明文字在竖屏手机上足以把菜单顶出屏幕。
      这里按 reka 量出来的可用宽度收口，下限仍然由上面的 min-width 兜着。 */
   max-width: min(360px, var(--reka-popover-content-available-width, 360px));
   border-color: var(--color-border-control);

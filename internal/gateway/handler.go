@@ -1399,8 +1399,6 @@ func (handler *Handler) executeAttempts(
 			),
 			Proxy:                  effectiveProxy,
 			ProxyFingerprint:       proxyFingerprint,
-			CodexTurnState:         selection.CredentialCodexTurnState,
-			CodexTurnStateModels:   selection.CredentialCodexTurnStateModels,
 			ForceCredentialRefresh: forceCredentialRefresh,
 			ContinuityKey:          requestAffinity.continuityKey,
 			// 豁免依据实际发往上游的请求：分组参数覆盖可能写入 conversation 或 generate。

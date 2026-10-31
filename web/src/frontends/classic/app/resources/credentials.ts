@@ -81,10 +81,6 @@ export interface CredentialPatch {
   /** 标记与备注必须成对提交，与服务端的校验一致。 */
   mark?: CredentialMark
   mark_note?: string
-  /** 强制注入的 X-Codex-Turn-State；'' 表示关闭注入。 */
-  codex_turn_state?: string
-  /** 注入的模型名单，逗号分隔；'' 表示不限模型。 */
-  codex_turn_state_models?: string
   proxy?: ProxyMutation
   base_url?: string | null
 }
@@ -122,9 +118,6 @@ const credentialItemFields = [
   'observation',
   'mark',
   'mark_note',
-  'codex_turn_state',
-  'codex_turn_state_models',
-  'codex_turn_state_set_at_ms',
   'configured_status',
   'effective_status',
   'weight',
@@ -183,20 +176,6 @@ const configuredStatuses = ['active', 'disabled'] as const
 const credentialMarks = ['', 'degraded', 'abnormal', 'custom'] as const
 // 自定义标记的备注就是标签文字，长度上限与服务端保持一致。
 const credentialMarkNoteMaxLength = 24
-// 注入值要原样进 HTTP 头，长度与字符集都按服务端的 validCodexTurnState 对齐。
-const codexTurnStateMaxLength = 4096
-function validCodexTurnState(value: string): boolean {
-  return (
-    value.length <= codexTurnStateMaxLength && ![...value].some((char) => char < ' ' || char > '~')
-  )
-}
-// 模型名单由服务端 canonicalCodexTurnStateModels 规范化，这里只校验规范形态。
-const codexTurnStateModelsMaxLength = 1024
-function validCodexTurnStateModels(value: string): boolean {
-  if (value.length > codexTurnStateModelsMaxLength) return false
-  if (value === '') return true
-  return value.split(',').every((entry) => /^[a-z0-9\-_.:/]+\*?$/.test(entry))
-}
 const effectiveStatuses = ['available', 'cooldown', 'blacklisted', 'disabled'] as const
 const recoveryModes = ['none', 'cooldown', 'probe', 'manual'] as const
 const failureCategories = [
@@ -633,13 +612,6 @@ export function projectCredentialItem(value: unknown): CredentialItemDto {
   const recovery = projectRecovery(record.recovery)
   const mark = projectEnum(record.mark, credentialMarks)
   const markNote = projectString(record.mark_note, { allowEmpty: true })
-  const codexTurnState = projectString(record.codex_turn_state, { allowEmpty: true })
-  if (!validCodexTurnState(codexTurnState)) invalidResponse()
-  const codexTurnStateModels = projectString(record.codex_turn_state_models, { allowEmpty: true })
-  if (!validCodexTurnStateModels(codexTurnStateModels)) invalidResponse()
-  // 没有注入值就不可能有时效起点，服务端已经保证这一点，这里顺手拦住不一致的响应。
-  const codexTurnStateSetAt = projectSafeInteger(record.codex_turn_state_set_at_ms, { minimum: 0 })
-  if (codexTurnState === '' && codexTurnStateSetAt !== 0) invalidResponse()
   if (
     // 分组停用或权重为 0 时，active 凭据的运行时状态也会是 disabled。
     (configuredStatus === 'disabled' && effectiveStatus !== 'disabled') ||
@@ -675,9 +647,6 @@ export function projectCredentialItem(value: unknown): CredentialItemDto {
       : { observation: projectObservation(record.observation) }),
     mark,
     mark_note: markNote,
-    codex_turn_state: codexTurnState,
-    codex_turn_state_models: codexTurnStateModels,
-    codex_turn_state_set_at_ms: codexTurnStateSetAt,
     configured_status: configuredStatus,
     effective_status: effectiveStatus,
     weight,
@@ -788,8 +757,6 @@ function normalizePatch(patch: CredentialPatch): CredentialPatch {
     'concurrency_limit',
     'mark',
     'mark_note',
-    'codex_turn_state',
-    'codex_turn_state_models',
     'proxy',
     'base_url',
   ])
@@ -839,24 +806,6 @@ function normalizePatch(patch: CredentialPatch): CredentialPatch {
     }
     body.mark = mark
     body.mark_note = note
-  }
-  if (Object.prototype.hasOwnProperty.call(patch, 'codex_turn_state')) {
-    const turnState = patch.codex_turn_state
-    if (
-      typeof turnState !== 'string' ||
-      turnState !== turnState.trim() ||
-      !validCodexTurnState(turnState)
-    ) {
-      throw new Error('INVALID_CREDENTIAL_TURN_STATE')
-    }
-    body.codex_turn_state = turnState
-  }
-  if (Object.prototype.hasOwnProperty.call(patch, 'codex_turn_state_models')) {
-    const models = patch.codex_turn_state_models
-    if (typeof models !== 'string' || !validCodexTurnStateModels(models)) {
-      throw new Error('INVALID_CREDENTIAL_TURN_STATE_MODELS')
-    }
-    body.codex_turn_state_models = models
   }
   if (Object.prototype.hasOwnProperty.call(patch, 'proxy')) {
     const proxy = patch.proxy

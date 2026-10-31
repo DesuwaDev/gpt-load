@@ -38,6 +38,7 @@ import {
 } from '@/lib/format'
 import { resolveDateTimePreset, type DateTimePreset } from '@/lib/time'
 import { useAuthSession } from '@/features/auth/auth-session'
+
 import {
   applyLogFilterDraft,
   createLogFilterDraft,
@@ -47,7 +48,6 @@ import {
   type LogFilterDraft,
   type LogFilterErrors,
 } from './log-filters'
-import { parseFernetToken } from '@/lib/fernet'
 import { formatCacheHitRate } from '@/lib/cache-rate'
 import {
   formatLogDuration,
@@ -759,37 +759,6 @@ function costLabel(log: RequestLogItemDto): string {
   }
   return '—'
 }
-
-interface LogTurnStateSummary {
-  hasTurnState: boolean
-  chars: number
-  tooltip: string
-}
-
-function logTurnStateSummary(log: RequestLogItemDto): LogTurnStateSummary {
-  const upstreamValue = log.upstream_turn_state
-  const injectedValue = log.injected_turn_state
-  const primaryValue = upstreamValue || injectedValue
-  if (!primaryValue) {
-    return {
-      hasTurnState: false,
-      chars: 0,
-      tooltip: '',
-    }
-  }
-
-  const chars = primaryValue.length
-  const token = parseFernetToken(primaryValue)
-  const tooltip = token
-    ? t('monitor.logs.turnState.tooltip', { chars, blocks: token.blocks })
-    : t('monitor.logs.turnState.tooltipRaw', { chars })
-
-  return {
-    hasTurnState: true,
-    chars,
-    tooltip,
-  }
-}
 </script>
 
 <template>
@@ -1054,13 +1023,6 @@ function logTurnStateSummary(log: RequestLogItemDto): LogTurnStateSummary {
                 :client-protocol="log.protocol"
                 :upstream-protocol="log.upstream_protocol"
               />
-              <span v-if="logTurnStateSummary(log).hasTurnState" class="logs-list__turn-state">
-                <AppTooltip :content="logTurnStateSummary(log).tooltip">
-                  <span class="logs-list__turn-state-badge">
-                    {{ logTurnStateSummary(log).chars }}
-                  </span>
-                </AppTooltip>
-              </span>
             </span>
           </div>
           <div
@@ -1519,26 +1481,6 @@ function logTurnStateSummary(log: RequestLogItemDto): LogTurnStateSummary {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.logs-list__turn-state {
-  display: inline-flex;
-  align-items: center;
-  min-width: 0;
-}
-
-.logs-list__turn-state-badge {
-  display: inline-flex;
-  align-items: center;
-  border-radius: var(--radius-tag);
-  background: var(--color-surface-raised);
-  color: var(--color-text-muted);
-  font-size: var(--text-label-xs);
-  font-weight: 500;
-  padding: 0 5px;
-  font-family: var(--font-mono);
-  cursor: help;
-  line-height: 1.2;
 }
 
 .logs-tab :deep(.status-badge) {

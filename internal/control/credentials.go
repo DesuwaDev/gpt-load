@@ -38,14 +38,10 @@ type CredentialUpdateRequest struct {
 	RPMLimit         optionalField[int64]                  `json:"rpm_limit"`
 	ConcurrencyLimit optionalField[int64]                  `json:"concurrency_limit"`
 	// Mark/MarkNote 必须成对提交：备注是标记的一部分，单独改会让两者语义脱节。
-	Mark     optionalField[string] `json:"mark"`
-	MarkNote optionalField[string] `json:"mark_note"`
-	// CodexTurnState 是每次请求强制注入的 X-Codex-Turn-State；空串表示不注入。
-	// CodexTurnStateModels 把注入限定在指定模型上，逗号分隔，空串表示不限模型。
-	CodexTurnState       optionalField[string]               `json:"codex_turn_state"`
-	CodexTurnStateModels optionalField[string]               `json:"codex_turn_state_models"`
-	Proxy                optionalField[outboundproxy.Config] `json:"proxy"`
-	BaseURL              optionalField[string]               `json:"base_url"`
+	Mark     optionalField[string]               `json:"mark"`
+	MarkNote optionalField[string]               `json:"mark_note"`
+	Proxy    optionalField[outboundproxy.Config] `json:"proxy"`
+	BaseURL  optionalField[string]               `json:"base_url"`
 }
 
 // 凭据的人工模型状态标记。空串表示未标记；其余取值只用于呈现，不参与调度。
@@ -58,13 +54,6 @@ const (
 	// 标记要在卡片徽章里一眼读完，备注按显示宽度而不是存储上限来限长。
 	maxCredentialMarkNoteRunes = 24
 )
-
-// maxCodexTurnStateBytes 对齐 credentials.codex_turn_state 的列宽。实测上游回带的
-// state 在 300 字符上下，留一个数量级的余量即可。
-const maxCodexTurnStateBytes = 4096
-
-// maxCodexTurnStateModelsBytes 对齐 credentials.codex_turn_state_models 的列宽。
-const maxCodexTurnStateModelsBytes = 1024
 
 type CredentialRevealResult struct {
 	CredentialID uint            `json:"credential_id"`
@@ -118,20 +107,14 @@ type CredentialItemResponse struct {
 	AuthErrorCode  string                         `json:"auth_error_code,omitempty"`
 	Observation    *CredentialObservationResponse `json:"observation,omitempty"`
 	// Mark/MarkNote 是人工模型状态标记，只用于呈现；mark 为空串时 mark_note 必为空。
-	Mark     string `json:"mark"`
-	MarkNote string `json:"mark_note"`
-	// CodexTurnState 是每次请求强制注入的 X-Codex-Turn-State；空串表示不注入。
-	// CodexTurnStateModels 把注入限定在指定模型上，逗号分隔，空串表示不限模型。
-	// CodexTurnStateSetAtMS 是注入值的写入时刻，界面据此做时效倒计时；0 表示无法计时。
-	CodexTurnState        string `json:"codex_turn_state"`
-	CodexTurnStateModels  string `json:"codex_turn_state_models"`
-	CodexTurnStateSetAtMS int64  `json:"codex_turn_state_set_at_ms"`
-	ConfiguredStatus      string `json:"configured_status"`
-	EffectiveStatus       string `json:"effective_status"`
-	Weight                int    `json:"weight"`
-	WeightManual          *int   `json:"-"` // 仅新版展示投影使用，经典接口不增加字段。
-	RPMLimit              int64  `json:"rpm_limit"`
-	ConcurrencyLimit      int64  `json:"concurrency_limit"`
+	Mark             string `json:"mark"`
+	MarkNote         string `json:"mark_note"`
+	ConfiguredStatus string `json:"configured_status"`
+	EffectiveStatus  string `json:"effective_status"`
+	Weight           int    `json:"weight"`
+	WeightManual     *int   `json:"-"` // 仅新版展示投影使用，经典接口不增加字段。
+	RPMLimit         int64  `json:"rpm_limit"`
+	ConcurrencyLimit int64  `json:"concurrency_limit"`
 	// Effective* 是解析继承后的实际生效值，Group* 是分组默认值，便于界面区分
 	// “继承自分组”和“已单独覆盖”。
 	EffectiveRPMLimit         int64                         `json:"effective_rpm_limit"`
@@ -499,9 +482,6 @@ func (s *Service) mapCredentialCollection(
 		item.AuthState = string(row.AuthState)
 		item.AuthErrorCode = safeInternalErrorCode(row.AuthErrorCode)
 		item.Mark, item.MarkNote = presentCredentialMark(row)
-		item.CodexTurnState = presentCodexTurnState(row)
-		item.CodexTurnStateModels = presentCodexTurnStateModels(row)
-		item.CodexTurnStateSetAtMS = presentCodexTurnStateSetAtMS(row)
 		item.Account = account
 		item.Proxy = proxyViews[row.ID]
 		if item.ConnectionType == string(models.ConnectionTypeSubscription) {
