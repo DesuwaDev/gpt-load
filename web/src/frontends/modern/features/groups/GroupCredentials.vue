@@ -904,6 +904,7 @@ async function resetQuota(): Promise<void> {
       resetKeys.delete(row.id)
       resetTarget.value = undefined
     }
+    const code = cause instanceof ApiError ? cause.code : ''
     cardErrors.value.set(
       row.id,
       t(
@@ -911,7 +912,11 @@ async function resetQuota(): Promise<void> {
           ? 'credentialCards.resetPreparationFailed'
           : unknown
             ? 'credentialCards.resetUnknown'
-            : 'credentialCards.actionFailed',
+            : code === 'RESET_CREDIT_NOT_NEEDED'
+              ? 'credentialCards.resetNotNeeded'
+              : code === 'RESET_CREDIT_UNAVAILABLE'
+                ? 'credentialCards.resetUnavailable'
+                : 'credentialCards.actionFailed',
       ),
     )
   } finally {

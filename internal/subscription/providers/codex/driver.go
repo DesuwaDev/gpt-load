@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
@@ -236,7 +237,18 @@ type codexResetCreditPayload struct {
 // provider-neutral action result persisted by the control plane.
 func NormalizeResetCreditResult(raw []byte) (subscriptionruntime.ResetCreditResult, error) {
 	var payload codexResetCreditPayload
-	if json.Unmarshal(raw, &payload) != nil || !strings.EqualFold(strings.TrimSpace(payload.Code), "reset") || payload.WindowsReset < 0 {
+	if json.Unmarshal(raw, &payload) != nil || payload.WindowsReset < 0 {
+		return subscriptionruntime.ResetCreditResult{}, errors.New("invalid subscription reset-credit response")
+	}
+	switch strings.ToLower(strings.TrimSpace(payload.Code)) {
+	case "reset", "already_redeemed":
+		// already_redeemed 表示同一 redeem_request_id 先前已兑换成功，按成功收口。
+	case "nothing_to_reset":
+		// 上游明确未扣卡：当前窗口无需重置。
+		return subscriptionruntime.ResetCreditResult{}, subscriptionruntime.ErrResetCreditNotNeeded
+	case "no_credit":
+		return subscriptionruntime.ResetCreditResult{}, &subscriptionruntime.UpstreamHTTPError{StatusCode: http.StatusConflict}
+	default:
 		return subscriptionruntime.ResetCreditResult{}, errors.New("invalid subscription reset-credit response")
 	}
 	result := subscriptionruntime.ResetCreditResult{Status: "succeeded", WindowsReset: payload.WindowsReset}

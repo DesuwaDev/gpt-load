@@ -85,6 +85,8 @@ export const zhCN = {
   resetPending: '重置已完成，额度信息等待更新。',
   resetUnknown: '重置结果暂未确认。再次确认会继续查询同一次操作，不会重复使用额度券。',
   resetPreparationFailed: '重置准备失败，尚未使用重置卡，请稍后重试',
+  resetNotNeeded: '当前额度未用尽，无需重置，未使用重置卡。',
+  resetUnavailable: '当前没有可用的重置卡，请先同步账号信息。',
   actionFailed: '操作失败，请稍后重试。',
   lastFailure: '最近失败原因',
   recovery: '恢复方式',
@@ -229,6 +231,8 @@ export const enUS: typeof zhCN = {
     'The reset outcome is not yet confirmed. Confirm again to resume the same operation without using another credit.',
   resetPreparationFailed:
     'Reset preparation failed; no reset credit was consumed. Please try again later',
+  resetNotNeeded: 'Usage does not need a reset right now; no reset credit was used.',
+  resetUnavailable: 'No reset credit is available. Sync the account and try again.',
   actionFailed: 'Action failed. Please retry.',
   lastFailure: 'Last failure',
   recovery: 'Recovery',
@@ -377,6 +381,9 @@ export const jaJP: typeof zhCN = {
     '結果はまだ確認できません。再確認すると同じ操作を継続し、クレジットを重複使用しません。',
   resetPreparationFailed:
     'リセットの準備に失敗しました。リセットカードは消費されていません。しばらくしてから再試行してください',
+  resetNotNeeded: '現在の使用量はリセット不要です。リセットカードは使用されていません。',
+  resetUnavailable:
+    '利用できるリセットカードがありません。アカウントを同期してから再試行してください。',
   actionFailed: '操作に失敗しました。再試行してください。',
   lastFailure: '最終失敗の原因',
   recovery: '復旧方法',

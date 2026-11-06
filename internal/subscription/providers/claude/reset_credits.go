@@ -50,7 +50,7 @@ func normalizeClaudeResetResult(result cpaembedded.ClaudeResetCreditResult) (sub
 		// already_used 只说明卡已用完，不能当作本次重置成功。
 		return subscriptionruntime.ResetCreditResult{}, &subscriptionruntime.UpstreamHTTPError{StatusCode: http.StatusConflict}
 	case "not_limited":
-		return subscriptionruntime.ResetCreditResult{}, &subscriptionruntime.UpstreamHTTPError{StatusCode: http.StatusBadRequest}
+		return subscriptionruntime.ResetCreditResult{}, subscriptionruntime.ErrResetCreditNotNeeded
 	case "cooldown":
 		return subscriptionruntime.ResetCreditResult{}, &subscriptionruntime.UpstreamHTTPError{StatusCode: http.StatusTooManyRequests}
 	case "unavailable":

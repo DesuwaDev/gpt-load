@@ -18,6 +18,7 @@ const subscriptionErrorKeys: Readonly<Record<string, string>> = {
   CREDENTIAL_VERSION_CONFLICT: 'common.subscriptionErrors.versionConflict',
   RESET_CREDIT_UNAVAILABLE: 'common.subscriptionErrors.resetCreditUnavailable',
   RESET_CREDIT_PREPARATION_FAILED: 'common.subscriptionErrors.resetCreditPreparationFailed',
+  RESET_CREDIT_NOT_NEEDED: 'common.subscriptionErrors.resetCreditNotNeeded',
   RESET_CREDIT_REJECTED: 'common.subscriptionErrors.resetCreditRejected',
   RESET_CREDIT_OUTCOME_UNKNOWN: 'common.subscriptionErrors.resetCreditOutcomeUnknown',
   CONTROL_OPERATION_INCOMPLETE: 'common.subscriptionErrors.operationIncomplete',

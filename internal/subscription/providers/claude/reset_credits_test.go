@@ -145,12 +145,13 @@ func TestClaudeResetResultClassification(t *testing.T) {
 	for _, test := range []struct {
 		result, reason string
 		status         int
+		notNeeded      bool
 	}{
 		{result: "reset"},
 		{result: "already_used", status: http.StatusConflict},
 		{result: "ineligible", status: http.StatusConflict},
 		{result: "unavailable", status: -1},
-		{result: "not_limited", status: http.StatusBadRequest},
+		{result: "not_limited", notNeeded: true},
 		{result: "cooldown", status: http.StatusTooManyRequests},
 		{result: "unavailable", reason: "stamp_indeterminate", status: -1},
 		{result: "unavailable", reason: "reset_unconfirmed", status: -1},
@@ -160,6 +161,12 @@ func TestClaudeResetResultClassification(t *testing.T) {
 			got, err := normalizeClaudeResetResult(cpaembedded.ClaudeResetCreditResult{
 				Result: test.result, Reason: test.reason, Cleared: []string{"five_hour", "seven_day"},
 			})
+			if test.notNeeded {
+				if !errors.Is(err, subscriptionruntime.ErrResetCreditNotNeeded) || got.Status == "succeeded" {
+					t.Fatalf("not-limited reset = %#v, %v", got, err)
+				}
+				return
+			}
 			if test.status == 0 {
 				if err != nil || got.Status != "succeeded" || got.WindowsReset != 2 {
 					t.Fatalf("confirmed reset = %#v, %v", got, err)

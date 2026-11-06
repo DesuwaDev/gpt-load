@@ -413,6 +413,57 @@ func TestConsumeCredentialResetCreditRetriesAmbiguousOutcomeOnlyWithSameKey(t *t
 	}
 }
 
+func TestConsumeCredentialResetCreditClassifiesCodexOutcomeCodes(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct {
+		code    string
+		wantErr *app_errors.APIError
+	}{
+		{code: "already_redeemed"},
+		{code: "nothing_to_reset", wantErr: app_errors.ErrResetCreditNotNeeded},
+		{code: "no_credit", wantErr: app_errors.ErrResetCreditUnavailable},
+		{code: "unexpected_code", wantErr: app_errors.ErrResetCreditOutcomeUnknown},
+	} {
+		t.Run(test.code, func(t *testing.T) {
+			t.Parallel()
+			fixture, groupID, credentialID := newSubscriptionCredentialFixture(t)
+			consumeCalls := 0
+			setCodexResetCreditConsume(t, fixture.service, func(context.Context, codex.Credential, string) (codex.AccountObservation, error) {
+				consumeCalls++
+				if consumeCalls > 1 {
+					return codex.AccountObservation{Payload: []byte(`{"code":"reset","windows_reset":1}`)}, nil
+				}
+				return codex.AccountObservation{Payload: []byte(`{"code":"` + test.code + `","windows_reset":0}`)}, nil
+			})
+			setCodexAccountObservation(fixture.service, func(context.Context, codex.Credential) (codex.AccountObservation, error) {
+				return codex.AccountObservation{Payload: []byte(`{}`)}, nil
+			})
+
+			result, err := fixture.service.ConsumeCredentialResetCredit(t.Context(), groupID, credentialID, resetCreditTestKey)
+			if test.wantErr == nil {
+				if err != nil || result.Status != "succeeded" {
+					t.Fatalf("result/error = %#v / %v", result, err)
+				}
+				return
+			}
+			var apiErr *app_errors.APIError
+			if !errors.As(err, &apiErr) || apiErr.Code != test.wantErr.Code {
+				t.Fatalf("error = %#v, want %s", err, test.wantErr.Code)
+			}
+			// 上游明确未扣卡时不能锁住凭据，新的操作键必须能再次发起兑换。
+			otherKey := "9f0f4c32-89d2-4bcb-9e19-052940dc2f17"
+			_, otherErr := fixture.service.ConsumeCredentialResetCredit(t.Context(), groupID, credentialID, otherKey)
+			definite := test.wantErr != app_errors.ErrResetCreditOutcomeUnknown
+			if definite && (otherErr != nil || consumeCalls != 2) {
+				t.Fatalf("new key after definite outcome = %v, calls=%d", otherErr, consumeCalls)
+			}
+			if !definite && (!errors.As(otherErr, &apiErr) || apiErr.Code != app_errors.ErrResetCreditOutcomeUnknown.Code || consumeCalls != 1) {
+				t.Fatalf("new key after unknown outcome = %v, calls=%d", otherErr, consumeCalls)
+			}
+		})
+	}
+}
+
 func TestConsumeCredentialResetCreditRecoversStalePreparedOperationWithSameKey(t *testing.T) {
 	t.Parallel()
 	fixture, groupID, credentialID := newSubscriptionCredentialFixture(t)

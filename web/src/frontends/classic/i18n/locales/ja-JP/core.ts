@@ -124,6 +124,7 @@ export default {
       resetCreditUnavailable: '利用可能なリセットクレジットがありません。先に同期してください',
       resetCreditPreparationFailed:
         'リセットの準備に失敗しました。リセットカードは消費されていません。しばらくしてから再試行してください',
+      resetCreditNotNeeded: '現在の使用量はリセット不要です。リセットカードは使用されていません',
       resetCreditRejected:
         '上流でリセットクレジットを使用できませんでした。同期後に再試行してください',
       resetCreditOutcomeUnknown:

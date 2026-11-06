@@ -21,6 +21,7 @@ var MessagesEnUS = map[string]string{
 	"control.recovery_pending":                   "An earlier committed operation is still recovering",
 	"reset_credit.unavailable":                   "No reset credit is currently available",
 	"reset_credit.preparation_failed":            "Reset preparation failed; no reset credit was consumed. Please try again later",
+	"reset_credit.not_needed":                    "Usage does not need a reset right now; no reset credit was used",
 	"reset_credit.rejected":                      "The upstream did not accept the reset credit",
 	"reset_credit.outcome_unknown":               "The reset outcome is unknown; retry with the same idempotency key so another credit is not consumed",
 	"model_price.not_found":                      "Model price not found",

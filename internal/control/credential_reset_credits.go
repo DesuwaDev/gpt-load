@@ -533,6 +533,9 @@ func classifyResetCreditPreparationError(err error) *app_errors.APIError {
 }
 
 func classifyResetCreditConsumeError(err error) (models.CredentialResetOperationState, *app_errors.APIError) {
+	if errors.Is(err, subscriptionruntime.ErrResetCreditNotNeeded) {
+		return models.CredentialResetOperationRejected, app_errors.ErrResetCreditNotNeeded
+	}
 	var upstream *subscriptionruntime.UpstreamHTTPError
 	if !errors.As(err, &upstream) || upstream.StatusCode >= http.StatusInternalServerError {
 		return models.CredentialResetOperationOutcomeUnknown, app_errors.ErrResetCreditOutcomeUnknown
@@ -555,6 +558,8 @@ func resetCreditErrorByCode(code string) *app_errors.APIError {
 		return app_errors.ErrCredentialReauthorizationRequired
 	case app_errors.ErrResetCreditUnavailable.Code:
 		return app_errors.ErrResetCreditUnavailable
+	case app_errors.ErrResetCreditNotNeeded.Code:
+		return app_errors.ErrResetCreditNotNeeded
 	case app_errors.ErrResetCreditRejected.Code:
 		return app_errors.ErrResetCreditRejected
 	default:

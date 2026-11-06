@@ -21,6 +21,7 @@ var MessagesJaJP = map[string]string{
 	"control.recovery_pending":                   "以前に確定した操作を復旧中です",
 	"reset_credit.unavailable":                   "現在利用できるリセットカードはありません",
 	"reset_credit.preparation_failed":            "リセットの準備に失敗しました。リセットカードは消費されていません。しばらくしてから再試行してください",
+	"reset_credit.not_needed":                    "現在の使用量はリセット不要です。リセットカードは使用されていません",
 	"reset_credit.rejected":                      "上流でリセットカードを使用できませんでした",
 	"reset_credit.outcome_unknown":               "リセット結果を確認できません。同じ冪等キーで再試行し、新しいクレジットの重複消費を防いでください",
 	"model_price.not_found":                      "モデル価格が存在しません",

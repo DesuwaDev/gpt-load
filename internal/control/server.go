@@ -1227,6 +1227,8 @@ func serviceErrorMessageID(
 		return "reset_credit.unavailable"
 	case app_errors.ErrResetCreditPreparationFailed.Code:
 		return "reset_credit.preparation_failed"
+	case app_errors.ErrResetCreditNotNeeded.Code:
+		return "reset_credit.not_needed"
 	case app_errors.ErrResetCreditRejected.Code:
 		return "reset_credit.rejected"
 	case app_errors.ErrResetCreditOutcomeUnknown.Code:

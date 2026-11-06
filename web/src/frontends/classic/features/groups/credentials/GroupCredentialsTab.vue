@@ -181,6 +181,7 @@ const fullActionTarget = ref<FullCredentialAction>()
 const importInput = ref<HTMLInputElement>()
 const importFile = ref<APIKeyFileImport>()
 const importFeedback = ref('')
+const resetFeedback = ref('')
 const importOperation = useStableImportOperation<
   { groupID: number; credentials: string },
   CredentialImportResult
@@ -1120,6 +1121,7 @@ function openResetCreditDialog(item: CredentialItemDto): void {
   if (pending(item.credential_id)) return
   const idempotencyKey = resetOperationKeys.get(item.credential_id) ?? createUUID()
   resetOperationKeys.set(item.credential_id, idempotencyKey)
+  resetFeedback.value = ''
   resetTarget.value = { item, idempotencyKey }
 }
 
@@ -1127,6 +1129,7 @@ async function confirmResetCredit(): Promise<void> {
   const target = resetTarget.value
   if (target === undefined || pending(target.item.credential_id)) return
   feedback.value = ''
+  resetFeedback.value = ''
   setPending(target.item.credential_id, 'reset-credit', true)
   try {
     const result = await consumeCredentialResetCredit(
@@ -1159,7 +1162,8 @@ async function confirmResetCredit(): Promise<void> {
     if (cause instanceof ApiError && cause.code !== 'RESET_CREDIT_OUTCOME_UNKNOWN') {
       resetOperationKeys.delete(target.item.credential_id)
     }
-    feedback.value = t(
+    // 确认弹窗仍打开，错误必须显示在弹窗内，否则会被遮罩挡住。
+    resetFeedback.value = t(
       presentSubscriptionErrorKey(cause, 'group.credentials.subscription.consumeResetCreditFailed'),
     )
   } finally {
@@ -2313,7 +2317,11 @@ async function runBatch(
       :pending="resetDialogBusy"
       @update:open="!$event && (resetTarget = undefined)"
       @confirm="confirmResetCredit"
-    />
+    >
+      <InlineFeedback v-if="resetFeedback" tone="danger" appearance="ledger">
+        {{ resetFeedback }}
+      </InlineFeedback>
+    </AppConfirmDialog>
     <AppConfirmDialog
       appearance="ledger"
       :open="deleteTarget !== undefined"

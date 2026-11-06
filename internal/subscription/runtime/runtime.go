@@ -239,6 +239,10 @@ type ModelDiscovery interface {
 // channel capability could not normalize from an upstream request failure.
 var ErrObservationPayloadInvalid = errors.New("subscription observation payload invalid")
 
+// ErrResetCreditNotNeeded reports a definite upstream decision that no quota
+// window currently needs a reset; no reset credit was consumed.
+var ErrResetCreditNotNeeded = errors.New("subscription reset credit not needed")
+
 // Observation contains the canonical, provider-neutral observation JSON.
 // Headers are retained only for bounded metadata such as retry timing.
 type Observation struct {

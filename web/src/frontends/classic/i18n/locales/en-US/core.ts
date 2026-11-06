@@ -125,6 +125,7 @@ export default {
       resetCreditUnavailable: 'No reset credit is available; sync the account first',
       resetCreditPreparationFailed:
         'Reset preparation failed; no reset credit was consumed. Please try again later',
+      resetCreditNotNeeded: 'Usage does not need a reset right now; no reset credit was used',
       resetCreditRejected: 'The upstream did not accept the reset credit; sync and try again',
       resetCreditOutcomeUnknown:
         'The reset outcome is unknown. Do not reload the page; confirm again to retry safely with the same operation identity',
