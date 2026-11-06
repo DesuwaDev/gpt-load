@@ -664,6 +664,8 @@ export default {
         expandDetails: '展开统计数据',
         collapseDetails: '收起统计数据',
         synced: '同步',
+        syncAgePrefix: '同步',
+        refreshQuotaTooltip: '刷新额度',
         syncTime: '同步时间\n{time}',
         lastUsed: '最近使用',
         lastQuotaSync: '上次额度同步',

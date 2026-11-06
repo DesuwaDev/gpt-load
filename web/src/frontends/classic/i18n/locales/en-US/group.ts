@@ -687,6 +687,8 @@ export default {
         expandDetails: 'Expand statistics',
         collapseDetails: 'Collapse statistics',
         synced: 'Synced',
+        syncAgePrefix: 'Synced',
+        refreshQuotaTooltip: 'Refresh quota',
         syncTime: 'Sync time\n{time}',
         lastUsed: 'Last used',
         lastQuotaSync: 'Last quota sync',
