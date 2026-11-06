@@ -24,7 +24,8 @@ withDefaults(
 
 <template>
   <TooltipProvider :delay-duration="180" :skip-delay-duration="120">
-    <TooltipRoot :disabled="disabled">
+    <!-- 弹窗关闭后焦点会还给触发按钮；只响应键盘聚焦，避免提示自动弹出且触屏上关不掉。 -->
+    <TooltipRoot :disabled="disabled" ignore-non-keyboard-focus>
       <TooltipTrigger as-child>
         <slot />
       </TooltipTrigger>
