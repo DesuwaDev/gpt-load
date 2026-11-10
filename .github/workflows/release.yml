@@ -1,9 +1,10 @@
 name: Release
 
+# 上游发布流水线：推送到 ghcr.io/tbphp 与 Docker Hub 的 tbphp，并需要
+# DOCKERHUB_* 与 Render 的 secrets/vars。本仓库不具备这些凭据，镜像由
+# docker-image.yml 发布，因此这里取消 v2.* tag 的自动触发，只保留手动入口。
 on:
-  push:
-    tags:
-      - "v2.*"
+  workflow_dispatch:
 
 permissions:
   contents: read
