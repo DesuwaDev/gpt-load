@@ -28,6 +28,8 @@ const (
 	Claude           = spec.Claude
 	Antigravity      = spec.Antigravity
 	Grok             = spec.Grok
+	Muse             = spec.Muse
+	Devin            = spec.Devin
 	Anthropic        = spec.Anthropic
 	Gemini           = spec.Gemini
 	AzureOpenAI      = spec.AzureOpenAI
@@ -235,6 +237,8 @@ const (
 	ProviderClaude               = spec.ProviderClaude
 	ProviderAntigravity          = spec.ProviderAntigravity
 	ProviderGrok                 = spec.ProviderGrok
+	ProviderMuse                 = spec.ProviderMuse
+	ProviderDevin                = spec.ProviderDevin
 	ProviderAnthropic            = spec.ProviderAnthropic
 	ProviderGemini               = spec.ProviderGemini
 	ProviderMultiProtocolGateway = spec.ProviderMultiProtocolGateway
@@ -249,6 +253,7 @@ const (
 	ProviderJev                  = spec.ProviderJev
 	ProviderGroq                 = spec.ProviderGroq
 	ProviderXAI                  = spec.ProviderXAI
+	ProviderAlibaba              = spec.ProviderAlibaba
 )
 
 // ResolvedTarget is the provider-neutral execution target derived from a channel preset.

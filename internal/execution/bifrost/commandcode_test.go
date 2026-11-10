@@ -890,8 +890,9 @@ func TestCommandCodeConvertedToolResultImages(t *testing.T) {
 			if bytes.Contains(raw, []byte(image[:64])) {
 				t.Fatalf("tool result image leaked into upstream body (%d bytes)", len(raw))
 			}
-			if !bytes.Contains(raw, []byte(`"value":"captured"`)) {
-				t.Fatalf("tool result text missing: %s", raw)
+			// Bifrost 丢弃工具结果图片后会追加占位说明，文本本身必须保留。
+			if !bytes.Contains(raw, []byte(`"value":"captured`)) || !bytes.Contains(raw, []byte(`returned by the tool, not shown`)) {
+				t.Fatalf("tool result text or media placeholder missing: %s", raw)
 			}
 			messages, _ := capture.body["params"].(map[string]any)["messages"].([]any)
 			for index := 1; index < len(messages); index++ {

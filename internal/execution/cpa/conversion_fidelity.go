@@ -26,8 +26,8 @@ func prepareConvertedFidelity(spec execution.AttemptSpec, providerKind channel.P
 	if toolFailure != nil {
 		return spec, toolFailure
 	}
-	if (providerKind == channel.ProviderCodex || providerKind == channel.ProviderGrok) && spec.ClientProtocol == protocol.Anthropic {
-		// 两个渠道共用 Codex 转换器；先映射角色，避免 CPA 将 system 降为 user 提醒并移动位置。
+	if (providerKind == channel.ProviderCodex || providerKind == channel.ProviderGrok || providerKind == channel.ProviderMuse) && spec.ClientProtocol == protocol.Anthropic {
+		// 共用 Codex 转换器的渠道先映射角色，避免 system 被降为 user 并移动位置。
 		for index, message := range gjson.GetBytes(spec.Body, "messages").Array() {
 			if message.Get("role").String() != "system" {
 				continue
@@ -67,7 +67,7 @@ func prepareConvertedToolConstraints(
 		return spec, nil
 	}
 	switch providerKind {
-	case channel.ProviderClaude, channel.ProviderAntigravity, channel.ProviderCodex, channel.ProviderGrok:
+	case channel.ProviderClaude, channel.ProviderAntigravity, channel.ProviderCodex, channel.ProviderGrok, channel.ProviderMuse, channel.ProviderDevin:
 	default:
 		return spec, nil
 	}
@@ -77,7 +77,7 @@ func prepareConvertedToolConstraints(
 	switch spec.ClientProtocol {
 	case protocol.OpenAIResponses:
 		// Codex/Grok 原生接收 Responses；保留结构化白名单和完整工具定义，避免破坏缓存形态。
-		if providerKind == channel.ProviderCodex || providerKind == channel.ProviderGrok {
+		if providerKind == channel.ProviderCodex || providerKind == channel.ProviderGrok || providerKind == channel.ProviderMuse {
 			return spec, nil
 		}
 		body, present, valid = prepareResponsesFunctionAllowlist(spec.Body)
@@ -175,8 +175,15 @@ func prepareGeminiFunctionAllowlist(body []byte, providerKind channel.ProviderKi
 	if providerKind == channel.ProviderClaude && gjson.GetBytes(body, "tool_config").Exists() {
 		config = gjson.GetBytes(body, "tool_config.function_calling_config")
 	}
+	if providerKind == channel.ProviderDevin {
+		var err error
+		config, err = devinGeminiToolConfig(body)
+		if err != nil {
+			return body, true, false
+		}
+	}
 	allowed := config.Get("allowedFunctionNames")
-	if providerKind == channel.ProviderClaude && !allowed.Exists() {
+	if (providerKind == channel.ProviderClaude || providerKind == channel.ProviderDevin) && !allowed.Exists() {
 		allowed = config.Get("allowed_function_names")
 	}
 	if !allowed.Exists() || !allowed.IsArray() || len(allowed.Array()) == 0 {

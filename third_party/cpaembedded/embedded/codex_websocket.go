@@ -62,15 +62,16 @@ type CodexWSTurnResult struct {
 }
 
 // CodexWSError 的文本不包含上游响应、凭据、地址或代理密码。
-// UpstreamType、UpstreamCode、HTTPStatus 和 RetryAfter 仅提供调用者所需的错误分类证据。
+// 仅提供调用者所需的安全错误分类证据。
 type CodexWSError struct {
-	Code          string
-	UpstreamType  string
-	UpstreamCode  string
-	HTTPStatus    int
-	RetryAfter    time.Duration
-	DispatchState string
-	cause         error
+	Code               string
+	UpstreamType       string
+	UpstreamCode       string
+	HTTPStatus         int
+	RetryAfter         time.Duration
+	DispatchState      string
+	TransientRateLimit bool
+	cause              error
 }
 
 func (err *CodexWSError) Error() string { return "codex websocket: " + err.Code }
@@ -163,6 +164,7 @@ func (s *CodexWSSession) ExecuteTurn(ctx context.Context, payload json.RawMessag
 	if err != nil {
 		return result, err
 	}
+	payload = stripCodexReasoningStatus(payload)
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -193,7 +195,8 @@ func (s *CodexWSSession) ExecuteTurn(ctx context.Context, payload json.RawMessag
 	hasReasoningOverride := false
 	// 支持更新的原生 Responses 路径由 CPA 原样保留配置。
 	if modelcatalog.SupportsReasoningUpdates(model) {
-		result.AppliedReasoningEffort = thinking.ExtractTranslatedReasoningEffort(payload, ProviderCodex)
+		// 档位会跨轮次保存，不能引用调用者随后可能清理或复用的请求体。
+		result.AppliedReasoningEffort = strings.Clone(thinking.ExtractTranslatedReasoningEffort(payload, ProviderCodex))
 		result.AppliedReasoningMode, result.AppliedReasoningBudgetTokens = extractReasoningDetails(payload, ProviderCodex)
 		gjson.GetBytes(payload, "input").ForEach(func(_, item gjson.Result) bool {
 			if item.Get("type").String() == "configuration_update" {
@@ -326,6 +329,10 @@ func (s *CodexWSSession) ExecuteTurn(ctx context.Context, payload json.RawMessag
 		var status interface{ StatusCode() int }
 		if errors.As(executionErr, &status) {
 			failure.HTTPStatus = status.StatusCode()
+		}
+		var transient cliproxyexecutor.TransientRateLimitError
+		if errors.As(executionErr, &transient) {
+			failure.TransientRateLimit = transient.IsTransientRateLimit()
 		}
 		var headers interface{ Headers() http.Header }
 		if errors.As(executionErr, &headers) {

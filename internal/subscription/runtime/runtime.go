@@ -251,6 +251,9 @@ type Observation struct {
 	Partial         bool
 	AccountObserved bool
 	QuotaObserved   bool
+	// QuotaObservedAt 仅在本次调用中传递额度响应时间，不把附加查询的等待算入额度新鲜度。
+	// 零值沿用调用方的完成时间；不新增持久化字段或对外时间字段。
+	QuotaObservedAt time.Time
 	// ObservedQuotaScopes lists quota scopes whose current payload is authoritative.
 	// Unlisted scopes may retain a still-fresh previous observation.
 	ObservedQuotaScopes []string
@@ -460,20 +463,30 @@ func compileRuntime(
 	return result, nil
 }
 
+func IsFixedLoopbackOAuthHost(host string) bool {
+	switch strings.ToLower(strings.TrimSpace(host)) {
+	case "localhost", "127.0.0.1":
+		return true
+	default:
+		return false
+	}
+}
+
 func validateLocalCallbackSpec(spec LocalCallbackSpec) (LocalCallbackSpec, error) {
 	raw := strings.TrimSpace(spec.RedirectURI)
 	parsed, err := url.Parse(raw)
 	if err != nil || !parsed.IsAbs() || parsed.Opaque != "" || parsed.User != nil || parsed.Fragment != "" ||
 		parsed.RawQuery != "" || parsed.ForceQuery || !strings.EqualFold(parsed.Scheme, "http") ||
-		!strings.EqualFold(parsed.Hostname(), "localhost") || parsed.Port() == "" ||
+		!IsFixedLoopbackOAuthHost(parsed.Hostname()) || parsed.Port() == "" ||
 		parsed.Path == "" || !strings.HasPrefix(parsed.Path, "/") || parsed.EscapedPath() != parsed.Path {
-		return LocalCallbackSpec{}, errors.New("redirect URI must be a fixed http://localhost endpoint")
+		return LocalCallbackSpec{}, errors.New("redirect URI must be a fixed http://localhost or http://127.0.0.1 endpoint")
 	}
 	port, err := strconv.Atoi(parsed.Port())
 	if err != nil || port < 1 || port > 65535 {
 		return LocalCallbackSpec{}, errors.New("redirect URI has an invalid port")
 	}
-	canonical := "http://localhost:" + strconv.Itoa(port) + parsed.Path
+	host := strings.ToLower(parsed.Hostname())
+	canonical := "http://" + host + ":" + strconv.Itoa(port) + parsed.Path
 	if raw != canonical {
 		return LocalCallbackSpec{}, errors.New("redirect URI is not canonical")
 	}

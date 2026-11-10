@@ -159,9 +159,12 @@ func completeBindings(bifrost execution.Executor, codex execution.Executor) []Bi
 		{ProviderKind: channel.ProviderJev, Adapter: bifrost},
 		{ProviderKind: channel.ProviderGroq, Adapter: bifrost},
 		{ProviderKind: channel.ProviderXAI, Adapter: bifrost},
+		{ProviderKind: channel.ProviderAlibaba, Adapter: bifrost},
 		{ProviderKind: channel.ProviderCodex, Adapter: codex},
 		{ProviderKind: channel.ProviderClaude, Adapter: codex},
 		{ProviderKind: channel.ProviderAntigravity, Adapter: codex},
 		{ProviderKind: channel.ProviderGrok, Adapter: codex},
+		{ProviderKind: channel.ProviderMuse, Adapter: codex},
+		{ProviderKind: channel.ProviderDevin, Adapter: codex},
 	}
 }

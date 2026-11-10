@@ -160,6 +160,7 @@ const credentialTestResultFields = [
   'protocol',
   'latency_ms',
   'reason',
+  'error_detail',
   'can_restore',
   'restore_proof',
   'tested_at_ms',
@@ -211,6 +212,7 @@ const observationFields = [
   'last_error_code',
 ] as const
 const observationSnapshotFields = [
+  'subscription',
   'plan_summary',
   'account_summary',
   'quota_windows',
@@ -444,6 +446,20 @@ function projectQuotaWindow(value: unknown): CredentialQuotaWindowDto {
 function projectObservationSnapshot(value: unknown): CredentialObservationSnapshotDto {
   const record = projectRecord(value)
   assertNoSecretLikeFields(record, observationSnapshotFields)
+  let subscription: CredentialObservationSnapshotDto['subscription']
+  if (record.subscription !== undefined) {
+    const billing = projectRecord(record.subscription)
+    assertNoSecretLikeFields(billing, ['state', 'period_end_ms', 'will_renew'])
+    subscription = {
+      state: projectEnum(billing.state, ['confirmed', 'error', 'unavailable'] as const),
+      ...(billing.period_end_ms === undefined
+        ? {}
+        : { period_end_ms: projectEpochMilliseconds(billing.period_end_ms) }),
+      ...(billing.will_renew === undefined
+        ? {}
+        : { will_renew: projectBoolean(billing.will_renew) }),
+    }
+  }
   const planRecord = projectRecord(record.plan_summary)
   assertNoSecretLikeFields(planRecord, planFields)
   const planName =
@@ -521,6 +537,7 @@ function projectObservationSnapshot(value: unknown): CredentialObservationSnapsh
     },
     ...(accountSummary === undefined ? {} : { account_summary: accountSummary }),
     quota_windows: quotaWindows,
+    ...(subscription === undefined ? {} : { subscription }),
     ...(credits === undefined ? {} : { credits }),
     ...(record.reset_credits_available === undefined
       ? {}
@@ -1050,6 +1067,8 @@ export function projectCredentialTestResult(value: unknown): CredentialTestResul
     protocol: projectEnum(record.protocol, enabledDataProtocols),
     latency_ms: projectSafeInteger(record.latency_ms, { minimum: 0 }),
     reason,
+    error_detail:
+      record.error_detail === undefined ? undefined : projectString(record.error_detail),
     can_restore: canRestore,
     restore_proof: restoreProof,
     tested_at_ms: projectEpochMilliseconds(record.tested_at_ms),

@@ -18,6 +18,8 @@ const (
 	Claude           ID = "claude"
 	Antigravity      ID = "antigravity"
 	Grok             ID = "grok"
+	Muse             ID = "muse"
+	Devin            ID = "devin"
 	Anthropic        ID = "anthropic"
 	Gemini           ID = "gemini"
 	AzureOpenAI      ID = "azure_openai"
@@ -61,6 +63,8 @@ const (
 	ProviderClaude               ProviderKind = "claude"
 	ProviderAntigravity          ProviderKind = "antigravity"
 	ProviderGrok                 ProviderKind = "grok"
+	ProviderMuse                 ProviderKind = "muse"
+	ProviderDevin                ProviderKind = "devin"
 	ProviderAnthropic            ProviderKind = "anthropic"
 	ProviderGemini               ProviderKind = "gemini"
 	ProviderMultiProtocolGateway ProviderKind = "multi_protocol_gateway"
@@ -75,6 +79,7 @@ const (
 	ProviderJev                  ProviderKind = "jev"
 	ProviderGroq                 ProviderKind = "groq"
 	ProviderXAI                  ProviderKind = "xai"
+	ProviderAlibaba              ProviderKind = "alibaba"
 )
 
 // NoticeID identifies one code-owned, frontend-localized channel notice.
@@ -136,6 +141,8 @@ func (kind ProviderKind) Valid() bool {
 		ProviderClaude,
 		ProviderAntigravity,
 		ProviderGrok,
+		ProviderMuse,
+		ProviderDevin,
 		ProviderAnthropic,
 		ProviderGemini,
 		ProviderMultiProtocolGateway,
@@ -149,7 +156,8 @@ func (kind ProviderKind) Valid() bool {
 		ProviderOpenRouter,
 		ProviderJev,
 		ProviderGroq,
-		ProviderXAI:
+		ProviderXAI,
+		ProviderAlibaba:
 		return true
 	default:
 		return false

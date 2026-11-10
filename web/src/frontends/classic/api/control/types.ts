@@ -252,6 +252,11 @@ export interface CredentialObservationAccountSummaryDto {
 export type CredentialPlanLevel = 'free' | 'standard' | 'premium' | 'elite'
 
 export interface CredentialObservationSnapshotDto {
+  subscription?: {
+    state: 'confirmed' | 'error' | 'unavailable'
+    period_end_ms?: number
+    will_renew?: boolean
+  }
   plan_summary: { name?: string; level?: CredentialPlanLevel }
   account_summary?: CredentialObservationAccountSummaryDto
   quota_windows: CredentialQuotaWindowDto[]
@@ -389,6 +394,7 @@ export interface CredentialTestResultDto {
   protocol: ProtocolValue
   latency_ms: number
   reason: CredentialTestReason | null
+  error_detail?: string
   can_restore: boolean
   restore_proof: string | null
   tested_at_ms: number

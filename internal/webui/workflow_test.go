@@ -22,10 +22,10 @@ const (
 	downloadArtifactActionRef = "actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333"
 	qemuActionRef             = "docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1"
 	buildxActionRef           = "docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069"
-	dockerLoginActionRef      = "docker/login-action@dbcb813823bdd20940b903addbd779551569679f"
+	dockerLoginActionRef      = "docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550"
 	dockerMetadataActionRef   = "docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302"
 	dockerBuildActionRef      = "docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc"
-	githubReleaseActionRef    = "softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64"
+	githubReleaseActionRef    = "softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3"
 )
 
 func TestWebCICompositeActionRunsCompleteFrontendGate(t *testing.T) {
@@ -2701,7 +2701,7 @@ func TestDockerfilePinsBuildAndRuntimeImagesByVersionAndDigest(t *testing.T) {
 		"node:24.18.0-alpine3.24@sha256:a0b9bf06e4e6193cf7a0f58816cc935ff8c2a908f81e6f1a95432d679c54fbfd",
 		"pnpm@11.17.0",
 		"golang:1.27.3-alpine3.24@sha256:f2c872bcee949b7be9c490efd02b48a8a2fbf947cdf533f1c58525ec9d8170fd",
-		"alpine:3.24.1@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b",
+		"alpine:3.24.4@sha256:f59abe656b692d901e184be3445e084786602108599d2a51d229c0f5a48c71bf",
 	} {
 		if !strings.Contains(content, required) {
 			t.Errorf("Dockerfile does not contain %q", required)
@@ -2709,7 +2709,7 @@ func TestDockerfilePinsBuildAndRuntimeImagesByVersionAndDigest(t *testing.T) {
 	}
 }
 
-func TestDockerfileRuntimePinsPatchedOpenSSLPackages(t *testing.T) {
+func TestDockerfileRuntimePinsPatchedAlpinePackages(t *testing.T) {
 	t.Parallel()
 	content := readRepositoryFile(t, "Dockerfile")
 	runtimeStart := strings.Index(content, "\nFROM alpine:")
@@ -2722,17 +2722,18 @@ func TestDockerfileRuntimePinsPatchedOpenSSLPackages(t *testing.T) {
 	}
 	runtimeStage := content[runtimeStart : runtimeStart+1+runtimeEnd]
 
-	upgrade := "apk add --no-cache libcrypto3=3.5.9-r0 libssl3=3.5.9-r0"
+	// 基础镜像尚未包含的安全修复版本在此显式固定，避免发布前漏洞扫描阻断。
+	upgrade := "apk add --no-cache libcrypto3=3.5.9-r0 libssl3=3.5.9-r0 zlib=1.4-r0"
 	upgradeIndex := strings.Index(runtimeStage, upgrade)
 	if upgradeIndex < 0 {
-		t.Fatalf("Dockerfile runtime stage does not pin patched OpenSSL packages via %q", upgrade)
+		t.Fatalf("Dockerfile runtime stage does not pin patched Alpine packages via %q", upgrade)
 	}
 	packageInstallIndex := strings.Index(runtimeStage, "apk add --no-cache ca-certificates tzdata")
 	if packageInstallIndex < 0 {
 		t.Fatal("Dockerfile runtime stage does not install certificate and timezone packages")
 	}
 	if upgradeIndex >= packageInstallIndex {
-		t.Fatal("Dockerfile upgrades OpenSSL after installing certificate and timezone packages")
+		t.Fatal("Dockerfile upgrades patched packages after installing certificate and timezone packages")
 	}
 }
 
