@@ -10,6 +10,7 @@ import (
 	"time"
 
 	cpaembedded "github.com/router-for-me/CLIProxyAPI/v8/gptload-embedded/embedded"
+	"github.com/sirupsen/logrus"
 
 	subscriptionruntime "gpt-load/internal/subscription/runtime"
 )
@@ -133,7 +134,42 @@ func completeBrowserAuthorization(ctx context.Context, completion subscriptionru
 	value, err := cpaembedded.CompleteGeminiCLIBrowserAuthorization(ctx, cpaembedded.BrowserAuthorizationCompletion{
 		ExpectedState: completion.ExpectedState, ReturnedState: completion.ReturnedState, Code: completion.Code,
 	}, options)
-	return Credential(value), normalizeError(err)
+	err = normalizeError(err)
+	if err != nil {
+		logAuthorizationFailure(err)
+	}
+	return Credential(value), err
+}
+
+// Log only bounded classifications; OAuth codes, state, tokens and upstream
+// response bodies must never reach the diagnostic log.
+func logAuthorizationFailure(err error) {
+	fields := logrus.Fields{"event": "gemini_cli.authorization_failed", "phase": "authorization", "error_type": fmt.Sprintf("%T", err)}
+	var tokenErr *TokenEndpointError
+	var upstreamErr *UpstreamHTTPError
+	switch {
+	case errors.Is(err, ErrProjectRequired):
+		fields["phase"], fields["reason"] = "project_setup", "project_required"
+	case errors.As(err, &tokenErr):
+		fields["phase"], fields["http_status"] = "token_exchange", tokenErr.StatusCode
+		switch tokenErr.Code {
+		case "invalid_grant", "invalid_client", "invalid_request", "unauthorized_client", "invalid_scope", "access_denied":
+			fields["reason"] = tokenErr.Code
+		default:
+			fields["reason"] = "token_endpoint_error"
+		}
+	case errors.As(err, &upstreamErr):
+		fields["http_status"] = upstreamErr.StatusCode
+		switch upstreamErr.Operation {
+		case "userinfo", "loadCodeAssist", "onboardUser", "resourceManager":
+			fields["phase"] = upstreamErr.Operation
+		}
+	case errors.Is(err, context.DeadlineExceeded):
+		fields["reason"] = "timeout"
+	case errors.Is(err, context.Canceled):
+		fields["reason"] = "canceled"
+	}
+	logrus.WithFields(fields).Warn("Gemini CLI authorization failed")
 }
 
 func refreshCredentialOnce(ctx context.Context, current Credential) (Credential, error) {

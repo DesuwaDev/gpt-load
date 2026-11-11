@@ -93,6 +93,13 @@ func (*driver) AuthorizationFailureDefinitive(err error) bool {
 	return errors.Is(err, ErrProjectRequired) || errors.As(err, &tokenErr) && IsDefinitiveRefreshRejection(tokenErr.Code)
 }
 
+func (*driver) AuthorizationFailureCode(err error) string {
+	if errors.Is(err, ErrProjectRequired) {
+		return "authorization_project_required"
+	}
+	return ""
+}
+
 func (*driver) ImportCredential(ctx context.Context, raw []byte) (subscriptionruntime.Credential, error) {
 	value, err := importCredential(ctx, raw)
 	if err != nil {

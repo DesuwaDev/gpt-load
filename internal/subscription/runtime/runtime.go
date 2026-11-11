@@ -192,6 +192,12 @@ type BrowserAuthorizationDriver interface {
 	LocalCallback() (LocalCallbackSpec, bool)
 }
 
+// AuthorizationFailureCoder distinguishes actionable setup failures from
+// rejected OAuth codes. Implementations return fixed, non-sensitive codes.
+type AuthorizationFailureCoder interface {
+	AuthorizationFailureCode(error) string
+}
+
 // DeviceAuthorization describes one RFC 8628 device challenge. DriverState
 // contains secrets and is persisted only inside the encrypted Stage payload.
 type DeviceAuthorization struct {

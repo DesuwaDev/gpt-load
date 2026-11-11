@@ -59,6 +59,7 @@ type GeminiCLIOptions struct {
 	LoadCodeAssistURL    string
 	OnboardUserURL       string
 	RetrieveUserQuotaURL string
+	ResourceManagerURL   string
 	HTTPClient           *http.Client
 	Now                  func() time.Time
 }
@@ -521,17 +522,20 @@ func setupGeminiCLIProject(
 	if err != nil {
 		return "", "", err
 	}
-	if current, ok := load["currentTier"].(map[string]any); ok && current != nil {
-		tierID := geminiCLITierID(load)
-		if projectID := antigravityProjectID(load); projectID != "" {
-			return projectID, tierID, nil
-		}
+	tierID := geminiCLITierID(load)
+	if projectID := antigravityProjectID(load); projectID != "" {
+		return projectID, tierID, nil
+	}
+	if load["currentTier"] != nil || load["paidTier"] != nil {
 		if projectHint != "" {
 			return projectHint, tierID, nil
 		}
-		return "", "", ErrGeminiCLIProjectRequired
+		// Registered accounts may have no managed project. Match sub2api's
+		// fallback to an existing active GCP project instead of re-onboarding.
+		projectID, err := discoverGeminiCLIProject(ctx, accessToken, options)
+		return projectID, tierID, err
 	}
-	tierID := geminiCLIOnboardTierID(load)
+	tierID = geminiCLIOnboardTierID(load)
 	request := map[string]any{"tierId": tierID}
 	if tierID == "free-tier" {
 		request["metadata"] = geminiCLIMetadata("")
@@ -571,7 +575,8 @@ func setupGeminiCLIProject(
 			if projectHint != "" {
 				return projectHint, tierID, nil
 			}
-			return "", "", ErrGeminiCLIProjectRequired
+			projectID, err := discoverGeminiCLIProject(ctx, accessToken, options)
+			return projectID, tierID, err
 		}
 		timer := time.NewTimer(2 * time.Second)
 		select {
@@ -582,6 +587,76 @@ func setupGeminiCLIProject(
 		}
 	}
 	return "", "", fmt.Errorf("Gemini CLI onboarding did not complete")
+}
+
+// discoverGeminiCLIProject only lists existing projects. It never creates a
+// project, enables an API or changes billing. Prefer companion, then default
+// projects as sub2api does; use a stable ID tie-break because list order varies.
+func discoverGeminiCLIProject(ctx context.Context, accessToken string, options GeminiCLIOptions) (string, error) {
+	endpoint := strings.TrimSpace(options.ResourceManagerURL)
+	if endpoint == "" {
+		endpoint = "https://cloudresourcemanager.googleapis.com/v1/projects"
+	}
+	parsed, err := url.Parse(endpoint)
+	if err != nil {
+		return "", errors.New("invalid Gemini CLI Resource Manager endpoint")
+	}
+	selected, bestRank, pageToken := "", 3, ""
+	seen := make(map[string]bool)
+	for page := 0; page < 10; page++ {
+		query := parsed.Query()
+		query.Set("filter", "lifecycleState:ACTIVE")
+		query.Set("pageSize", "100")
+		if pageToken != "" {
+			query.Set("pageToken", pageToken)
+		}
+		parsed.RawQuery = query.Encode()
+		body, err := fetchGeminiCLIJSON(ctx, parsed.String(), accessToken, nil, "resourceManager", options)
+		if err != nil {
+			return "", err
+		}
+		var result struct {
+			Projects []struct {
+				ID    string `json:"projectId"`
+				Name  string `json:"name"`
+				State string `json:"lifecycleState"`
+			} `json:"projects"`
+			NextPageToken string `json:"nextPageToken"`
+		}
+		err = json.Unmarshal(body, &result)
+		clear(body)
+		if err != nil {
+			return "", errors.New("invalid Gemini CLI Resource Manager response")
+		}
+		for _, project := range result.Projects {
+			id := strings.TrimSpace(project.ID)
+			if id == "" || project.State != "ACTIVE" {
+				continue
+			}
+			name := strings.ToLower(id + " " + project.Name)
+			rank := 2
+			if strings.Contains(name, "cloud-ai-companion") || strings.Contains(name, "cloud ai companion") || strings.Contains(name, "code assist") {
+				rank = 0
+			} else if strings.Contains(name, "default") {
+				rank = 1
+			}
+			if rank < bestRank || rank == bestRank && id < selected {
+				selected, bestRank = id, rank
+			}
+		}
+		pageToken = result.NextPageToken
+		if pageToken == "" {
+			if selected == "" {
+				return "", ErrGeminiCLIProjectRequired
+			}
+			return selected, nil
+		}
+		if seen[pageToken] || len(pageToken) > 4096 {
+			return "", errors.New("invalid Gemini CLI Resource Manager pagination")
+		}
+		seen[pageToken] = true
+	}
+	return "", errors.New("Gemini CLI Resource Manager pagination limit exceeded")
 }
 
 func retrieveGeminiCLIQuota(

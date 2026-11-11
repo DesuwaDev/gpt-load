@@ -846,7 +846,13 @@ func (s *Service) completeCredentialAuthorization(
 		var finalizeErr error
 		browser, browserOK := driver.(subscriptionruntime.BrowserAuthorizationDriver)
 		if browserOK && browser.AuthorizationFailureDefinitive(err) {
-			finalizeErr = s.failCredentialStageExchange(ctx, row.ID, "authorization_exchange_rejected")
+			code := "authorization_exchange_rejected"
+			if classifier, ok := driver.(subscriptionruntime.AuthorizationFailureCoder); ok {
+				if specific := safeInternalErrorCode(classifier.AuthorizationFailureCode(err)); specific != "" {
+					code = specific
+				}
+			}
+			finalizeErr = s.failCredentialStageExchange(ctx, row.ID, code)
 		} else {
 			finalizeErr = s.markCredentialStageOutcomeUnknown(ctx, row.ID)
 		}

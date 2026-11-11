@@ -230,6 +230,8 @@ export default {
         authorizationExpired:
           'デバイス認証コードの有効期限が切れました。最初からやり直してください',
         exchangeRejected: '{channel} が認証コードを拒否しました。再認証してください',
+        projectRequired:
+          'Google ログインは成功しましたが、利用可能な GCP プロジェクトが見つかりません。このアカウントでプロジェクトを作成・参加して再認証するか、project_id を含む認証情報をインポートしてください。',
         exchangeUnknown: '認証交換の結果を確認できません。再認証してください',
         exchangeInterrupted: '認証交換が中断されました。再認証してください',
         refreshIdentityChanged: '更新後のアカウント情報が変わりました。再認証してください',

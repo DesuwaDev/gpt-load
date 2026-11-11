@@ -103,6 +103,8 @@ export const zhCN = {
     authorization_failed: '授权失败。',
     authorization_expired: '授权已过期。',
     authorization_exchange_rejected: '服务商拒绝了授权交换。',
+    authorization_project_required:
+      'Google 登录成功，但未找到可用的 GCP 项目。请在该 Google 账号下创建或加入项目后重新授权，或导入包含 project_id 的凭据文件。',
     authorization_exchange_unknown: '授权交换结果不确定，请重新登录。',
     authorization_exchange_interrupted: '授权交换被中断，请重新登录。',
     credential_refresh_identity_changed: '刷新后的账号身份不一致，请重新登录。',
@@ -221,6 +223,8 @@ export const enUS: typeof zhCN = {
     authorization_failed: 'Authorization failed.',
     authorization_expired: 'Authorization expired.',
     authorization_exchange_rejected: 'The provider rejected the authorization exchange.',
+    authorization_project_required:
+      'Google sign-in succeeded, but no active GCP project was found. Create or join a project with this Google account and authorize again, or import credentials containing project_id.',
     authorization_exchange_unknown: 'The exchange result is unknown. Sign in again.',
     authorization_exchange_interrupted: 'The exchange was interrupted. Sign in again.',
     credential_refresh_identity_changed: 'The refreshed account identity changed. Sign in again.',
@@ -339,6 +343,8 @@ export const jaJP: typeof zhCN = {
     authorization_failed: '認証に失敗しました。',
     authorization_expired: '認証の期限が切れました。',
     authorization_exchange_rejected: '認証情報の交換が拒否されました。',
+    authorization_project_required:
+      'Google ログインは成功しましたが、利用可能な GCP プロジェクトが見つかりません。このアカウントでプロジェクトを作成・参加して再認証するか、project_id を含む認証情報をインポートしてください。',
     authorization_exchange_unknown: '交換結果が不明です。再ログインしてください。',
     authorization_exchange_interrupted: '交換が中断されました。再ログインしてください。',
     credential_refresh_identity_changed:

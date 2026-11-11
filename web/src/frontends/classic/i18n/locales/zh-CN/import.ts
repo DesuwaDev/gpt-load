@@ -209,6 +209,8 @@ export default {
         authorizationFailed: '{channel} 未能完成授权，请重新开始',
         authorizationExpired: '设备授权码已过期，请重新开始',
         exchangeRejected: '{channel} 拒绝了授权码，请重新授权',
+        projectRequired:
+          'Google 登录成功，但未找到可用的 GCP 项目。请在该 Google 账号下创建或加入项目后重新授权，或导入包含 project_id 的凭据文件。',
         exchangeUnknown: '授权交换结果无法确认，请重新授权',
         exchangeInterrupted: '授权交换被中断，请重新授权',
         refreshIdentityChanged: '刷新后的账号身份发生变化，请重新授权',

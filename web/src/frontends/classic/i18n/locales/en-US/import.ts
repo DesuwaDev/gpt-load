@@ -232,6 +232,8 @@ export default {
         authorizationFailed: '{channel} could not finish authorization; start again',
         authorizationExpired: 'The device authorization code expired; start again',
         exchangeRejected: '{channel} rejected the authorization code; authorize again',
+        projectRequired:
+          'Google sign-in succeeded, but no active GCP project was found. Create or join a project with this Google account and authorize again, or import credentials containing project_id.',
         exchangeUnknown: 'The authorization exchange outcome is unknown; authorize again',
         exchangeInterrupted: 'The authorization exchange was interrupted; authorize again',
         refreshIdentityChanged: 'The refreshed account identity changed; authorize again',

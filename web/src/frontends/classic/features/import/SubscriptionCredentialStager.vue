@@ -599,6 +599,7 @@ function stageErrorKey(code: string): string {
     authorization_failed: 'import.subscription.stageError.authorizationFailed',
     authorization_expired: 'import.subscription.stageError.authorizationExpired',
     authorization_exchange_rejected: 'import.subscription.stageError.exchangeRejected',
+    authorization_project_required: 'import.subscription.stageError.projectRequired',
     authorization_exchange_unknown: 'import.subscription.stageError.exchangeUnknown',
     authorization_exchange_interrupted: 'import.subscription.stageError.exchangeInterrupted',
     credential_refresh_identity_changed: 'import.subscription.stageError.refreshIdentityChanged',
@@ -610,7 +611,7 @@ function stageErrorKey(code: string): string {
 }
 
 function stageErrorMessage(stage: CredentialStage): string {
-  if (stage.error_code) return t(stageErrorKey(stage.error_code))
+  if (stage.error_code) return t(stageErrorKey(stage.error_code), { channel: props.channelName })
   if (stage.status === 'expired') return t('import.subscription.stageError.expired')
   if (stage.status === 'cancelled') return t('import.subscription.stageError.cancelled')
   return t('import.subscription.stageError.unknown')

@@ -48,3 +48,7 @@ Responses 请求可使用 `tools: [{"type": "web_search"}]`，也支持 preview/
 ## 验证范围
 
 本地 HTTP 集成验证覆盖真实网关选择、CPA 协议转换、Code Assist 请求封装、图片上传、搜索引用、compact 往返、重建密钥服务后的续接和错误处理。上游使用本地 TLS 模拟服务，未消耗真实 Google 额度；账号的实际生图/搜索权限仍需真实上游确认。
+
+## 登录成功但缺少项目
+
+如果 Code Assist 返回账号档位却没有托管项目，渠道会像 sub2api 一样调用 Cloud Resource Manager，查找此账号能访问的已有 ACTIVE 项目，优先使用 companion / Code Assist 项目，其次 default 项目。支持分页，不会自动创建项目或修改计费。没有可用项目时，页面明确提示缺少 GCP 项目，不再显示“授权码被拒绝”；可创建或加入项目后重新授权，或导入带 `project_id` 的凭据文件。
