@@ -661,7 +661,7 @@ func (s *Service) mapCredentialItem(
 	stats health.CredentialStats,
 	observedAt time.Time,
 ) (CredentialItemResponse, error) {
-	canonical, identity, err := s.decodeCredential(group, row)
+	canonical, identity, err := s.decodeCredentialForDisplay(group, row)
 	if err != nil {
 		return CredentialItemResponse{}, err
 	}
@@ -687,6 +687,7 @@ func (s *Service) mapCredentialItem(
 	item.ConnectionType = string(normalizeGroupConnectionType(group.ConnectionType))
 	item.SecretVersion = row.SecretVersion
 	item.AuthState = string(row.AuthState)
+	item.AuthErrorCode = safeInternalErrorCode(row.AuthErrorCode)
 	item.Mark, item.MarkNote = presentCredentialMark(row)
 	item.Account = account
 	proxyViews, err := s.credentialProxyViews(ctx, s.db, group, []models.Credential{row})

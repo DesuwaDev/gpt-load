@@ -216,6 +216,9 @@ func (s *Service) credentialPresentation(
 	canonical json.RawMessage,
 	identity string,
 ) (string, CredentialAccountResponse, error) {
+	if row.StartupQuarantined() {
+		return fmt.Sprintf("Credential #%d", row.ID), CredentialAccountResponse{}, nil
+	}
 	if normalizeGroupConnectionType(group.ConnectionType) == models.ConnectionTypeSubscription {
 		driver, driverErr := s.subscriptionDriver(channel.ID(group.ChannelID))
 		if driverErr != nil {
@@ -434,6 +437,15 @@ func (s *Service) decodeCredential(group models.Group, row models.Credential) (j
 	return validated.CanonicalJSON(), apiKey, nil
 }
 
+// Presentation still lists quarantined rows so an operator can reconnect or
+// replace them. Secret-reveal and mutation paths retain normal validation.
+func (s *Service) decodeCredentialForDisplay(group models.Group, row models.Credential) (json.RawMessage, string, error) {
+	if row.StartupQuarantined() {
+		return nil, "", nil
+	}
+	return s.decodeCredential(group, row)
+}
+
 func (s *Service) mapCredentialCollection(
 	ctx context.Context,
 	observation credentialObservation,
@@ -454,7 +466,7 @@ func (s *Service) mapCredentialCollection(
 		return CredentialCollectionResponse{}, err
 	}
 	for _, row := range observation.rows {
-		canonical, identity, err := s.decodeCredential(observation.group, row)
+		canonical, identity, err := s.decodeCredentialForDisplay(observation.group, row)
 		if err != nil {
 			return CredentialCollectionResponse{}, err
 		}
@@ -490,7 +502,7 @@ func (s *Service) mapCredentialCollection(
 			item.Observation = withCredentialPlan(item.Observation, account.PlanType)
 		}
 		var filterKey string
-		if query.modern != nil && query.modern.credentialKey != "" {
+		if query.modern != nil && query.modern.credentialKey != "" && !row.StartupQuarantined() {
 			filterKey, err = s.credentialFilterKey(observation.group, row, canonical)
 			if err != nil {
 				return CredentialCollectionResponse{}, err

@@ -717,6 +717,8 @@ export default {
           outcome_unknown: '无法确认凭据刷新结果，可尝试刷新凭据，仍失败时请重新连接或导入',
         },
         authError: {
+          storedInvalid:
+            '此凭据未通过本地完整性校验，已隔离，不影响其他账号。请重新连接或导入有效凭据；原有记录已保留。',
           refreshRejected:
             '上游已拒绝刷新凭据，可尝试再次刷新凭据，仍失败时请重新连接或导入该账号凭据。',
           identityChanged: '刷新结果属于其他账号，请重新连接或导入原账号凭据。',

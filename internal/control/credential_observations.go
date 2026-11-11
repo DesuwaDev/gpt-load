@@ -698,7 +698,7 @@ func (s *Service) GetCredentialObservation(ctx context.Context, groupID, credent
 	if err != nil {
 		return CredentialObservationResponse{}, err
 	}
-	canonical, identity, err := s.decodeCredential(group, credential)
+	canonical, identity, err := s.decodeCredentialForDisplay(group, credential)
 	if err != nil {
 		return CredentialObservationResponse{}, err
 	}

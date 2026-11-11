@@ -4,7 +4,6 @@ package loader
 import (
 	"bytes"
 	"context"
-	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -160,7 +159,7 @@ func (l *Loader) Load(ctx context.Context) error {
 	if err := state.ValidateCredentialEntries(entries); err != nil {
 		return fmt.Errorf("validate credentials: %w", err)
 	}
-	if err := l.validatePersistedCredentials(input, entries); err != nil {
+	if err := l.validatePersistedCredentials(ctx, input, entries); err != nil {
 		return err
 	}
 	if l.accessQuota != nil {
@@ -226,70 +225,6 @@ func (l *Loader) migrateLegacyAutoModel(ctx context.Context) error {
 
 func systemSettingKeyScope(db *gorm.DB, key string) *gorm.DB {
 	return db.Where(&models.SystemSetting{Key: key})
-}
-
-func (l *Loader) validatePersistedCredentials(
-	input state.CompileInput,
-	entries []state.CredentialEntry,
-) error {
-	if l.encryption == nil {
-		return nil
-	}
-	type validationTarget struct {
-		channelID      channel.ID
-		connectionType string
-	}
-	targets := make(map[uint]validationTarget, len(input.Groups))
-	for _, group := range input.Groups {
-		targets[group.ID] = validationTarget{channelID: group.ChannelID, connectionType: group.ConnectionType}
-	}
-	for _, entry := range entries {
-		target, exists := targets[entry.GroupID]
-		if !exists {
-			return fmt.Errorf("validate credential %d for group %d: execution target is missing", entry.ID, entry.GroupID)
-		}
-		plaintext, err := l.encryption.Decrypt(entry.EncryptedValue)
-		if err != nil {
-			return fmt.Errorf("validate credential %d for group %d: decrypt failed", entry.ID, entry.GroupID)
-		}
-		raw := []byte(plaintext)
-		plaintext = ""
-		var canonical []byte
-		expectedConnection, known := l.channelRegistry.ConnectionType(target.channelID)
-		if !known || strings.TrimSpace(target.connectionType) != expectedConnection {
-			clear(raw)
-			return fmt.Errorf("validate credential %d for group %d: connection does not match channel", entry.ID, entry.GroupID)
-		}
-		if expectedConnection == string(models.ConnectionTypeSubscription) {
-			if l.subscriptions == nil {
-				clear(raw)
-				return fmt.Errorf("validate credential %d for group %d: subscription driver is unavailable", entry.ID, entry.GroupID)
-			}
-			var parseErr error
-			canonical, parseErr = l.subscriptions.CanonicalCredential(target.channelID, raw)
-			clear(raw)
-			if parseErr != nil {
-				return fmt.Errorf("validate credential %d for group %d: stored shape is invalid", entry.ID, entry.GroupID)
-			}
-		} else {
-			if expectedConnection != string(models.ConnectionTypeAPIKey) {
-				clear(raw)
-				return fmt.Errorf("validate credential %d for group %d: subscription driver is unavailable", entry.ID, entry.GroupID)
-			}
-			credential, validateErr := l.channelRegistry.ValidateCredential(target.channelID, raw)
-			clear(raw)
-			if validateErr != nil {
-				return fmt.Errorf("validate credential %d for group %d: stored shape is invalid", entry.ID, entry.GroupID)
-			}
-			canonical = credential.CanonicalJSON()
-		}
-		fingerprint := l.encryption.Hash(string(canonical))
-		clear(canonical)
-		if subtle.ConstantTimeCompare([]byte(fingerprint), []byte(entry.Fingerprint)) != 1 {
-			return fmt.Errorf("validate credential %d for group %d: fingerprint mismatch", entry.ID, entry.GroupID)
-		}
-	}
-	return nil
 }
 
 func queryCompileRows(ctx context.Context, db *gorm.DB) (compileRows, error) {

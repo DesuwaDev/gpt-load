@@ -324,7 +324,7 @@ func (s *Service) mapHomeSubscriptionAccount(
 		}
 	}
 	group := *representative.credential.Group
-	canonical, identity, err := s.decodeCredential(group, representative.credential)
+	canonical, identity, err := s.decodeCredentialForDisplay(group, representative.credential)
 	if err != nil {
 		return HomeSubscriptionAccountResponse{}, err
 	}

@@ -119,10 +119,10 @@ func GeminiCLICredentialExpiresAt(credential GeminiCLICredential) (time.Time, bo
 func normalizeGeminiCLICredential(credential *GeminiCLICredential) {
 	credential.Type = strings.ToLower(strings.TrimSpace(credential.Type))
 	credential.OAuthType = strings.ToLower(strings.TrimSpace(credential.OAuthType))
-	if credential.OAuthType == "" {
-		credential.OAuthType = "code_assist"
+	// Reading old persisted credentials must not add fields and change their fingerprint.
+	if credential.TierID != "" {
+		credential.TierID = canonicalGeminiCLITier(credential.OAuthType, credential.TierID)
 	}
-	credential.TierID = canonicalGeminiCLITier(credential.OAuthType, credential.TierID)
 	credential.Scope = strings.TrimSpace(credential.Scope)
 	credential.AccessToken = strings.TrimSpace(credential.AccessToken)
 	credential.RefreshToken = strings.TrimSpace(credential.RefreshToken)

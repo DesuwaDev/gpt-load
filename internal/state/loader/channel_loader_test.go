@@ -18,85 +18,108 @@ import (
 	subscriptionruntime "gpt-load/internal/subscription/runtime"
 )
 
-func TestValidatedLoaderRejectsWrongEncryptionKeyBeforePublishing(t *testing.T) {
+func TestValidatedLoaderQuarantinesInvalidCredentialsBeforePublishing(t *testing.T) {
 	t.Parallel()
-
-	db := openMigratedDatabase(t)
-	group := models.Group{
-		Name: "validated-startup", ChannelID: string(channel.OpenAI), Params: models.JSON(`{}`),
-		Models: models.JSON(`[]`), Overrides: models.JSON(`{}`), Enabled: true,
-	}
-	mustCreate(t, db, &group)
-	correct, err := encryption.NewService("correct-master-key")
-	if err != nil {
-		t.Fatal(err)
-	}
-	canonical := `{"api_key":"startup-secret"}`
-	ciphertext, err := correct.Encrypt(canonical)
-	if err != nil {
-		t.Fatal(err)
-	}
-	mustCreate(t, db, &models.Credential{
-		GroupID: group.ID, Data: ciphertext, Fingerprint: correct.Hash(canonical),
-		Status: models.CredentialStatusActive,
-	})
-	wrong, err := encryption.NewService("wrong-master-key")
-	if err != nil {
-		t.Fatal(err)
-	}
-	manager := state.NewManager()
-	registry := state.NewCredentialRegistry()
-	channels, subscriptions := testSubscriptionRuntime(t)
-	err = loader.NewWithCredentialValidation(
-		db, manager, registry, channels, subscriptions, wrong,
-	).Load(t.Context())
-	if err == nil {
-		t.Fatal("Load() error = nil, want credential decryption failure")
-	}
-	if manager.Current() != nil || len(registry.Snapshot()) != 0 {
-		t.Fatal("invalid credentials were published before startup validation")
-	}
-	if strings.Contains(err.Error(), "startup-secret") || strings.Contains(err.Error(), ciphertext) {
-		t.Fatalf("Load() error leaked credential material: %v", err)
+	for _, test := range []struct {
+		name, canonical, errorCode string
+		wrongKey, wrongFingerprint bool
+	}{
+		{name: "wrong encryption key", canonical: `{"api_key":"startup-secret"}`, errorCode: models.CredentialStartupDecryptFailed, wrongKey: true},
+		{name: "invalid stored shape", canonical: `{"token":"must-not-leak"}`, errorCode: models.CredentialStartupShapeInvalid},
+		{name: "fingerprint mismatch", canonical: `{"api_key":"startup-secret"}`, errorCode: models.CredentialStartupFingerprintMismatch, wrongFingerprint: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			db := openMigratedDatabase(t)
+			group := models.Group{Name: "validated-startup", ChannelID: string(channel.OpenAI), Params: models.JSON(`{}`), Models: models.JSON(`[]`), Overrides: models.JSON(`{}`), Enabled: true}
+			mustCreate(t, db, &group)
+			crypto, err := encryption.NewService("correct-master-key")
+			if err != nil {
+				t.Fatal(err)
+			}
+			ciphertext, err := crypto.Encrypt(test.canonical)
+			if err != nil {
+				t.Fatal(err)
+			}
+			fingerprint := crypto.Hash(test.canonical)
+			if test.wrongFingerprint {
+				fingerprint = crypto.Hash("different credential")
+			}
+			row := models.Credential{GroupID: group.ID, Data: ciphertext, Fingerprint: fingerprint, Status: models.CredentialStatusActive}
+			mustCreate(t, db, &row)
+			validator := crypto
+			if test.wrongKey {
+				validator, err = encryption.NewService("wrong-master-key")
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			manager := state.NewManager()
+			registry := state.NewCredentialRegistry()
+			channels, subscriptions := testSubscriptionRuntime(t)
+			if err := loader.NewWithCredentialValidation(db, manager, registry, channels, subscriptions, validator).Load(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			if manager.Current() == nil || len(registry.Snapshot()) != 1 {
+				t.Fatal("quarantined credential must remain visible while configuration starts")
+			}
+			if candidates := registry.CollectCredentialCandidates([]uint{group.ID}, nil, time.Now()); len(candidates) != 0 {
+				t.Fatal("an unvalidated credential became schedulable")
+			}
+			var saved models.Credential
+			if err := db.First(&saved, row.ID).Error; err != nil {
+				t.Fatal(err)
+			}
+			if !saved.StartupQuarantined() || saved.AuthErrorCode != test.errorCode || saved.Data != row.Data || saved.Fingerprint != row.Fingerprint || saved.SecretVersion != row.SecretVersion {
+				t.Fatal("startup quarantine rewrote a secret or failed to persist its auth gate")
+			}
+			// A second load must preserve the same gate rather than crash or re-enable it.
+			if err := loader.NewWithCredentialValidation(db, manager, registry, channels, subscriptions, validator).Load(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			if candidates := registry.CollectCredentialCandidates([]uint{group.ID}, nil, time.Now()); len(candidates) != 0 {
+				t.Fatal("restart re-enabled quarantined credentials")
+			}
+		})
 	}
 }
 
-func TestValidatedLoaderRejectsInvalidStoredCredentialShape(t *testing.T) {
+func TestValidatedLoaderKeepsHealthyCredentialsWhenOneFingerprintIsInvalid(t *testing.T) {
 	t.Parallel()
-
 	db := openMigratedDatabase(t)
-	group := models.Group{
-		Name: "invalid-shape", ChannelID: string(channel.OpenAI), Params: models.JSON(`{}`),
-		Models: models.JSON(`[]`), Overrides: models.JSON(`{}`), Enabled: true,
-	}
+	group := models.Group{Name: "mixed-startup", ChannelID: string(channel.OpenAI), Params: models.JSON(`{}`), Models: models.JSON(`[]`), Overrides: models.JSON(`{}`), Enabled: true}
 	mustCreate(t, db, &group)
-	service, err := encryption.NewService("shape-master-key")
+	crypto, err := encryption.NewService("mixed-startup-master-key")
 	if err != nil {
 		t.Fatal(err)
 	}
-	invalid := `{"token":"must-not-leak"}`
-	ciphertext, err := service.Encrypt(invalid)
-	if err != nil {
-		t.Fatal(err)
+	rows := make([]models.Credential, 2)
+	for index, raw := range []string{`{"api_key":"healthy"}`, `{"api_key":"damaged"}`} {
+		ciphertext, err := crypto.Encrypt(raw)
+		if err != nil {
+			t.Fatal(err)
+		}
+		fingerprint := crypto.Hash(raw)
+		if index == 1 {
+			fingerprint = crypto.Hash("mismatched")
+		}
+		rows[index] = models.Credential{GroupID: group.ID, Data: ciphertext, Fingerprint: fingerprint, Status: models.CredentialStatusActive}
+		mustCreate(t, db, &rows[index])
 	}
-	mustCreate(t, db, &models.Credential{
-		GroupID: group.ID, Data: ciphertext, Fingerprint: service.Hash(invalid),
-		Status: models.CredentialStatusActive,
-	})
-	manager := state.NewManager()
 	registry := state.NewCredentialRegistry()
 	channels, subscriptions := testSubscriptionRuntime(t)
-	err = loader.NewWithCredentialValidation(
-		db, manager, registry, channels, subscriptions, service,
-	).Load(t.Context())
-	if err == nil {
-		t.Fatal("Load() error = nil, want stored credential schema failure")
+	if err := loader.NewWithCredentialValidation(db, state.NewManager(), registry, channels, subscriptions, crypto).Load(t.Context()); err != nil {
+		t.Fatal(err)
 	}
-	if manager.Current() != nil || len(registry.Snapshot()) != 0 {
-		t.Fatal("invalid credential shape was published")
+	candidates := registry.CollectCredentialCandidates([]uint{group.ID}, nil, time.Now())
+	if len(candidates) != 1 || candidates[0].ID != rows[0].ID {
+		t.Fatal("one damaged credential prevented the healthy credential from being selected")
 	}
-	if strings.Contains(err.Error(), "must-not-leak") || strings.Contains(err.Error(), ciphertext) {
-		t.Fatalf("Load() error leaked credential material: %v", err)
+	var healthy models.Credential
+	if err := db.First(&healthy, rows[0].ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if healthy.AuthState != models.CredentialAuthStateReady || healthy.AuthErrorCode != "" {
+		t.Fatal("healthy credential was modified")
 	}
 }
 
