@@ -490,6 +490,9 @@ const statusLabel = computed(() =>
 )
 const displayDisabled = computed(() => unifiedStatus.value === 'disabled')
 const authErrorKeys: Readonly<Record<string, string>> = {
+  startup_decrypt_failed: 'group.credentials.subscription.authError.storedInvalid',
+  startup_shape_invalid: 'group.credentials.subscription.authError.storedInvalid',
+  startup_fingerprint_mismatch: 'group.credentials.subscription.authError.storedInvalid',
   refresh_rejected: 'group.credentials.subscription.authError.refreshRejected',
   refresh_identity_changed: 'group.credentials.subscription.authError.identityChanged',
   refresh_outcome_unknown: 'group.credentials.subscription.authError.outcomeUnknown',

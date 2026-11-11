@@ -744,6 +744,8 @@ export default {
             'Credential refresh outcome unknown; try refreshing it, then reconnect or re-import',
         },
         authError: {
+          storedInvalid:
+            'This credential failed local validation and was isolated. Other accounts remain available. Reconnect or import a valid credential; the stored record is retained.',
           refreshRejected:
             'The upstream rejected the credential refresh. Try refreshing again; reconnect or re-import this account if it still fails.',
           identityChanged:
