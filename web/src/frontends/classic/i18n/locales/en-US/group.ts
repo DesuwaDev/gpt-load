@@ -135,7 +135,7 @@ export default {
         configured: 'Configured',
         discovered: 'Price found\nMatched provider: {source}',
       },
-      sources: { catalog: 'Catalog', live: 'Live discovery', builtin: 'Built-in models' },
+      sources: { catalog: 'Catalog', live: 'Live discovery' },
       drawer: {
         title: 'Get upstream models',
         description: 'Only checked models are appended; the current configuration is preserved.',
@@ -158,7 +158,7 @@ export default {
         action: 'Sync',
         title: 'Sync models',
         description:
-          'Sync uses upstream discovery or the built-in channel list. Built-in models do not confirm account access. Pricing-catalog-only models may appear in the removal list.',
+          'The list combines live discovery and the pricing catalog. Sync uses only live discovery, so catalog-only models may appear in the removal list.',
         close: 'Close model sync',
         modeLabel: 'Sync mode',
         mode: {
@@ -744,8 +744,6 @@ export default {
             'Credential refresh outcome unknown; try refreshing it, then reconnect or re-import',
         },
         authError: {
-          storedInvalid:
-            'This credential failed local validation and was isolated. Other accounts remain available. Reconnect or import a valid credential; the stored record is retained.',
           refreshRejected:
             'The upstream rejected the credential refresh. Try refreshing again; reconnect or re-import this account if it still fails.',
           identityChanged:

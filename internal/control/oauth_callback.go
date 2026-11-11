@@ -88,9 +88,6 @@ func (manager *OAuthCallbackManager) configureForServerHost(host string) {
 }
 
 func (manager *OAuthCallbackManager) EnsureStarted(spec subscriptionruntime.LocalCallbackSpec) error {
-	if spec.ManualOnly {
-		return nil
-	}
 	if manager == nil || manager.service == nil {
 		return errors.New("OAuth callback manager is unavailable")
 	}
@@ -270,27 +267,18 @@ func parseManualOAuthCallbackURL(raw string, spec subscriptionruntime.LocalCallb
 	if raw == "" || len(raw) > 16*1024 {
 		return oauthCallbackParameters{}, errors.New("invalid OAuth callback URL")
 	}
-	if spec.ManualOnly && !strings.ContainsAny(raw, ":?#&= \t\r\n") {
-		return oauthCallbackParameters{Code: raw}, nil
-	}
 	expected, err := url.Parse(spec.RedirectURI)
 	if err != nil {
 		return oauthCallbackParameters{}, errors.New("invalid OAuth callback URL")
 	}
 	parsed, err := url.Parse(raw)
-	if err != nil || !parsed.IsAbs() || !strings.EqualFold(parsed.Scheme, expected.Scheme) ||
+	if err != nil || !parsed.IsAbs() || !strings.EqualFold(parsed.Scheme, "http") ||
 		parsed.User != nil || parsed.Fragment != "" ||
 		!strings.EqualFold(parsed.Hostname(), expected.Hostname()) ||
 		parsed.Port() != expected.Port() || parsed.EscapedPath() != expected.EscapedPath() {
 		return oauthCallbackParameters{}, errors.New("invalid OAuth callback URL")
 	}
-	query := parsed.Query()
-	if spec.ManualOnly && len(query["state"]) == 0 {
-		if values := query["code"]; len(values) == 1 && values[0] != "" && len(query["error"]) == 0 {
-			return oauthCallbackParameters{Code: values[0]}, nil
-		}
-	}
-	return parseOAuthCallbackQuery(query)
+	return parseOAuthCallbackQuery(parsed.Query())
 }
 
 func parseOAuthCallbackQuery(query url.Values) (oauthCallbackParameters, error) {

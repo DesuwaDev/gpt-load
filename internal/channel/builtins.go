@@ -13,7 +13,6 @@ func builtInModules() []spec.Module {
 		modules.Codex(),
 		modules.Claude(),
 		modules.Antigravity(),
-		modules.GeminiCLI(),
 		modules.Grok(),
 		modules.Muse(),
 		modules.Devin(),

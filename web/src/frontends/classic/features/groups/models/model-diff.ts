@@ -49,9 +49,7 @@ export function createModelSyncDiff(
   current: readonly ModelDraftItem[],
   candidates: readonly ModelCandidate[],
 ): ModelSyncDiff {
-  const liveCandidates = candidates.filter(
-    ({ sources }) => sources.includes('live') || sources.includes('builtin'),
-  )
+  const liveCandidates = candidates.filter(({ sources }) => sources.includes('live'))
   const liveIDs = new Set(liveCandidates.map(({ id }) => id))
   const currentIDs = new Set(current.map(({ id }) => id.trim()).filter(Boolean))
   return {

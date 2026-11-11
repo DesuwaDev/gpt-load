@@ -60,13 +60,10 @@ func (s *Service) ListModernCredentialOptions(ctx context.Context) ([]ModernCred
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		if row.StartupQuarantined() {
-			continue
-		}
 		if row.Group == nil || row.IdentityFingerprint == "" {
 			return nil, app_errors.ErrInternalServer
 		}
-		canonical, identity, err := s.decodeCredentialForDisplay(*row.Group, row)
+		canonical, identity, err := s.decodeCredential(*row.Group, row)
 		if err != nil {
 			return nil, err
 		}

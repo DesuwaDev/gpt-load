@@ -27,11 +27,6 @@ var cpaImportFields = map[channel.ID][]string{
 		"type", "access_token", "refresh_token", "account_id", "email", "project_id",
 		"expires_in", "timestamp", "expired", "last_refresh",
 	},
-	// CPA 的 gemini 认证文件把令牌嵌套在 token 对象里，由渠道导入流程展开。
-	channel.GeminiCLI: {
-		"type", "token", "access_token", "refresh_token", "account_id", "email", "project_id",
-		"expires_in", "timestamp", "expired", "expiry", "expiry_date", "expires_at", "last_refresh", "oauth_type", "tier_id", "scope",
-	},
 	channel.Grok: {
 		"type", "access_token", "refresh_token", "id_token", "account_id", "sub", "email",
 		"token_type", "expires_in", "expired", "last_refresh", "token_endpoint", "auth_kind",
@@ -66,10 +61,6 @@ func mapCPA(object map[string]any, channelID channel.ID) (map[string]any, string
 	} else if channelID == channel.Devin {
 		if stringValue(m.out["session_token"]) == "" && stringValue(m.out["api_key"]) == "" {
 			m.fail("invalid_credential")
-		}
-	} else if channelID == channel.GeminiCLI && stringValue(m.out["refresh_token"]) == "" {
-		if token, ok := m.out["token"].(map[string]any); !ok || stringValue(token["refresh_token"]) == "" {
-			m.fail("missing_refresh_token")
 		}
 	} else {
 		m.requireRefresh()

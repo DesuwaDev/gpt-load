@@ -21,7 +21,6 @@ func TestOpenAIImagesInspectJSONRequests(t *testing.T) {
 		operation execution.Operation
 		stream    bool
 		wantError bool
-		native    bool
 	}{
 		{
 			name: "generation", path: "/v1/images/generations",
@@ -37,11 +36,6 @@ func TestOpenAIImagesInspectJSONRequests(t *testing.T) {
 			name: "JSON edit", path: "/v1/images/edits",
 			body:      `{"model":"gpt-image-2","prompt":"edit","images":[{"image_url":"data:image/png;base64,AA=="}]}`,
 			operation: execution.OperationImagesEdit,
-		},
-		{
-			name: "JSON edit with provider file", path: "/v1/images/edits",
-			body:      `{"model":"gpt-image-2","prompt":"edit","images":[{"file_id":"file-fixture"}]}`,
-			operation: execution.OperationImagesEdit, native: true,
 		},
 		{
 			name: "missing model", path: "/v1/images/generations",
@@ -79,9 +73,9 @@ func TestOpenAIImagesInspectJSONRequests(t *testing.T) {
 			if err != nil {
 				t.Fatalf("InspectRequest() error = %v", err)
 			}
-			wantRequirement := execution.RouteRequirementAny
-			if test.native {
-				wantRequirement = execution.RouteRequirementNative
+			wantRequirement := execution.RouteRequirementNative
+			if test.operation == execution.OperationImagesGenerate {
+				wantRequirement = execution.RouteRequirementAny
 			}
 			if metadata.Model == nil || *metadata.Model != "gpt-image-2" ||
 				metadata.Operation != test.operation || metadata.Stream != test.stream ||

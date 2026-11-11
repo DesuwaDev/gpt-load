@@ -224,7 +224,6 @@ const discoveryDrawerLabels = computed<ModelDiscoveryDrawerLabels>(() => ({
   sources: {
     catalog: t('group.modelEditor.sources.catalog'),
     live: t('group.modelEditor.sources.live'),
-    builtin: t('group.modelEditor.sources.builtin'),
   },
 }))
 useUnsavedChanges(dirty, {

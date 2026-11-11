@@ -85,25 +85,6 @@ type Credential struct {
 	UpdatedAtMS int64   `gorm:"column:updated_at_ms;not null;autoUpdateTime:milli;check:chk_credential_updated_at,updated_at_ms >= 0"`
 }
 
-// These bounded codes mark credentials rejected locally during startup.
-const (
-	CredentialStartupDecryptFailed       = "startup_decrypt_failed"
-	CredentialStartupShapeInvalid        = "startup_shape_invalid"
-	CredentialStartupFingerprintMismatch = "startup_fingerprint_mismatch"
-)
-
-func (credential Credential) StartupQuarantined() bool {
-	if credential.AuthState != CredentialAuthStateReauthorizationRequired {
-		return false
-	}
-	switch credential.AuthErrorCode {
-	case CredentialStartupDecryptFailed, CredentialStartupShapeInvalid, CredentialStartupFingerprintMismatch:
-		return true
-	default:
-		return false
-	}
-}
-
 type CredentialAuthState string
 
 const (

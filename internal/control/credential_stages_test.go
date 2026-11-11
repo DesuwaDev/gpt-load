@@ -15,7 +15,6 @@ import (
 	app_errors "gpt-load/internal/platform/errors"
 	"gpt-load/internal/storage/models"
 	"gpt-load/internal/subscription/providers/codex"
-	"gpt-load/internal/subscription/providers/geminicli"
 	subscriptionruntime "gpt-load/internal/subscription/runtime"
 )
 
@@ -1018,35 +1017,4 @@ func mustImportSubscriptionStage(t *testing.T, fixture serviceFixture, accountID
 		t.Fatal(err)
 	}
 	return stage
-}
-
-func TestGeminiCLIAuthorizationProjectFailureIsNotCodeRejection(t *testing.T) {
-	t.Parallel()
-	fixture := newServiceFixture(t)
-	started, err := fixture.service.BeginCredentialAuthorization(t.Context(), channel.GeminiCLI)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var row models.CredentialStage
-	if err := fixture.db.Take(&row, "id = ?", started.StageID).Error; err != nil {
-		t.Fatal(err)
-	}
-	plaintext, err := fixture.encryption.Decrypt(row.EncryptedPayload)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var payload stagedSubscriptionPayload
-	if err := json.Unmarshal([]byte(plaintext), &payload); err != nil {
-		t.Fatal(err)
-	}
-	fixture.service.completeSubscriptionAuthorization = func(context.Context, channel.ID, subscriptionruntime.AuthorizationCompletion) (subscriptionruntime.Credential, error) {
-		return subscriptionruntime.Credential{}, geminicli.ErrProjectRequired
-	}
-	if _, err := fixture.service.CompleteCredentialAuthorization(t.Context(), payload.State, "fresh-code"); !errors.Is(err, app_errors.ErrAuthorizationExchangeFailed) {
-		t.Fatalf("authorization error = %v", err)
-	}
-	result, err := fixture.service.GetCredentialStage(t.Context(), started.StageID)
-	if err != nil || result.ErrorCode != "authorization_project_required" || result.Status != string(models.CredentialStageFailed) {
-		t.Fatalf("stage = %+v, error = %v", result, err)
-	}
 }

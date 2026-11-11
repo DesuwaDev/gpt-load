@@ -16,7 +16,6 @@ func TestFinalRegistryContainsOnlyApprovedChannels(t *testing.T) {
 		Codex,
 		Claude,
 		Antigravity,
-		GeminiCLI,
 		Grok,
 		Muse,
 		Devin,

@@ -595,7 +595,6 @@ const discoveryDrawerLabels = computed<ModelDiscoveryDrawerLabels>(() => ({
   sources: {
     catalog: t('import.models.sources.catalog'),
     live: t('import.models.sources.live'),
-    builtin: t('import.models.sources.builtin'),
   },
 }))
 

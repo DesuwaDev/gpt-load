@@ -114,18 +114,3 @@ func TestConvertResponsePreservesGeminiUsageStates(t *testing.T) {
 		})
 	}
 }
-
-func TestConvertEditRequestRejectsUnrepresentableInputs(t *testing.T) {
-	for _, body := range []string{
-		`{"prompt":"edit"}`,
-		`{"prompt":"edit","image":"data:image/png;base64,%%%"}`,
-		`{"prompt":"edit","image":"https://example.test/image.png"}`,
-		`{"prompt":"edit","images":[{"file_id":"file-fixture"}]}`,
-		`{"prompt":"edit","image":"data:image/png;base64,aW1hZ2U=","mask":"mask"}`,
-		`{"prompt":"edit","image":"data:image/png;base64,aW1hZ2U=","n":2}`,
-	} {
-		if _, err := ConvertEditRequest([]byte(body), "application/json"); err == nil {
-			t.Fatalf("accepted unsupported edit: %s", body)
-		}
-	}
-}

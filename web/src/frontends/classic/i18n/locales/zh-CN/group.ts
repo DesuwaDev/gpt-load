@@ -134,7 +134,7 @@ export default {
         configured: '已配置',
         discovered: '发现价格\n匹配渠道：{source}',
       },
-      sources: { catalog: '渠道目录', live: '上游发现', builtin: '内置模型' },
+      sources: { catalog: '渠道目录', live: '上游发现' },
       drawer: {
         title: '获取上游模型列表',
         description: '只追加勾选的模型，不覆盖当前配置。',
@@ -157,7 +157,7 @@ export default {
         action: '同步',
         title: '同步模型',
         description:
-          '同步以上游发现或渠道内置列表为准。内置列表不代表账号权限；仅存在于价格目录的模型可能出现在移除清单。',
+          '模型列表包含上游发现和价格目录；同步只以上游发现结果为准。仅存在于价格目录的模型不会被识别为上游模型，可能出现在移除清单。',
         close: '关闭模型同步',
         modeLabel: '同步方式',
         mode: {
@@ -717,8 +717,6 @@ export default {
           outcome_unknown: '无法确认凭据刷新结果，可尝试刷新凭据，仍失败时请重新连接或导入',
         },
         authError: {
-          storedInvalid:
-            '此凭据未通过本地完整性校验，已隔离，不影响其他账号。请重新连接或导入有效凭据；原有记录已保留。',
           refreshRejected:
             '上游已拒绝刷新凭据，可尝试再次刷新凭据，仍失败时请重新连接或导入该账号凭据。',
           identityChanged: '刷新结果属于其他账号，请重新连接或导入原账号凭据。',

@@ -846,13 +846,7 @@ func (s *Service) completeCredentialAuthorization(
 		var finalizeErr error
 		browser, browserOK := driver.(subscriptionruntime.BrowserAuthorizationDriver)
 		if browserOK && browser.AuthorizationFailureDefinitive(err) {
-			code := "authorization_exchange_rejected"
-			if classifier, ok := driver.(subscriptionruntime.AuthorizationFailureCoder); ok {
-				if specific := safeInternalErrorCode(classifier.AuthorizationFailureCode(err)); specific != "" {
-					code = specific
-				}
-			}
-			finalizeErr = s.failCredentialStageExchange(ctx, row.ID, code)
+			finalizeErr = s.failCredentialStageExchange(ctx, row.ID, "authorization_exchange_rejected")
 		} else {
 			finalizeErr = s.markCredentialStageOutcomeUnknown(ctx, row.ID)
 		}
@@ -978,17 +972,6 @@ func (s *Service) CompleteCredentialAuthorizationCallback(
 	callback, err := parseManualOAuthCallbackURL(rawCallbackURL, callbackSpec)
 	if err != nil {
 		return CredentialStageResult{}, app_errors.ErrValidation
-	}
-	if callbackSpec.ManualOnly && callback.State == "" {
-		plain, decryptErr := s.encryption.Decrypt(row.EncryptedPayload)
-		if decryptErr != nil {
-			return CredentialStageResult{}, app_errors.ErrAuthorizationStateInvalid
-		}
-		payload, decodeErr := decodeStagedAuthorizationPayload(row.PayloadSchemaVersion, []byte(plain))
-		if decodeErr != nil || payload.State == "" || len(payload.DriverState) == 0 {
-			return CredentialStageResult{}, app_errors.ErrAuthorizationStateInvalid
-		}
-		callback.State = payload.State
 	}
 	if callback.ProviderError != "" {
 		if err := s.failCredentialAuthorization(

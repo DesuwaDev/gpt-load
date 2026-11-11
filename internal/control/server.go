@@ -124,11 +124,7 @@ func (s *Server) handleBeginCredentialAuthorization(c *gin.Context) {
 		return
 	}
 	if result.RedirectURI != "" && s.service.oauthCallback != nil {
-		callback, declared := s.service.subscriptions.LocalCallback(channel.ID(request.ChannelID))
-		if !declared {
-			callback = subscriptionruntime.LocalCallbackSpec{RedirectURI: result.RedirectURI}
-		}
-		if err := s.service.oauthCallback.EnsureStarted(callback); err != nil {
+		if err := s.service.oauthCallback.EnsureStarted(subscriptionruntime.LocalCallbackSpec{RedirectURI: result.RedirectURI}); err != nil {
 			s.logger.WithField("event", "oauth.callback_start_failed").WithError(err).Warn("OAuth callback listener is unavailable; manual callback remains available")
 		}
 	}

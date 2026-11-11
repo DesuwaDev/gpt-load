@@ -26,9 +26,6 @@ func TestLoadPreservesLegacySubscriptionDataAndIdentity(t *testing.T) {
 		// 见 internal/subscription/providers/codex/identity.go。
 		{channel.Codex, fmt.Sprintf(`{"type":"codex","id_token":%q,"access_token":"access","refresh_token":"refresh","account_id":"account"}`, token), "account|scope"},
 		{channel.Claude, fmt.Sprintf(`{"type":"claude","access_token":"access","refresh_token":"refresh","account_uuid":"account","organization_uuid":"scope","claude_device_ids":[%q],"expired":"2099-01-01T00:00:00Z"}`, strings.Repeat("a", 64)), "account/scope"},
-		{channel.GeminiCLI, `{"type":"gemini_cli","access_token":"access","refresh_token":"refresh","account_id":"account","email":"fixture@example.test","project_id":"project","expired":"2099-01-01T00:00:00Z"}`, "account"},
-		// A historical serializer can write optional fields in a different order.
-		{channel.GeminiCLI, `{"type":"gemini_cli","access_token":"access","refresh_token":"refresh","account_id":"account","email":"fixture@example.test","project_id":"project","expired":"2099-01-01T00:00:00Z","oauth_type":"code_assist","tier_id":"gcp_standard"}`, "account"},
 	} {
 		t.Run(string(test.channel), func(t *testing.T) {
 			db := openMigratedDatabase(t)

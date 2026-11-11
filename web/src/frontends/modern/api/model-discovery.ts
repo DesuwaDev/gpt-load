@@ -1,7 +1,7 @@
 import { InvalidResponseError } from '@shared/http/errors'
 import { list, oneOf, record, text } from './response'
 
-export type ModelSource = 'catalog' | 'live' | 'builtin'
+export type ModelSource = 'catalog' | 'live'
 export type ModelPricingStatus = 'pending' | 'configured'
 export interface ModelCandidate {
   id: string
@@ -16,9 +16,7 @@ export function readModelCandidates(value: unknown): ModelCandidate[] {
     const model = record(raw)
     const id = text(model.id)
     const name = text(model.name)
-    const sources = list(model.sources).map((source) =>
-      oneOf(source, ['catalog', 'live', 'builtin'] as const),
-    )
+    const sources = list(model.sources).map((source) => oneOf(source, ['catalog', 'live'] as const))
     const pricingStatus = oneOf(model.pricing_status, ['pending', 'configured'])
     const pricingSource = model.pricing_source === null ? null : text(model.pricing_source)
     if (

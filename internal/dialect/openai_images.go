@@ -67,7 +67,7 @@ func (d *OpenAIImages) InspectRequest(request *ParsedRequest) (RequestMetadata, 
 		model := parsed.model
 		return RequestMetadata{
 			Model: &model, Stream: parsed.stream,
-			Operation: operation, RouteRequirement: execution.RouteRequirementAny,
+			Operation: operation, RouteRequirement: execution.RouteRequirementNative,
 			ObserveUsage: true,
 		}, nil
 	}
@@ -82,36 +82,9 @@ func (d *OpenAIImages) InspectRequest(request *ParsedRequest) (RequestMetadata, 
 	metadata.RouteRequirement = execution.RouteRequirementNative
 	if operation == execution.OperationImagesGenerate {
 		metadata.RouteRequirement = execution.RouteRequirementAny
-	} else {
-		// Uploaded/data-URL images can be converted; provider-owned file IDs cannot.
-		root, _ := decodeExecutionFeatureObject(request.Body)
-		if !imagesReferenceProviderResource(root) {
-			metadata.RouteRequirement = execution.RouteRequirementAny
-		}
 	}
 	metadata.ObserveUsage = true
 	return metadata, nil
-}
-
-func imagesReferenceProviderResource(value any) bool {
-	switch value := value.(type) {
-	case map[string]any:
-		if hasMeaningfulField(value, "file_id") {
-			return true
-		}
-		for _, child := range value {
-			if imagesReferenceProviderResource(child) {
-				return true
-			}
-		}
-	case []any:
-		for _, child := range value {
-			if imagesReferenceProviderResource(child) {
-				return true
-			}
-		}
-	}
-	return false
 }
 
 func (d *OpenAIImages) RewriteRequestModel(request *ParsedRequest, model string) (*ParsedRequest, error) {

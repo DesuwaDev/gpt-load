@@ -147,8 +147,6 @@ export default {
       callbackLabel: '授权后浏览器停在的网址',
       callbackEndpointFallback: '本地 OAuth 回调地址',
       callbackPlaceholder: 'http://localhost:<端口>/callback?code=...&state=...',
-      googleCallbackHelp:
-        '完成 Google 授权后，粘贴页面显示的授权码，或 codeassist.google.com/authcode 的完整网址。',
       callbackHelp: '从地址栏复制完整网址粘到这里，不要只复制其中一段。页面打不开也没关系。',
       submitCallback: '提交',
       callbackFailed: '这段网址无效、已使用，或不属于当前这次授权',
@@ -211,8 +209,6 @@ export default {
         authorizationFailed: '{channel} 未能完成授权，请重新开始',
         authorizationExpired: '设备授权码已过期，请重新开始',
         exchangeRejected: '{channel} 拒绝了授权码，请重新授权',
-        projectRequired:
-          'Google 登录成功，但未找到可用的 GCP 项目。请在该 Google 账号下创建或加入项目后重新授权，或导入包含 project_id 的凭据文件。',
         exchangeUnknown: '授权交换结果无法确认，请重新授权',
         exchangeInterrupted: '授权交换被中断，请重新授权',
         refreshIdentityChanged: '刷新后的账号身份发生变化，请重新授权',
@@ -302,7 +298,6 @@ export default {
       sources: {
         catalog: '渠道目录',
         live: '上游发现',
-        builtin: '内置模型',
       },
       pricing: {
         pending: '待配置',

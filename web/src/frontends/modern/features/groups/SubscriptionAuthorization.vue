@@ -72,17 +72,12 @@ onScopeDispose(() => {
   resetCopy()
 })
 const device = computed(() => props.stage.method === 'device_oauth')
-const manualCode = computed(
-  () => props.stage.redirectURI === 'https://codeassist.google.com/authcode',
-)
 const placeholder = computed(() =>
-  manualCode.value
-    ? props.stage.redirectURI + '?code=…'
-    : props.stage.redirectURI
-      ? props.stage.redirectURI +
-        (props.stage.redirectURI.includes('?') ? '&' : '?') +
-        'code=…&state=…'
-      : t('subscriptions.callbackPlaceholder'),
+  props.stage.redirectURI
+    ? props.stage.redirectURI +
+      (props.stage.redirectURI.includes('?') ? '&' : '?') +
+      'code=…&state=…'
+    : t('subscriptions.callbackPlaceholder'),
 )
 async function submitPastedCallback(): Promise<void> {
   await nextTick()
@@ -144,20 +139,12 @@ async function submitPastedCallback(): Promise<void> {
     <section class="modern-subscription-auth-step">
       <h4>
         <span aria-hidden="true">2</span
-        >{{
-          t(
-            device
-              ? 'subscriptions.deviceStep'
-              : manualCode
-                ? 'subscriptions.googleCallbackStep'
-                : 'subscriptions.callbackStep',
-          )
-        }}
+        >{{ t(device ? 'subscriptions.deviceStep' : 'subscriptions.callbackStep') }}
         <AppIconButton
           v-if="!device"
           touchable
           :icon="Info"
-          :label="t(manualCode ? 'subscriptions.googleCallbackHelp' : 'subscriptions.callbackHelp')"
+          :label="t('subscriptions.callbackHelp')"
           size="xxs"
           class="modern-help-trigger"
         />
@@ -173,7 +160,7 @@ async function submitPastedCallback(): Promise<void> {
           :model-value="modelValue"
           :label="t('subscriptions.callbackURL')"
           label-hidden
-          :hint="t(manualCode ? 'subscriptions.googleCallbackHelp' : 'subscriptions.callbackHelp')"
+          :hint="t('subscriptions.callbackHelp')"
           :placeholder="placeholder"
           :rows="3"
           mono

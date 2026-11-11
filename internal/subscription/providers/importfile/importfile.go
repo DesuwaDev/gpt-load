@@ -328,12 +328,6 @@ func mapSub2API(object map[string]any, channelID channel.ID) (map[string]any, st
 		if stringValue(m.out["access_token"]) == "" || stringValue(m.out["email"]) == "" || stringValue(m.out["expired"]) == "" {
 			m.fail("incomplete_credential")
 		}
-	case channel.GeminiCLI:
-		m.copyIdentity("account_id", []map[string]any{credentials, extra}, "account_id")
-		m.copyIdentity("project_id", []map[string]any{credentials}, "project_id")
-		for _, key := range []string{"oauth_type", "tier_id", "scope"} {
-			m.copyString(key, credentials, key)
-		}
 	case channel.Grok:
 		m.copyIdentity("account_id", []map[string]any{credentials, extra}, "sub", "account_id")
 		m.copyString("token_type", credentials, "token_type")
@@ -467,8 +461,6 @@ func (m *mapper) validateClient(source map[string]any, channelID channel.ID) {
 		expected = "9d1c250a-e61b-44d9-88ed-5944d1962f5e"
 	case channel.Antigravity:
 		expected = "1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com"
-	case channel.GeminiCLI:
-		expected = "681255809395-oo8ft2oprdrnp9e3aqf6av3hmdib135j.apps.googleusercontent.com"
 	case channel.Grok:
 		expected = "b1a00492-073a-47ea-816f-4c329264a828"
 	case channel.Muse:
@@ -510,8 +502,6 @@ func cpaChannel(provider string) channel.ID {
 		return channel.Claude
 	case "antigravity":
 		return channel.Antigravity
-	case "gemini", "gemini-cli", "gemini_cli":
-		return channel.GeminiCLI
 	case "grok", "xai":
 		return channel.Grok
 	case "devin":
@@ -529,8 +519,6 @@ func subscriptionChannel(platform string) channel.ID {
 		return channel.Codex
 	case "anthropic":
 		return channel.Claude
-	case "gemini":
-		return channel.GeminiCLI
 	case "antigravity":
 		return channel.Antigravity
 	case "grok":

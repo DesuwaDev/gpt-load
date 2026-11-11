@@ -10,9 +10,6 @@ const { t } = useI18n()
 
 <template>
   <span class="modern-model-sources">
-    <AppBadge v-if="sources?.includes('builtin')" :icon="BookOpen" size="xs">{{
-      t('modelSelection.sources.builtin')
-    }}</AppBadge>
     <AppBadge v-if="sources?.includes('live')" :icon="Radio" tone="brand" size="xs">{{
       t('modelSelection.sources.live')
     }}</AppBadge>

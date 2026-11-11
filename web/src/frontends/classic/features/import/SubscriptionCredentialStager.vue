@@ -528,16 +528,11 @@ function remainingCountdown(stage: CredentialStage): string {
   return `${minutes}:${String(seconds).padStart(2, '0')}`
 }
 
-function usesGoogleAuthCode(stage: CredentialStage): boolean {
-  return stage.redirect_uri === 'https://codeassist.google.com/authcode'
-}
-
 function callbackEndpoint(stage: CredentialStage): string {
   return stage.redirect_uri ?? t('import.subscription.callbackEndpointFallback')
 }
 
 function callbackPlaceholder(stage: CredentialStage): string {
-  if (usesGoogleAuthCode(stage)) return stage.redirect_uri + '?code=...'
   if (!stage.redirect_uri) return t('import.subscription.callbackPlaceholder')
   const separator = stage.redirect_uri.includes('?') ? '&' : '?'
   return `${stage.redirect_uri}${separator}code=...&state=...`
@@ -604,7 +599,6 @@ function stageErrorKey(code: string): string {
     authorization_failed: 'import.subscription.stageError.authorizationFailed',
     authorization_expired: 'import.subscription.stageError.authorizationExpired',
     authorization_exchange_rejected: 'import.subscription.stageError.exchangeRejected',
-    authorization_project_required: 'import.subscription.stageError.projectRequired',
     authorization_exchange_unknown: 'import.subscription.stageError.exchangeUnknown',
     authorization_exchange_interrupted: 'import.subscription.stageError.exchangeInterrupted',
     credential_refresh_identity_changed: 'import.subscription.stageError.refreshIdentityChanged',
@@ -616,7 +610,7 @@ function stageErrorKey(code: string): string {
 }
 
 function stageErrorMessage(stage: CredentialStage): string {
-  if (stage.error_code) return t(stageErrorKey(stage.error_code), { channel: props.channelName })
+  if (stage.error_code) return t(stageErrorKey(stage.error_code))
   if (stage.status === 'expired') return t('import.subscription.stageError.expired')
   if (stage.status === 'cancelled') return t('import.subscription.stageError.cancelled')
   return t('import.subscription.stageError.unknown')
@@ -836,9 +830,7 @@ onBeforeUnmount(() => {
             {{
               stage.authorization_method === 'device_oauth'
                 ? t('import.subscription.deviceInstructions')
-                : usesGoogleAuthCode(stage)
-                  ? t('import.subscription.googleCallbackHelp')
-                  : t('import.subscription.manualHint', { redirectUri: callbackEndpoint(stage) })
+                : t('import.subscription.manualHint', { redirectUri: callbackEndpoint(stage) })
             }}
           </p>
 
@@ -889,13 +881,7 @@ onBeforeUnmount(() => {
             <FormField
               :id="`oauth-callback-${stage.stage_id}`"
               :label="t('import.subscription.callbackLabel')"
-              :description="
-                t(
-                  usesGoogleAuthCode(stage)
-                    ? 'import.subscription.googleCallbackHelp'
-                    : 'import.subscription.callbackHelp',
-                )
-              "
+              :description="t('import.subscription.callbackHelp')"
               :error="
                 callbackErrorKeys[stage.stage_id] ? t(callbackErrorKeys[stage.stage_id]) : undefined
               "
@@ -905,7 +891,7 @@ onBeforeUnmount(() => {
                 <input
                   :id="`oauth-callback-${stage.stage_id}`"
                   v-model="callbackURLs[stage.stage_id]"
-                  :type="usesGoogleAuthCode(stage) ? 'text' : 'url'"
+                  type="url"
                   autocomplete="off"
                   autocapitalize="none"
                   spellcheck="false"

@@ -12,7 +12,7 @@ import {
   projectString,
 } from './projector'
 
-export type ModelCandidateSource = 'catalog' | 'live' | 'builtin'
+export type ModelCandidateSource = 'catalog' | 'live'
 
 export interface ModelCandidate {
   id: string
@@ -40,7 +40,7 @@ const catalogSyncStatusFields = [
   'skipped',
   'error_code',
 ] as const
-const modelCandidateSources = ['catalog', 'live', 'builtin'] as const
+const modelCandidateSources = ['catalog', 'live'] as const
 const pricingStatuses = ['pending', 'configured'] as const
 const catalogSyncTriggers = ['startup', 'periodic', 'group_change', 'manual'] as const
 
