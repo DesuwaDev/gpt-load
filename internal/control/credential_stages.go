@@ -979,6 +979,17 @@ func (s *Service) CompleteCredentialAuthorizationCallback(
 	if err != nil {
 		return CredentialStageResult{}, app_errors.ErrValidation
 	}
+	if callbackSpec.ManualOnly && callback.State == "" {
+		plain, decryptErr := s.encryption.Decrypt(row.EncryptedPayload)
+		if decryptErr != nil {
+			return CredentialStageResult{}, app_errors.ErrAuthorizationStateInvalid
+		}
+		payload, decodeErr := decodeStagedAuthorizationPayload(row.PayloadSchemaVersion, []byte(plain))
+		if decodeErr != nil || payload.State == "" || len(payload.DriverState) == 0 {
+			return CredentialStageResult{}, app_errors.ErrAuthorizationStateInvalid
+		}
+		callback.State = payload.State
+	}
 	if callback.ProviderError != "" {
 		if err := s.failCredentialAuthorization(
 			ctx,

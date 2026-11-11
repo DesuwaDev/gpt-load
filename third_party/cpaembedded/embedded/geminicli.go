@@ -8,11 +8,11 @@ import (
 )
 
 // Gemini CLI 使用 Google 官方开源 CLI 的 installed-app OAuth client，业务请求走
-// Cloud Code Assist（cloudcode-pa）的 v1internal 接口，个人账号与 Google One
-// 订阅额度都由该接口按项目结算。
+// Cloud Code Assist（cloudcode-pa）的 v1internal 接口；导入的无项目 Google One
+// 凭据使用原生 Gemini API。
 const (
 	ProviderGeminiCLI    = "gemini_cli"
-	GeminiCLIRedirectURI = "http://localhost:8085/oauth2callback"
+	GeminiCLIRedirectURI = "https://codeassist.google.com/authcode"
 
 	geminiCLIClientID         = "681255809395-oo8ft2oprdrnp9e3aqf6av3hmdib135j.apps.googleusercontent.com"
 	geminiCLIAuthEndpoint     = "https://accounts.google.com/o/oauth2/v2/auth"
@@ -20,8 +20,7 @@ const (
 	geminiCLIUserInfoEndpoint = "https://www.googleapis.com/oauth2/v2/userinfo?alt=json"
 	geminiCLIExecutionBase    = "https://cloudcode-pa.googleapis.com"
 	geminiCLIAPIVersion       = "v1internal"
-	geminiCLIVersion          = "0.21.0"
-	geminiCLILoginTimeout     = 5 * time.Minute
+	geminiCLILoginTimeout     = 30 * time.Minute
 )
 
 // geminiCLIClientSecret 是 gemini-cli 源码中公开的 installed-app secret，
@@ -36,7 +35,7 @@ var geminiCLIScopes = []string{
 
 // geminiCLIClientMetadata 与 gemini-cli setupUser 发送的 ClientMetadata 一致。
 var geminiCLIClientMetadata = map[string]string{
-	"ideType":    "IDE_UNSPECIFIED",
+	"ideType":    "ANTIGRAVITY",
 	"platform":   "PLATFORM_UNSPECIFIED",
 	"pluginType": "GEMINI",
 }
@@ -45,6 +44,9 @@ var geminiCLIClientMetadata = map[string]string{
 // Google UserInfo；project_id 是 Code Assist 计费与额度所属项目。
 type GeminiCLICredential struct {
 	Type         string `json:"type"`
+	OAuthType    string `json:"oauth_type,omitempty"`
+	TierID       string `json:"tier_id,omitempty"`
+	Scope        string `json:"scope,omitempty"`
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
 	AccountID    string `json:"account_id"`
@@ -75,7 +77,7 @@ func ParseGeminiCLICredentialJSON(raw []byte) (GeminiCLICredential, error) {
 	allowed := map[string]struct{}{
 		"type": {}, "access_token": {}, "refresh_token": {}, "account_id": {},
 		"email": {}, "project_id": {}, "expires_in": {}, "timestamp": {},
-		"expired": {}, "last_refresh": {},
+		"expired": {}, "last_refresh": {}, "oauth_type": {}, "tier_id": {}, "scope": {},
 	}
 	if err := validateClaudeCredentialObject(raw, allowed); err != nil {
 		return GeminiCLICredential{}, err
@@ -116,6 +118,12 @@ func GeminiCLICredentialExpiresAt(credential GeminiCLICredential) (time.Time, bo
 
 func normalizeGeminiCLICredential(credential *GeminiCLICredential) {
 	credential.Type = strings.ToLower(strings.TrimSpace(credential.Type))
+	credential.OAuthType = strings.ToLower(strings.TrimSpace(credential.OAuthType))
+	if credential.OAuthType == "" {
+		credential.OAuthType = "code_assist"
+	}
+	credential.TierID = canonicalGeminiCLITier(credential.OAuthType, credential.TierID)
+	credential.Scope = strings.TrimSpace(credential.Scope)
 	credential.AccessToken = strings.TrimSpace(credential.AccessToken)
 	credential.RefreshToken = strings.TrimSpace(credential.RefreshToken)
 	credential.AccountID = strings.TrimSpace(credential.AccountID)
@@ -129,12 +137,23 @@ func validateGeminiCLICredential(credential GeminiCLICredential) error {
 	if credential.Type != ProviderGeminiCLI {
 		return fmt.Errorf("credential type must be gemini_cli")
 	}
+	if credential.OAuthType != "" && credential.OAuthType != "code_assist" && credential.OAuthType != "google_one" {
+		return fmt.Errorf("Gemini CLI credential supports code_assist or google_one OAuth; AI Studio requires its own OAuth client")
+	}
+	if len(credential.Scope) > 16*1024 || strings.ContainsAny(credential.Scope, "\r\n\x00") {
+		return fmt.Errorf("credential scope is invalid")
+	}
+	if (credential.OAuthType == "" || credential.OAuthType == "code_assist") && credential.ProjectID == "" {
+		return fmt.Errorf("credential project_id is required")
+	}
+	if len(credential.ProjectID) > 16*1024 || strings.ContainsAny(credential.ProjectID, "\r\n\x00") {
+		return fmt.Errorf("credential project_id is invalid")
+	}
 	for field, value := range map[string]string{
 		"access_token":  credential.AccessToken,
 		"refresh_token": credential.RefreshToken,
 		"account_id":    credential.AccountID,
 		"email":         credential.Email,
-		"project_id":    credential.ProjectID,
 	} {
 		if value == "" {
 			return fmt.Errorf("credential %s is required", field)
@@ -157,24 +176,22 @@ func validateGeminiCLICredential(credential GeminiCLICredential) error {
 
 // GeminiCLIAPIEndpoints 集中声明凭据就绪后的业务端点，可整体映射到 API 代理根地址。
 type GeminiCLIAPIEndpoints struct {
-	ExecutionBase        string
-	LoadCodeAssistURL    string
-	OnboardUserURL       string
-	RetrieveUserQuotaURL string
+	ExecutionBase     string
+	LoadCodeAssistURL string
+	OnboardUserURL    string
 }
 
 // ResolveGeminiCLIAPIEndpoints 保留官方 cloudcode-pa 端点，或把原生路径映射到代理根地址。
 func ResolveGeminiCLIAPIEndpoints(apiRoot string) (GeminiCLIAPIEndpoints, error) {
 	prefix := geminiCLIExecutionBase + "/" + geminiCLIAPIVersion
 	endpoints := GeminiCLIAPIEndpoints{
-		ExecutionBase:        geminiCLIExecutionBase,
-		LoadCodeAssistURL:    prefix + ":loadCodeAssist",
-		OnboardUserURL:       prefix + ":onboardUser",
-		RetrieveUserQuotaURL: prefix + ":retrieveUserQuota",
+		ExecutionBase:     geminiCLIExecutionBase,
+		LoadCodeAssistURL: prefix + ":loadCodeAssist",
+		OnboardUserURL:    prefix + ":onboardUser",
 	}
 	for _, endpoint := range []*string{
 		&endpoints.ExecutionBase, &endpoints.LoadCodeAssistURL,
-		&endpoints.OnboardUserURL, &endpoints.RetrieveUserQuotaURL,
+		&endpoints.OnboardUserURL,
 	} {
 		resolved, err := ResolveAPIEndpoint(apiRoot, *endpoint)
 		if err != nil {
@@ -186,10 +203,6 @@ func ResolveGeminiCLIAPIEndpoints(apiRoot string) (GeminiCLIAPIEndpoints, error)
 	return endpoints, nil
 }
 
-func geminiCLIUserAgent(model string) string {
-	model = strings.TrimSpace(model)
-	if model == "" {
-		return "GeminiCLI/" + geminiCLIVersion + " (linux; x64)"
-	}
-	return "GeminiCLI/" + geminiCLIVersion + "/" + model + " (linux; x64)"
+func geminiCLIUserAgent(_ string) string {
+	return "GeminiCLI/0.1.5 (Windows; AMD64)"
 }

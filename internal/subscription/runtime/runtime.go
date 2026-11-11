@@ -138,9 +138,10 @@ type Authorization struct {
 	RedirectURI string
 }
 
-// LocalCallbackSpec declares one fixed loopback OAuth redirect endpoint.
+// LocalCallbackSpec declares a fixed loopback redirect or a manual-only HTTPS auth-code page.
 type LocalCallbackSpec struct {
 	RedirectURI string
+	ManualOnly  bool
 }
 
 // AuthorizationCompletion is the provider-neutral callback input.
@@ -479,6 +480,13 @@ func IsFixedLoopbackOAuthHost(host string) bool {
 }
 
 func validateLocalCallbackSpec(spec LocalCallbackSpec) (LocalCallbackSpec, error) {
+	if spec.ManualOnly {
+		parsed, err := url.Parse(spec.RedirectURI)
+		if err != nil || parsed.Scheme != "https" || parsed.Host == "" || parsed.User != nil || parsed.Opaque != "" || parsed.RawQuery != "" || parsed.Fragment != "" || parsed.Path == "" || parsed.EscapedPath() != parsed.Path {
+			return LocalCallbackSpec{}, errors.New("invalid manual OAuth redirect URI")
+		}
+		return spec, nil
+	}
 	raw := strings.TrimSpace(spec.RedirectURI)
 	parsed, err := url.Parse(raw)
 	if err != nil || !parsed.IsAbs() || parsed.Opaque != "" || parsed.User != nil || parsed.Fragment != "" ||

@@ -155,6 +155,8 @@ export default {
       callbackLabel: 'ブラウザーが最後に表示した URL',
       callbackEndpointFallback: 'ローカル OAuth コールバック',
       callbackPlaceholder: 'http://localhost:<port>/callback?code=...&state=...',
+      googleCallbackHelp:
+        'Google で認証後、表示されたコード、または codeassist.google.com/authcode の完全な URL を貼り付けてください。',
       callbackHelp:
         'アドレスバーの URL を一部ではなく全体をコピーして貼り付けてください。そのページが開けなくても問題ありません。',
       submitCallback: '送信',

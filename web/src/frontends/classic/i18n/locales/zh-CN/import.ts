@@ -147,6 +147,8 @@ export default {
       callbackLabel: '授权后浏览器停在的网址',
       callbackEndpointFallback: '本地 OAuth 回调地址',
       callbackPlaceholder: 'http://localhost:<端口>/callback?code=...&state=...',
+      googleCallbackHelp:
+        '完成 Google 授权后，粘贴页面显示的授权码，或 codeassist.google.com/authcode 的完整网址。',
       callbackHelp: '从地址栏复制完整网址粘到这里，不要只复制其中一段。页面打不开也没关系。',
       submitCallback: '提交',
       callbackFailed: '这段网址无效、已使用，或不属于当前这次授权',

@@ -4,6 +4,9 @@ export const zhCN = {
   copyLink: '复制连接',
   authenticating: '认证中',
   callbackStep: '粘贴完整回调地址',
+  googleCallbackStep: '粘贴 Google 授权码或完整回调网址',
+  googleCallbackHelp:
+    '在 Google 页面完成授权后，粘贴页面显示的授权码，或 codeassist.google.com/authcode 的完整网址。',
   callbackPlaceholder: 'http://localhost:端口/回调路径?code=…&state=…',
   callbackHelp:
     '登录后，复制地址栏中包含 code 和 state 的完整地址并粘贴到这里。即使 localhost 页面无法打开也可以，不要将 localhost 改成服务器地址。',
@@ -120,6 +123,9 @@ export const enUS: typeof zhCN = {
   copyLink: 'Copy link',
   authenticating: 'Authenticating',
   callbackStep: 'Paste the full callback URL',
+  googleCallbackStep: 'Paste the Google authorization code or callback URL',
+  googleCallbackHelp:
+    'After authorizing with Google, paste the displayed code or the full codeassist.google.com/authcode URL.',
   callbackPlaceholder: 'http://localhost:port/callback-path?code=…&state=…',
   callbackHelp:
     'After signing in, paste the complete address containing code and state from the address bar. This works even if the localhost page cannot open. Do not replace localhost with the server address.',
@@ -240,6 +246,9 @@ export const jaJP: typeof zhCN = {
   copyLink: 'リンクをコピー',
   authenticating: '認証中',
   callbackStep: '完全なコールバック URL を貼り付け',
+  googleCallbackStep: 'Google 認証コードまたは完全なコールバック URL を貼り付け',
+  googleCallbackHelp:
+    'Google で認証後、表示されたコード、または codeassist.google.com/authcode の完全な URL を貼り付けてください。',
   callbackPlaceholder: 'http://localhost:ポート/コールバックパス?code=…&state=…',
   callbackHelp:
     'ログイン後、アドレスバーの code と state を含む完全な URL を貼り付けてください。localhost のページを開けなくても利用できます。localhost をサーバーのアドレスに置き換えないでください。',

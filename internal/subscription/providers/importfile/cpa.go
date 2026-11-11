@@ -30,7 +30,7 @@ var cpaImportFields = map[channel.ID][]string{
 	// CPA 的 gemini 认证文件把令牌嵌套在 token 对象里，由渠道导入流程展开。
 	channel.GeminiCLI: {
 		"type", "token", "access_token", "refresh_token", "account_id", "email", "project_id",
-		"expires_in", "timestamp", "expired", "expiry", "expiry_date", "last_refresh",
+		"expires_in", "timestamp", "expired", "expiry", "expiry_date", "expires_at", "last_refresh", "oauth_type", "tier_id", "scope",
 	},
 	channel.Grok: {
 		"type", "access_token", "refresh_token", "id_token", "account_id", "sub", "email",

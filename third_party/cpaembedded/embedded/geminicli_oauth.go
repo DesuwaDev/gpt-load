@@ -3,10 +3,12 @@ package embedded
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -52,20 +54,20 @@ func (err *GeminiCLIUpstreamHTTPError) Error() string {
 
 // GeminiCLIOptions 提供可替换的端点与时间边界，不改变固定的 OAuth client 与回调地址。
 type GeminiCLIOptions struct {
-	TokenURL             string
-	UserInfoURL          string
-	LoadCodeAssistURL    string
-	OnboardUserURL       string
-	RetrieveUserQuotaURL string
-	ResourceManagerURL   string
-	HTTPClient           *http.Client
-	Now                  func() time.Time
+	TokenURL           string
+	UserInfoURL        string
+	LoadCodeAssistURL  string
+	OnboardUserURL     string
+	ResourceManagerURL string
+	HTTPClient         *http.Client
+	Now                func() time.Time
 }
 
 type geminiCLITokenResponse struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
 	ExpiresIn    int64  `json:"expires_in"`
+	Scope        string `json:"scope"`
 }
 
 type geminiCLIUserInfo struct {
@@ -74,21 +76,10 @@ type geminiCLIUserInfo struct {
 	VerifiedEmail *bool  `json:"verified_email"`
 }
 
-// GeminiCLIQuotaBucket 是 retrieveUserQuota 返回的单个模型额度桶。
-type GeminiCLIQuotaBucket struct {
-	ModelID           string
-	TokenType         string
-	ResetTime         string
-	RemainingFraction *float64
-}
-
-// GeminiCLIAccountObservation 汇总账号档位与模型额度，任一来源失败时记入 IncompleteSources。
+// GeminiCLIAccountObservation contains persisted, verified account metadata.
 type GeminiCLIAccountObservation struct {
-	TierID            string
-	Buckets           []GeminiCLIQuotaBucket
-	AccountObserved   bool
-	QuotaObserved     bool
-	IncompleteSources []string
+	TierID          string
+	AccountObserved bool
 }
 
 // BeginGeminiCLIBrowserAuthorization 只生成授权链接与 state，不监听端口、不写文件。
@@ -97,7 +88,16 @@ func BeginGeminiCLIBrowserAuthorization() (BrowserAuthorization, error) {
 	if err != nil {
 		return BrowserAuthorization{}, fmt.Errorf("generate Gemini CLI OAuth state: %w", err)
 	}
+	verifierBytes := make([]byte, 32)
+	if _, err := rand.Read(verifierBytes); err != nil {
+		return BrowserAuthorization{}, err
+	}
+	verifier := base64.RawURLEncoding.EncodeToString(verifierBytes)
+	challenge := sha256.Sum256([]byte(verifier))
 	params := url.Values{}
+	params.Set("code_challenge", base64.RawURLEncoding.EncodeToString(challenge[:]))
+	params.Set("code_challenge_method", "S256")
+	params.Set("include_granted_scopes", "true")
 	params.Set("access_type", "offline")
 	params.Set("client_id", geminiCLIClientID)
 	// 强制同意页，保证每次授权都返回 refresh_token。
@@ -109,6 +109,8 @@ func BeginGeminiCLIBrowserAuthorization() (BrowserAuthorization, error) {
 	return BrowserAuthorization{
 		AuthorizationURL: geminiCLIAuthEndpoint + "?" + params.Encode(),
 		State:            state,
+		CodeVerifier:     verifier,
+		CodeChallenge:    base64.RawURLEncoding.EncodeToString(challenge[:]),
 		ExpiresAt:        time.Now().UTC().Add(geminiCLILoginTimeout),
 	}, nil
 }
@@ -129,9 +131,10 @@ func CompleteGeminiCLIBrowserAuthorization(
 		return GeminiCLICredential{}, fmt.Errorf("authorization code is required")
 	}
 	token, err := requestGeminiCLIToken(ctx, url.Values{
-		"grant_type":   {"authorization_code"},
-		"code":         {strings.TrimSpace(completion.Code)},
-		"redirect_uri": {GeminiCLIRedirectURI},
+		"grant_type":    {"authorization_code"},
+		"code":          {strings.TrimSpace(completion.Code)},
+		"redirect_uri":  {GeminiCLIRedirectURI},
+		"code_verifier": {completion.CodeVerifier},
 	}, options)
 	if err != nil {
 		return GeminiCLICredential{}, fmt.Errorf("exchange Gemini CLI authorization code: %w", err)
@@ -140,7 +143,7 @@ func CompleteGeminiCLIBrowserAuthorization(
 	if err != nil {
 		return GeminiCLICredential{}, fmt.Errorf("fetch Gemini CLI user identity: %w", err)
 	}
-	projectID, _, err := setupGeminiCLIProject(ctx, token.AccessToken, "", options)
+	projectID, tierID, err := setupGeminiCLIProject(ctx, token.AccessToken, "", options)
 	if err != nil {
 		return GeminiCLICredential{}, fmt.Errorf("set up Gemini CLI project: %w", err)
 	}
@@ -148,6 +151,7 @@ func CompleteGeminiCLIBrowserAuthorization(
 	credential := GeminiCLICredential{
 		Type: ProviderGeminiCLI, AccessToken: token.AccessToken, RefreshToken: token.RefreshToken,
 		AccountID: identity.ID, Email: identity.Email, ProjectID: projectID,
+		OAuthType: "code_assist", TierID: canonicalGeminiCLITier("code_assist", tierID), Scope: token.Scope,
 		ExpiresIn: token.ExpiresIn, Timestamp: now.UnixMilli(), LastRefresh: now.Format(time.RFC3339),
 		Expire: now.Add(time.Duration(token.ExpiresIn) * time.Second).Format(time.RFC3339),
 	}
@@ -158,7 +162,7 @@ func CompleteGeminiCLIBrowserAuthorization(
 	return credential, nil
 }
 
-// RefreshGeminiCLICredentialOnce 在调用方上下文内只刷新一次，并确认 Google 仍识别为同一账号。
+// RefreshGeminiCLICredentialOnce 刷新令牌并保留已验证的账号、项目与档位。
 func RefreshGeminiCLICredentialOnce(
 	ctx context.Context,
 	current GeminiCLICredential,
@@ -177,19 +181,14 @@ func RefreshGeminiCLICredentialOnce(
 	if err != nil {
 		return GeminiCLICredential{}, fmt.Errorf("refresh Gemini CLI credential: %w", err)
 	}
-	identity, err := fetchGeminiCLIUserInfo(ctx, token.AccessToken, options)
-	if err != nil {
-		return GeminiCLICredential{}, fmt.Errorf("verify refreshed Gemini CLI identity: %w", err)
-	}
-	if identity.ID != current.AccountID {
-		return GeminiCLICredential{}, ErrGeminiCLICredentialIdentityChanged
-	}
 	refreshed := current
 	refreshed.AccessToken = token.AccessToken
 	if token.RefreshToken != "" {
 		refreshed.RefreshToken = token.RefreshToken
 	}
-	refreshed.Email = identity.Email
+	if token.Scope != "" {
+		refreshed.Scope = token.Scope
+	}
 	refreshed.ExpiresIn = token.ExpiresIn
 	now := geminiCLINow(options)
 	refreshed.Timestamp = now.UnixMilli()
@@ -226,6 +225,9 @@ func ImportGeminiCLICredential(
 			return fmt.Errorf("refresh imported Gemini CLI credential: %w", refreshErr)
 		}
 		imported.AccessToken = token.AccessToken
+		if token.Scope != "" {
+			imported.Scope = token.Scope
+		}
 		if token.RefreshToken != "" {
 			imported.RefreshToken = token.RefreshToken
 		}
@@ -259,13 +261,22 @@ func ImportGeminiCLICredential(
 	if imported.AccountID == "" && imported.Email != "" && !strings.EqualFold(imported.Email, identity.Email) {
 		return GeminiCLICredential{}, fmt.Errorf("imported Gemini CLI email does not match userinfo")
 	}
-	projectID, _, err := setupGeminiCLIProject(ctx, imported.AccessToken, imported.ProjectID, options)
+	projectID, tierID := imported.ProjectID, imported.TierID
+	if imported.OAuthType == "code_assist" {
+		projectID, tierID, err = setupGeminiCLIProject(ctx, imported.AccessToken, imported.ProjectID, options)
+	}
 	if err != nil {
 		return GeminiCLICredential{}, fmt.Errorf("set up imported Gemini CLI project: %w", err)
 	}
 	credential := imported
 	credential.Type = ProviderGeminiCLI
 	credential.AccountID, credential.Email, credential.ProjectID = identity.ID, identity.Email, projectID
+	if credential.OAuthType == "" {
+		credential.OAuthType = "code_assist"
+	}
+	if credential.TierID == "" {
+		credential.TierID = canonicalGeminiCLITier(credential.OAuthType, tierID)
+	}
 	if credential.LastRefresh == "" {
 		credential.LastRefresh = now.Format(time.RFC3339)
 	}
@@ -276,38 +287,16 @@ func ImportGeminiCLICredential(
 	return credential, nil
 }
 
-// ObserveGeminiCLIAccount 读取账号档位与各模型剩余额度。
-func ObserveGeminiCLIAccount(
-	ctx context.Context,
-	credential GeminiCLICredential,
-	options GeminiCLIOptions,
-) (GeminiCLIAccountObservation, error) {
-	if ctx == nil {
-		ctx = context.Background()
+// ObserveGeminiCLIAccount returns stored account metadata. Code Assist quota
+// windows are built from the tier policy and local request statistics, as in sub2api.
+func ObserveGeminiCLIAccount(ctx context.Context, credential GeminiCLICredential, _ GeminiCLIOptions) (GeminiCLIAccountObservation, error) {
+	if ctx != nil && ctx.Err() != nil {
+		return GeminiCLIAccountObservation{}, ctx.Err()
 	}
 	if err := validateGeminiCLICredential(credential); err != nil {
 		return GeminiCLIAccountObservation{}, err
 	}
-	var result GeminiCLIAccountObservation
-	// 只为读取档位，不带项目提示：免费档的托管项目不应作为自带项目回传。
-	load, loadErr := loadGeminiCLICodeAssist(ctx, credential.AccessToken, "", options)
-	if loadErr == nil {
-		result.TierID = geminiCLITierID(load)
-		result.AccountObserved = result.TierID != ""
-	} else {
-		result.IncompleteSources = append(result.IncompleteSources, "loadCodeAssist")
-	}
-	buckets, quotaErr := retrieveGeminiCLIQuota(ctx, credential, options)
-	if quotaErr == nil {
-		result.Buckets = buckets
-		result.QuotaObserved = len(buckets) > 0
-	} else {
-		result.IncompleteSources = append(result.IncompleteSources, "retrieveUserQuota")
-	}
-	if loadErr != nil && quotaErr != nil {
-		return GeminiCLIAccountObservation{}, loadErr
-	}
-	return result, nil
+	return GeminiCLIAccountObservation{TierID: canonicalGeminiCLITier(credential.OAuthType, credential.TierID), AccountObserved: true}, nil
 }
 
 func IsDefinitiveGeminiCLIRefreshRejection(code string) bool {
@@ -476,15 +465,18 @@ func setupGeminiCLIProject(
 	options GeminiCLIOptions,
 ) (string, string, error) {
 	projectHint = strings.TrimSpace(projectHint)
-	load, err := loadGeminiCLICodeAssist(ctx, accessToken, projectHint, options)
-	if err != nil {
-		return "", "", err
-	}
+	load, loadErr := loadGeminiCLICodeAssist(ctx, accessToken, "", options)
 	tierID := geminiCLITierID(load)
+	if tierID == "" {
+		tierID = geminiCLIOnboardTierID(load)
+	}
+	if projectHint != "" {
+		return projectHint, tierID, nil
+	}
 	if projectID := antigravityProjectID(load); projectID != "" {
 		return projectID, tierID, nil
 	}
-	if load["currentTier"] != nil || load["paidTier"] != nil {
+	if geminiCLITierID(load) != "" {
 		if projectHint != "" {
 			return projectHint, tierID, nil
 		}
@@ -512,10 +504,13 @@ func setupGeminiCLIProject(
 	if endpoint == "" {
 		endpoint = geminiCLIExecutionBase + "/" + geminiCLIAPIVersion + ":onboardUser"
 	}
-	for attempt := 0; attempt < 6; attempt++ {
+	for attempt := 0; attempt < 5; attempt++ {
 		body, err := fetchGeminiCLIJSON(ctx, endpoint, accessToken, payload, "onboardUser", options)
 		if err != nil {
-			return "", "", err
+			if projectID, fallbackErr := discoverGeminiCLIProject(ctx, accessToken, options); fallbackErr == nil {
+				return projectID, tierID, nil
+			}
+			return "", tierID, err
 		}
 		var result struct {
 			Done     bool           `json:"done"`
@@ -544,7 +539,13 @@ func setupGeminiCLIProject(
 		case <-timer.C:
 		}
 	}
-	return "", "", fmt.Errorf("Gemini CLI onboarding did not complete")
+	if projectID, fallbackErr := discoverGeminiCLIProject(ctx, accessToken, options); fallbackErr == nil {
+		return projectID, tierID, nil
+	}
+	if loadErr != nil {
+		return "", tierID, loadErr
+	}
+	return "", tierID, fmt.Errorf("Gemini CLI onboarding did not complete")
 }
 
 // discoverGeminiCLIProject only lists existing projects. It never creates a
@@ -617,66 +618,6 @@ func discoverGeminiCLIProject(ctx context.Context, accessToken string, options G
 	return "", errors.New("Gemini CLI Resource Manager pagination limit exceeded")
 }
 
-func retrieveGeminiCLIQuota(
-	ctx context.Context,
-	credential GeminiCLICredential,
-	options GeminiCLIOptions,
-) ([]GeminiCLIQuotaBucket, error) {
-	endpoint := strings.TrimSpace(options.RetrieveUserQuotaURL)
-	if endpoint == "" {
-		endpoint = geminiCLIExecutionBase + "/" + geminiCLIAPIVersion + ":retrieveUserQuota"
-	}
-	body, err := json.Marshal(map[string]string{"project": credential.ProjectID})
-	if err != nil {
-		return nil, err
-	}
-	defer clear(body)
-	response, err := fetchGeminiCLIJSON(ctx, endpoint, credential.AccessToken, body, "retrieveUserQuota", options)
-	if err != nil {
-		return nil, err
-	}
-	defer clear(response)
-	var payload struct {
-		Buckets []struct {
-			ModelID           string          `json:"modelId"`
-			TokenType         string          `json:"tokenType"`
-			ResetTime         string          `json:"resetTime"`
-			RemainingFraction json.RawMessage `json:"remainingFraction"`
-		} `json:"buckets"`
-	}
-	if err := json.Unmarshal(response, &payload); err != nil {
-		return nil, fmt.Errorf("decode Gemini CLI retrieveUserQuota response")
-	}
-	result := make([]GeminiCLIQuotaBucket, 0, len(payload.Buckets))
-	for _, raw := range payload.Buckets {
-		modelID := boundedAntigravityErrorScalar(raw.ModelID)
-		if modelID == "" {
-			continue
-		}
-		bucket := GeminiCLIQuotaBucket{
-			ModelID: modelID, TokenType: boundedAntigravityErrorScalar(raw.TokenType),
-			ResetTime: boundedAntigravityErrorScalar(raw.ResetTime),
-		}
-		if fraction, ok := geminiCLIFraction(raw.RemainingFraction); ok {
-			bucket.RemainingFraction = &fraction
-		}
-		result = append(result, bucket)
-	}
-	return result, nil
-}
-
-func geminiCLIFraction(raw json.RawMessage) (float64, bool) {
-	text := strings.Trim(strings.TrimSpace(string(raw)), `"`)
-	if text == "" || text == "null" {
-		return 0, false
-	}
-	value, err := strconv.ParseFloat(text, 64)
-	if err != nil || math.IsNaN(value) || math.IsInf(value, 0) {
-		return 0, false
-	}
-	return value, true
-}
-
 func geminiCLIMetadata(projectHint string) map[string]string {
 	metadata := make(map[string]string, len(geminiCLIClientMetadata)+1)
 	for key, value := range geminiCLIClientMetadata {
@@ -691,7 +632,12 @@ func geminiCLIMetadata(projectHint string) map[string]string {
 // geminiCLITierID 优先取付费档（Google One AI Pro/Ultra），其次当前档。
 func geminiCLITierID(load map[string]any) string {
 	for _, key := range []string{"paidTier", "currentTier"} {
-		if tier, ok := load[key].(map[string]any); ok {
+		switch tier := load[key].(type) {
+		case string:
+			if strings.TrimSpace(tier) != "" {
+				return strings.TrimSpace(tier)
+			}
+		case map[string]any:
 			if id, ok := tier["id"].(string); ok && strings.TrimSpace(id) != "" {
 				return strings.TrimSpace(id)
 			}
@@ -701,18 +647,29 @@ func geminiCLITierID(load map[string]any) string {
 }
 
 func geminiCLIOnboardTierID(load map[string]any) string {
-	if tiers, ok := load["allowedTiers"].([]any); ok {
-		for _, raw := range tiers {
-			tier, ok := raw.(map[string]any)
-			if !ok || tier["isDefault"] != true {
-				continue
-			}
-			if id, ok := tier["id"].(string); ok && strings.TrimSpace(id) != "" {
-				return strings.TrimSpace(id)
-			}
+	tiers, _ := load["allowedTiers"].([]any)
+	first := ""
+	for _, raw := range tiers {
+		tier, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		id, _ := tier["id"].(string)
+		id = strings.TrimSpace(id)
+		if id == "" {
+			continue
+		}
+		if first == "" {
+			first = id
+		}
+		if tier["isDefault"] == true {
+			return id
 		}
 	}
-	return "legacy-tier"
+	if first != "" {
+		return first
+	}
+	return "LEGACY"
 }
 
 func geminiCLIUnauthorized(err error) bool {
@@ -736,6 +693,9 @@ func parseGeminiCLIImportedCredential(raw []byte) (GeminiCLICredential, error) {
 		return GeminiCLICredential{}, fmt.Errorf("imported credential is not a Gemini CLI credential")
 	}
 	sources := []map[string]any{root}
+	if credentials, ok := root["credentials"].(map[string]any); ok {
+		sources = append(sources, credentials)
+	}
 	if token, ok := root["token"].(map[string]any); ok {
 		sources = append(sources, token)
 	}
@@ -752,8 +712,16 @@ func parseGeminiCLIImportedCredential(raw []byte) (GeminiCLICredential, error) {
 	}
 	credential := GeminiCLICredential{
 		Type: ProviderGeminiCLI, AccessToken: pick("access_token"), RefreshToken: pick("refresh_token"),
-		AccountID: geminiCLIImportString(root, "account_id"), Email: geminiCLIImportString(root, "email"),
-		ProjectID: geminiCLIImportString(root, "project_id"), LastRefresh: geminiCLIImportString(root, "last_refresh"),
+		OAuthType: pick("oauth_type"), TierID: pick("tier_id"), Scope: pick("scope"),
+		AccountID: pick("account_id"), Email: pick("email"),
+		ProjectID: pick("project_id"), LastRefresh: pick("last_refresh"),
+	}
+	credential.OAuthType = strings.ToLower(strings.TrimSpace(credential.OAuthType))
+	if credential.OAuthType == "" {
+		credential.OAuthType = "code_assist"
+	}
+	if credential.OAuthType != "code_assist" && credential.OAuthType != "google_one" {
+		return GeminiCLICredential{}, fmt.Errorf("Gemini CLI import supports code_assist and google_one; AI Studio uses a separate OAuth client")
 	}
 	for _, value := range []string{credential.AccessToken, credential.RefreshToken, credential.AccountID, credential.Email, credential.ProjectID} {
 		if len(value) > 16*1024 || strings.ContainsAny(value, "\r\n\x00") {
@@ -769,6 +737,13 @@ func parseGeminiCLIImportedCredential(raw []byte) (GeminiCLICredential, error) {
 	// 过期时间缺失或无法解析时留空，导入流程会先刷新一次令牌。
 	if expiry := pick("expired"); expiry != "" {
 		credential.Expire = geminiCLIRFC3339(expiry)
+	} else if expiry := pick("expires_at"); expiry != "" {
+		if seconds, err := strconv.ParseInt(expiry, 10, 64); err == nil && seconds > 0 {
+			importedExpiry := time.Unix(seconds, 0)
+			credential.Expire = importedExpiry.UTC().Format(time.RFC3339)
+		} else {
+			credential.Expire = geminiCLIRFC3339(expiry)
+		}
 	} else if expiry := pick("expiry"); expiry != "" {
 		credential.Expire = geminiCLIRFC3339(expiry)
 	} else {
@@ -785,8 +760,14 @@ func parseGeminiCLIImportedCredential(raw []byte) (GeminiCLICredential, error) {
 }
 
 func geminiCLIImportString(source map[string]any, key string) string {
-	value, _ := source[key].(string)
-	return strings.TrimSpace(value)
+	switch value := source[key].(type) {
+	case string:
+		return strings.TrimSpace(value)
+	case json.Number:
+		return value.String()
+	default:
+		return ""
+	}
 }
 
 func geminiCLIRFC3339(value string) string {

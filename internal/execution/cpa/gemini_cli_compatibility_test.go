@@ -41,7 +41,7 @@ func TestGeminiCLIHTTPCompatibility(t *testing.T) {
 			return
 		}
 		calls <- body
-		if r.URL.Path == "/v1internal:countTokens" {
+		if strings.HasSuffix(r.URL.Path, ":countTokens") {
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = io.WriteString(w, `{"totalTokens":12}`)
 			return

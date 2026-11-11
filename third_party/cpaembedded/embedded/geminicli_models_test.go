@@ -20,7 +20,7 @@ func TestGeminiCLIModelDiscoveryDoesNotRequireQuota(t *testing.T) {
 		Expire: "2030-01-01T00:00:00Z",
 	}
 	models, err := DiscoverGeminiCLIModels(t.Context(), credential, GeminiCLIOptions{
-		RetrieveUserQuotaURL: upstream.URL + "/quota", HTTPClient: upstream.Client(),
+		LoadCodeAssistURL: upstream.URL + "/load", HTTPClient: upstream.Client(),
 	})
 	if err != nil {
 		t.Fatal(err)

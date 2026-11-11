@@ -328,6 +328,12 @@ func mapSub2API(object map[string]any, channelID channel.ID) (map[string]any, st
 		if stringValue(m.out["access_token"]) == "" || stringValue(m.out["email"]) == "" || stringValue(m.out["expired"]) == "" {
 			m.fail("incomplete_credential")
 		}
+	case channel.GeminiCLI:
+		m.copyIdentity("account_id", []map[string]any{credentials, extra}, "account_id")
+		m.copyIdentity("project_id", []map[string]any{credentials}, "project_id")
+		for _, key := range []string{"oauth_type", "tier_id", "scope"} {
+			m.copyString(key, credentials, key)
+		}
 	case channel.Grok:
 		m.copyIdentity("account_id", []map[string]any{credentials, extra}, "sub", "account_id")
 		m.copyString("token_type", credentials, "token_type")
@@ -523,6 +529,8 @@ func subscriptionChannel(platform string) channel.ID {
 		return channel.Codex
 	case "anthropic":
 		return channel.Claude
+	case "gemini":
+		return channel.GeminiCLI
 	case "antigravity":
 		return channel.Antigravity
 	case "grok":

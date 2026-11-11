@@ -4,6 +4,7 @@ package geminicli
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -29,6 +30,9 @@ var (
 // Credential is GPT-Load's encrypted canonical Gemini CLI credential.
 type Credential struct {
 	Type         string `json:"type"`
+	OAuthType    string `json:"oauth_type,omitempty"`
+	TierID       string `json:"tier_id,omitempty"`
+	Scope        string `json:"scope,omitempty"`
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
 	AccountID    string `json:"account_id"`
@@ -99,19 +103,9 @@ func (err *UpstreamHTTPError) HTTPStatusCode() int {
 	return err.StatusCode
 }
 
-type QuotaBucket struct {
-	ModelID           string
-	TokenType         string
-	ResetTime         string
-	RemainingFraction *float64
-}
-
 type AccountObservation struct {
-	TierID            string
-	Buckets           []QuotaBucket
-	AccountObserved   bool
-	QuotaObserved     bool
-	IncompleteSources []string
+	TierID          string
+	AccountObserved bool
 }
 
 func IsDefinitiveRefreshRejection(code string) bool {
@@ -123,7 +117,13 @@ func beginBrowserAuthorization() (subscriptionruntime.Authorization, error) {
 	if err != nil {
 		return subscriptionruntime.Authorization{}, normalizeError(err)
 	}
-	return subscriptionruntime.Authorization{URL: value.AuthorizationURL, State: value.State, ExpiresAt: value.ExpiresAt}, nil
+	driverState, err := json.Marshal(struct {
+		Verifier string `json:"verifier"`
+	}{value.CodeVerifier})
+	if err != nil {
+		return subscriptionruntime.Authorization{}, err
+	}
+	return subscriptionruntime.Authorization{URL: value.AuthorizationURL, State: value.State, DriverState: driverState, ExpiresAt: value.ExpiresAt}, nil
 }
 
 func completeBrowserAuthorization(ctx context.Context, completion subscriptionruntime.AuthorizationCompletion) (Credential, error) {
@@ -131,8 +131,14 @@ func completeBrowserAuthorization(ctx context.Context, completion subscriptionru
 	if err != nil {
 		return Credential{}, err
 	}
+	var state struct {
+		Verifier string `json:"verifier"`
+	}
+	if len(completion.DriverState) > 0 && json.Unmarshal(completion.DriverState, &state) != nil {
+		return Credential{}, ErrInvalidState
+	}
 	value, err := cpaembedded.CompleteGeminiCLIBrowserAuthorization(ctx, cpaembedded.BrowserAuthorizationCompletion{
-		ExpectedState: completion.ExpectedState, ReturnedState: completion.ReturnedState, Code: completion.Code,
+		ExpectedState: completion.ExpectedState, ReturnedState: completion.ReturnedState, Code: completion.Code, CodeVerifier: state.Verifier,
 	}, options)
 	err = normalizeError(err)
 	if err != nil {
@@ -208,19 +214,7 @@ func observeAccount(ctx context.Context, credential Credential, apiRoot string) 
 	if err != nil {
 		return AccountObservation{}, normalizeError(err)
 	}
-	result := AccountObservation{
-		TierID: value.TierID, AccountObserved: value.AccountObserved, QuotaObserved: value.QuotaObserved,
-		IncompleteSources: append([]string(nil), value.IncompleteSources...),
-	}
-	for _, bucket := range value.Buckets {
-		mapped := QuotaBucket{ModelID: bucket.ModelID, TokenType: bucket.TokenType, ResetTime: bucket.ResetTime}
-		if bucket.RemainingFraction != nil {
-			fraction := *bucket.RemainingFraction
-			mapped.RemainingFraction = &fraction
-		}
-		result.Buckets = append(result.Buckets, mapped)
-	}
-	return result, nil
+	return AccountObservation{TierID: value.TierID, AccountObserved: value.AccountObserved}, nil
 }
 
 // geminiCLIOptions 为控制面请求设置 HTTP 客户端；apiRoot 非空时 Code Assist 端点映射到代理根地址。
@@ -239,7 +233,6 @@ func geminiCLIOptions(ctx context.Context, apiRoot string) (cpaembedded.GeminiCL
 	}
 	options.LoadCodeAssistURL = endpoints.LoadCodeAssistURL
 	options.OnboardUserURL = endpoints.OnboardUserURL
-	options.RetrieveUserQuotaURL = endpoints.RetrieveUserQuotaURL
 	return options, nil
 }
 

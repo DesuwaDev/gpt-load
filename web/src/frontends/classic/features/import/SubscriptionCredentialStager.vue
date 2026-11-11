@@ -528,11 +528,16 @@ function remainingCountdown(stage: CredentialStage): string {
   return `${minutes}:${String(seconds).padStart(2, '0')}`
 }
 
+function usesGoogleAuthCode(stage: CredentialStage): boolean {
+  return stage.redirect_uri === 'https://codeassist.google.com/authcode'
+}
+
 function callbackEndpoint(stage: CredentialStage): string {
   return stage.redirect_uri ?? t('import.subscription.callbackEndpointFallback')
 }
 
 function callbackPlaceholder(stage: CredentialStage): string {
+  if (usesGoogleAuthCode(stage)) return stage.redirect_uri + '?code=...'
   if (!stage.redirect_uri) return t('import.subscription.callbackPlaceholder')
   const separator = stage.redirect_uri.includes('?') ? '&' : '?'
   return `${stage.redirect_uri}${separator}code=...&state=...`
@@ -831,7 +836,9 @@ onBeforeUnmount(() => {
             {{
               stage.authorization_method === 'device_oauth'
                 ? t('import.subscription.deviceInstructions')
-                : t('import.subscription.manualHint', { redirectUri: callbackEndpoint(stage) })
+                : usesGoogleAuthCode(stage)
+                  ? t('import.subscription.googleCallbackHelp')
+                  : t('import.subscription.manualHint', { redirectUri: callbackEndpoint(stage) })
             }}
           </p>
 
@@ -882,7 +889,13 @@ onBeforeUnmount(() => {
             <FormField
               :id="`oauth-callback-${stage.stage_id}`"
               :label="t('import.subscription.callbackLabel')"
-              :description="t('import.subscription.callbackHelp')"
+              :description="
+                t(
+                  usesGoogleAuthCode(stage)
+                    ? 'import.subscription.googleCallbackHelp'
+                    : 'import.subscription.callbackHelp',
+                )
+              "
               :error="
                 callbackErrorKeys[stage.stage_id] ? t(callbackErrorKeys[stage.stage_id]) : undefined
               "
@@ -892,7 +905,7 @@ onBeforeUnmount(() => {
                 <input
                   :id="`oauth-callback-${stage.stage_id}`"
                   v-model="callbackURLs[stage.stage_id]"
-                  type="url"
+                  :type="usesGoogleAuthCode(stage) ? 'text' : 'url'"
                   autocomplete="off"
                   autocapitalize="none"
                   spellcheck="false"

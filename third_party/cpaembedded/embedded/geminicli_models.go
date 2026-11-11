@@ -27,7 +27,7 @@ var geminiCLISelectableModelIDs = [...]string{
 
 // DiscoverGeminiCLIModels returns the built-in selection catalog, like sub2api's
 // OAuth account model selector. Code Assist has no supported live model-list
-// endpoint; retrieveUserQuota is only used for quota observation.
+// endpoint; quota observation also uses the local tier policy and statistics.
 func DiscoverGeminiCLIModels(ctx context.Context, credential GeminiCLICredential, _ GeminiCLIOptions) ([]string, error) {
 	if ctx != nil {
 		if err := ctx.Err(); err != nil {
@@ -36,6 +36,9 @@ func DiscoverGeminiCLIModels(ctx context.Context, credential GeminiCLICredential
 	}
 	if err := validateGeminiCLICredential(credential); err != nil {
 		return nil, err
+	}
+	if credential.OAuthType == "google_one" {
+		return []string{"gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash"}, nil
 	}
 	return append([]string(nil), geminiCLISelectableModelIDs[:]...), nil
 }

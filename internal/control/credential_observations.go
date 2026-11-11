@@ -16,6 +16,7 @@ import (
 	app_errors "gpt-load/internal/platform/errors"
 	"gpt-load/internal/requestlog"
 	"gpt-load/internal/storage/models"
+	"gpt-load/internal/subscription/providers/geminicli"
 	providerobservation "gpt-load/internal/subscription/providers/observation"
 	subscriptionruntime "gpt-load/internal/subscription/runtime"
 	"gpt-load/internal/usage"
@@ -272,6 +273,25 @@ func (s *Service) refreshCredentialObservationOnce(
 	}
 	// 恢复不得覆盖本次额度请求在途期间产生的新拒绝。
 	observationStartedMS := s.now().UTC().UnixMilli()
+	if channelID == channel.GeminiCLI {
+		windows := geminicli.LocalQuotaUsageWindows(now)
+		for index, window := range windows {
+			if s.credentialWindowUsage == nil {
+				continue
+			}
+			source := requestlog.CredentialWindowUsageSourceHourlyStats
+			if index == 1 {
+				source = requestlog.CredentialWindowUsageSourceRequestLogs
+			}
+			usage, usageErr := s.credentialWindowUsage.QueryCredentialWindowUsage(observeContext, requestlog.CredentialWindowUsageQuery{CredentialID: credentialID, FromMS: window.Start.UnixMilli(), ToMS: max(now.UnixMilli()+1, window.Start.UnixMilli()+1), Source: source})
+			if usageErr != nil {
+				return CredentialObservationResponse{}, usageErr
+			}
+			windows[index].Requests = usage.SuccessCount
+			windows[index].Known = usage.DataComplete
+		}
+		observeContext = geminicli.WithLocalQuotaUsage(observeContext, windows)
+	}
 	observation, observeErr := s.observeSubscriptionAccount(observeContext, channelID, preparedCredential, target)
 	authRefreshVersion := previous.LastAuthRefreshSecretVersion
 	if subscriptionUpstreamHTTPStatus(observeErr) == http.StatusUnauthorized &&

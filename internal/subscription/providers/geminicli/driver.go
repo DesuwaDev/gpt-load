@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math"
 	"strings"
 	"time"
 
@@ -15,7 +14,7 @@ import (
 	subscriptionruntime "gpt-load/internal/subscription/runtime"
 )
 
-const quotaScopeModel = "model"
+const quotaScopeAccount = "account"
 
 type driver struct{}
 
@@ -77,7 +76,7 @@ func (*driver) BeginAuthorization() (subscriptionruntime.Authorization, error) {
 }
 
 func (*driver) LocalCallback() (subscriptionruntime.LocalCallbackSpec, bool) {
-	return subscriptionruntime.LocalCallbackSpec{RedirectURI: RedirectURI}, true
+	return subscriptionruntime.LocalCallbackSpec{RedirectURI: RedirectURI, ManualOnly: true}, true
 }
 
 func (*driver) CompleteAuthorization(ctx context.Context, completion subscriptionruntime.AuthorizationCompletion) (subscriptionruntime.Credential, error) {
@@ -122,7 +121,7 @@ func (*driver) DiscoverModels(ctx context.Context, credential subscriptionruntim
 	return models, runtimeUpstreamError(err)
 }
 
-// Observe 读取账号档位与各模型的每日剩余额度。
+// Observe 根据已保存档位与本地成功请求统计生成共享的 RPD/RPM 展示窗口。
 func (*driver) Observe(ctx context.Context, credential subscriptionruntime.Credential, target subscriptionruntime.Target) (subscriptionruntime.Observation, error) {
 	value, err := ParseCredentialJSON(credential.Canonical())
 	if err != nil {
@@ -136,19 +135,18 @@ func (*driver) Observe(ctx context.Context, credential subscriptionruntime.Crede
 	if err != nil {
 		return subscriptionruntime.Observation{}, runtimeUpstreamError(err)
 	}
-	if !observed.AccountObserved && !observed.QuotaObserved {
+	if !observed.AccountObserved {
 		return subscriptionruntime.Observation{}, fmt.Errorf("%w: Gemini CLI account observation has no usable fields", subscriptionruntime.ErrObservationPayloadInvalid)
 	}
-	payload, err := normalizeObservation(value.Email, observed)
+	windows, complete := localQuotaWindows(ctx, observed.TierID)
+	snapshot := providerobservation.Snapshot{Plan: geminiCLIPlan(observed.TierID), Account: &providerobservation.AccountSummary{Email: value.Email}, QuotaWindows: windows}
+	payload, err := json.Marshal(snapshot)
 	if err != nil {
-		return subscriptionruntime.Observation{}, fmt.Errorf("%w: %v", subscriptionruntime.ErrObservationPayloadInvalid, err)
+		return subscriptionruntime.Observation{}, err
 	}
-	result := subscriptionruntime.Observation{
-		Payload: payload, AccountObserved: observed.AccountObserved, QuotaObserved: observed.QuotaObserved,
-		Partial: len(observed.IncompleteSources) > 0 || !observed.AccountObserved || !observed.QuotaObserved,
-	}
-	if observed.QuotaObserved {
-		result.ObservedQuotaScopes = []string{quotaScopeModel}
+	result := subscriptionruntime.Observation{Payload: payload, AccountObserved: true, QuotaObserved: complete, Partial: len(windows) > 0 && !complete}
+	if len(windows) > 0 {
+		result.ObservedQuotaScopes = []string{quotaScopeAccount}
 	}
 	return result, nil
 }
@@ -161,68 +159,19 @@ func runtimeUpstreamError(err error) error {
 	return err
 }
 
-func normalizeObservation(email string, observed AccountObservation) ([]byte, error) {
-	snapshot := providerobservation.Snapshot{
-		Plan:         geminiCLIPlan(observed.TierID),
-		Account:      &providerobservation.AccountSummary{Email: strings.TrimSpace(email)},
-		QuotaWindows: make([]providerobservation.QuotaWindow, 0, len(observed.Buckets)),
-	}
-	counts := make(map[string]int, len(observed.Buckets))
-	for _, bucket := range observed.Buckets {
-		counts[bucket.ModelID]++
-	}
-	seen := make(map[string]struct{}, len(observed.Buckets))
-	for _, bucket := range observed.Buckets {
-		if bucket.RemainingFraction == nil {
-			continue
-		}
-		id, label := bucket.ModelID, bucket.ModelID
-		if counts[bucket.ModelID] > 1 && bucket.TokenType != "" {
-			id += ":" + strings.ToLower(bucket.TokenType)
-			label += " (" + providerobservation.DisplayName(bucket.TokenType) + ")"
-		}
-		if _, duplicate := seen[id]; duplicate {
-			return nil, fmt.Errorf("duplicate Gemini CLI quota bucket %q", id)
-		}
-		seen[id] = struct{}{}
-		remainingFraction := math.Max(0, math.Min(1, *bucket.RemainingFraction))
-		remaining, limit := remainingFraction*100, 100.0
-		used := limit - remaining
-		utilization := used / limit
-		state := "available"
-		if remaining <= 0 {
-			state = "exhausted"
-		}
-		window := providerobservation.QuotaWindow{
-			ID: id, Label: label, Scope: quotaScopeModel, Unit: "percent", State: state,
-			Used: &used, Limit: &limit, Remaining: &remaining, Utilization: &utilization,
-			ModelIDs: []string{bucket.ModelID},
-		}
-		if resetAt, err := time.Parse(time.RFC3339, bucket.ResetTime); err == nil {
-			value := resetAt.UnixMilli()
-			window.ResetAtMS = &value
-		}
-		snapshot.QuotaWindows = append(snapshot.QuotaWindows, window)
-	}
-	if len(snapshot.QuotaWindows) > 0 {
-		snapshot.QuotaWindows[0].IsPrimary = true
-	}
-	return json.Marshal(snapshot)
-}
-
 func geminiCLIPlan(tierID string) providerobservation.PlanSummary {
 	switch strings.ToLower(strings.TrimSpace(tierID)) {
 	case "":
 		return providerobservation.PlanSummary{}
-	case "free-tier":
+	case "free-tier", "google_one_free":
 		return providerobservation.PlanSummary{Name: "Free", Level: providerobservation.PlanLevelFree}
-	case "g1-pro-tier":
+	case "g1-pro-tier", "google_ai_pro":
 		return providerobservation.PlanSummary{Name: "Google AI Pro", Level: providerobservation.PlanLevelStandard}
-	case "g1-ultra-tier":
+	case "g1-ultra-tier", "google_ai_ultra":
 		return providerobservation.PlanSummary{Name: "Google AI Ultra", Level: providerobservation.PlanLevelPremium}
-	case "standard-tier":
+	case "standard-tier", "gcp_standard":
 		return providerobservation.PlanSummary{Name: "Code Assist Standard", Level: providerobservation.PlanLevelStandard}
-	case "enterprise-tier":
+	case "enterprise-tier", "gcp_enterprise":
 		return providerobservation.PlanSummary{Name: "Code Assist Enterprise", Level: providerobservation.PlanLevelPremium}
 	default:
 		return providerobservation.PlanSummary{Name: providerobservation.DisplayName(tierID)}

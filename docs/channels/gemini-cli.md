@@ -8,7 +8,7 @@
 | --- | --- |
 | `POST /v1beta/models/{model}:generateContent` | Gemini 原生请求；保留 Google Search、图片输入/输出及 grounding metadata |
 | `POST /v1beta/models/{model}:streamGenerateContent` | Gemini 原生 SSE |
-| `POST /v1beta/models/{model}:countTokens` | Code Assist token 计数 |
+| `POST /v1beta/models/{model}:countTokens` | AI Studio `countTokens`；失败时按 sub2 规则估算 |
 | `POST /v1/chat/completions` | Chat Completions 转换，支持普通和流式响应 |
 | `POST /v1/messages` | Anthropic Messages 转换，支持普通和流式响应 |
 | `POST /v1/messages/count_tokens` | Anthropic token 计数转换 |
@@ -18,7 +18,7 @@
 | `POST /v1/images/generations` | 图片生成转换 |
 | `POST /v1/images/edits` | 图片编辑转换；支持 multipart 和 JSON data URL、多张输入图 |
 
-模型选择与 sub2api 的 Code Assist OAuth 账号一致，返回内置可选目录，包含文本及图片模型。此列表标记为“内置模型”，不是账号权限探测；`retrieveUserQuota` 只用于额度展示，失败不会阻止选择或同步模型。表中的图片接口需要配置账号实际可用的生图模型，普通文本模型不会因使用图片接口而获得生图能力。
+模型选择与 sub2api 的 Code Assist OAuth 账号一致，返回内置可选目录，包含文本及图片模型。此列表标记为“内置模型”，不是账号权限探测；模型列表及账号卡片均不调用 `retrieveUserQuota`。表中的图片接口需要配置账号实际可用的生图模型，普通文本模型不会因使用图片接口而获得生图能力。
 
 ## 图片接口
 
@@ -49,6 +49,27 @@ Responses 请求可使用 `tools: [{"type": "web_search"}]`，也支持 preview/
 
 本地 HTTP 集成验证覆盖真实网关选择、CPA 协议转换、Code Assist 请求封装、图片上传、搜索引用、compact 往返、重建密钥服务后的续接和错误处理。上游使用本地 TLS 模拟服务，未消耗真实 Google 额度；账号的实际生图/搜索权限仍需真实上游确认。
 
-## 登录成功但缺少项目
+## 与 sub2api 的 Code Assist 对齐
 
-如果 Code Assist 返回账号档位却没有托管项目，渠道会像 sub2api 一样调用 Cloud Resource Manager，查找此账号能访问的已有 ACTIVE 项目，优先使用 companion / Code Assist 项目，其次 default 项目。支持分页，不会自动创建项目或修改计费。没有可用项目时，页面明确提示缺少 GCP 项目，不再显示“授权码被拒绝”；可创建或加入项目后重新授权，或导入带 `project_id` 的凭据文件。
+对照本地 `E:\ai\sub2api` 提交 `530c5e3a4`，本渠道采用以下相同行为：
+
+| 环节 | 行为与参考代码 |
+| --- | --- |
+| OAuth | 内置 CLI client、`https://codeassist.google.com/authcode`、PKCE S256、离线授权、30 分钟会话；参考 `pkg/geminicli/oauth.go`、`constants.go` |
+| 完成授权 | 可以粘贴 Google 显示的授权码或最终回调网址；PKCE verifier 加密存于当前授权会话，无 state 的输入只在该会话内完成 |
+| 项目与档位 | `loadCodeAssist` 优先 paidTier，再 currentTier；新用户按默认/首个可用档位调用 onboardUser，最多 5 次、间隔 2 秒；已注册无项目和开通失败时查询 Resource Manager；参考 `service/gemini_oauth_service.go:fetchProjectID` |
+| 请求标识 | 与参考相同的 `ANTIGRAVITY / PLATFORM_UNSPECIFIED / GEMINI` metadata 及 `GeminiCLI/0.1.5 (Windows; AMD64)` User-Agent |
+| 导入与刷新 | 识别 sub2 导出的 `platform: gemini`；保留 project、oauth_type、tier_id、scope、过期时间；刷新保留已验证账号身份，不再依赖 userinfo 二次请求 |
+| 模型 | Code Assist 使用同一份 17 项内置目录，含图片模型；导入的 Google One 类型使用参考的 3 项目录；参考 `handler/admin/account_handler.go`、`pkg/geminicli/models.go` |
+| 请求封装 | Code Assist 使用 `{model, project, request}`；过滤空 parts，给缺少签名的 functionCall 添加同一 dummy thoughtSignature |
+| 非流式生成 | 调用 `streamGenerateContent?alt=sse` 后合并候选内容、图片、工具、搜索元数据及最终 usage；参考 `service/gemini_messages_compat_service.go:ForwardNative` |
+| token 计数 | 原生 AI Studio `countTokens`，失败时使用相同文本估算规则，不再调用不存在的 Code Assist countTokens 路由 |
+| 额度卡片 | 档位默认 RPD/RPM + 本部署成功请求统计；参考 `service/gemini_quota.go`、`account_usage_service.go:getGeminiUsage` |
+
+Code Assist Standard 为 1500 RPD / 120 RPM，Enterprise 为 2000 / 120；导入的 Google One Free、AI Pro、AI Ultra 分别为 1000/60、1500/120、2000/120。每日窗口按 America/Los_Angeles，分钟窗口按当前分钟。卡片标记 `(local)`：这些是本地统计与参考默认限额，不代表 Google 返回的余额，也不包含在其他客户端的消耗。统计数据缺失时显示未知，不填零冒充剩余额度。
+
+项目发现只使用已有 ACTIVE 项目，优先 companion / Code Assist，其次 default，不会自动创建 GCP 项目或修改计费。导入凭据提供的 `project_id` 优先保留。没有可用项目时需创建或加入项目后重新授权，或导入带 `project_id` 的凭据文件。
+
+GPT-Load 仍使用自己的加密凭据、请求统计、重试预算与故障切换设置；不会在 CPA 内叠加 sub2 的另一层自动重试。403（scope 不足除外）、429 及 5xx 交给现有网关策略处理，429 保留 Google RetryInfo 延迟；流已输出后不自动重放。sub2 的额度策略后台配置和 Google One Drive 存储档位探测不是本渠道的配置入口，当前保留导入档位并使用上述默认限额。
+
+浏览器登录入口为 Code Assist；同时兼容导入使用内置 CLI client 的 Google One 凭据，无 project 时按参考走原生 API。AI Studio 自定义 OAuth client 与 Vertex service account 属于独立认证入口，不会把这些凭据当作 Code Assist 导入。首次登录/导入仍验证 userinfo，以满足 GPT-Load 的账号去重要求。

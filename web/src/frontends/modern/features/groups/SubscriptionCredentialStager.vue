@@ -331,43 +331,50 @@ function importJSON(): void {
 async function callback(stage: CredentialStage): Promise<void> {
   if (inactive.value || stageBusy(stage.id) || stage.status !== 'pending_authorization') return
   const value = callbacks.value[stage.id]?.trim() ?? ''
-  let url: URL
-  try {
-    url = new URL(value)
-    if (
-      !['http:', 'https:'].includes(url.protocol) ||
-      url.username ||
-      url.password ||
-      url.hash ||
-      new TextEncoder().encode(value).length > 16 * 1024
-    )
-      throw new Error()
-  } catch {
+  const manualCode = stage.redirectURI === 'https://codeassist.google.com/authcode'
+  const rawCode = manualCode && value.length > 0 && !/[:?#&=\s]/u.test(value)
+  if (new TextEncoder().encode(value).length > 16 * 1024) {
     callbackErrors.value[stage.id] = t('subscriptions.callbackInvalid')
     return
   }
-  if (stage.redirectURI) {
-    const expected = new URL(stage.redirectURI)
-    if (url.origin !== expected.origin || url.pathname !== expected.pathname) {
-      callbackErrors.value[stage.id] = t('subscriptions.callbackTarget', {
-        address: stage.redirectURI,
-      })
+  if (!rawCode) {
+    let url: URL
+    try {
+      url = new URL(value)
+      if (
+        !['http:', 'https:'].includes(url.protocol) ||
+        url.username ||
+        url.password ||
+        url.hash ||
+        new TextEncoder().encode(value).length > 16 * 1024
+      )
+        throw new Error()
+    } catch {
+      callbackErrors.value[stage.id] = t('subscriptions.callbackInvalid')
       return
     }
-  }
-  const states = url.searchParams.getAll('state')
-  const codes = url.searchParams.getAll('code')
-  const errors = url.searchParams.getAll('error')
-  if (
-    states.length !== 1 ||
-    !states[0]?.trim() ||
-    !(
-      (codes.length === 1 && codes[0]?.trim() && errors.length === 0) ||
-      (errors.length === 1 && errors[0]?.trim() && codes.length === 0)
-    )
-  ) {
-    callbackErrors.value[stage.id] = t('subscriptions.callbackIncomplete')
-    return
+    if (stage.redirectURI) {
+      const expected = new URL(stage.redirectURI)
+      if (url.origin !== expected.origin || url.pathname !== expected.pathname) {
+        callbackErrors.value[stage.id] = t('subscriptions.callbackTarget', {
+          address: stage.redirectURI,
+        })
+        return
+      }
+    }
+    const states = url.searchParams.getAll('state')
+    const codes = url.searchParams.getAll('code')
+    const errors = url.searchParams.getAll('error')
+    if (
+      (!(manualCode && states.length === 0) && (states.length !== 1 || !states[0]?.trim())) ||
+      !(
+        (codes.length === 1 && codes[0]?.trim() && errors.length === 0) ||
+        (errors.length === 1 && errors[0]?.trim() && codes.length === 0)
+      )
+    ) {
+      callbackErrors.value[stage.id] = t('subscriptions.callbackIncomplete')
+      return
+    }
   }
   delete callbackErrors.value[stage.id]
   await run(

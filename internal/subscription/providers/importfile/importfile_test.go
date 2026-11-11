@@ -45,6 +45,11 @@ func TestParseMapsSupportedExports(t *testing.T) {
 			want: map[string]any{"type": "antigravity", "access_token": "access", "refresh_token": "refresh", "email": "a@example.test", "project_id": "project", "expired": "2027-01-15T08:00:00Z"},
 		},
 		{
+			name: "sub2api gemini", format: "sub2api", channel: channel.GeminiCLI,
+			raw:  `{"platform":"gemini","type":"oauth","credentials":{"access_token":"access","refresh_token":"refresh","email":"a@example.test","project_id":"project","expires_at":1800000000,"oauth_type":"code_assist","tier_id":"gcp_enterprise","scope":"cloud-platform"}}`,
+			want: map[string]any{"type": "gemini_cli", "project_id": "project", "oauth_type": "code_assist", "tier_id": "gcp_enterprise", "scope": "cloud-platform", "expired": "2027-01-15T08:00:00Z"},
+		},
+		{
 			name: "sub2api grok", format: "sub2api", channel: channel.Grok,
 			raw:  `{"platform":"grok","type":"oauth","credentials":{"access_token":"access","refresh_token":"refresh","sub":"subject","email":"a@example.test","expires_at":"2027-01-15T08:00:00+00:00","client_id":"b1a00492-073a-47ea-816f-4c329264a828"}}`,
 			want: map[string]any{"type": "grok", "access_token": "access", "refresh_token": "refresh", "account_id": "subject", "email": "a@example.test", "expired": "2027-01-15T08:00:00Z"},
@@ -133,7 +138,7 @@ func TestParseCPAImportPreservesValidationBoundary(t *testing.T) {
 
 func TestParseSub2APIBundlesPreservesPartialFailures(t *testing.T) {
 	for _, header := range []string{``, `"type":"sub2api-data","version":1,`, `"type":"sub2api-bundle","version":1,`} {
-		raw := `{` + header + `"exported_at":"2026-09-08T00:00:00Z","proxies":[],"accounts":[{"platform":"openai","type":"oauth","credentials":{"refresh_token":"refresh"}},{"platform":"gemini","type":"oauth","credentials":{"refresh_token":"refresh"}},false]}`
+		raw := `{` + header + `"exported_at":"2026-09-08T00:00:00Z","proxies":[],"accounts":[{"platform":"openai","type":"oauth","credentials":{"refresh_token":"refresh"}},{"platform":"unsupported","type":"oauth","credentials":{"refresh_token":"refresh"}},false]}`
 		doc, err := Parse([]byte(raw))
 		if err != nil || len(doc.Entries) != 3 {
 			t.Fatalf("Parse() = %d entries, %v", len(doc.Entries), err)

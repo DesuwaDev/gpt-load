@@ -158,6 +158,8 @@ export default {
       callbackLabel: 'URL your browser ended on',
       callbackEndpointFallback: 'the local OAuth callback',
       callbackPlaceholder: 'http://localhost:<port>/callback?code=...&state=...',
+      googleCallbackHelp:
+        'After authorizing with Google, paste the displayed code or the full codeassist.google.com/authcode URL.',
       callbackHelp:
         'Copy the whole URL from the address bar, not just part of it. It is fine if that page does not load.',
       submitCallback: 'Submit',

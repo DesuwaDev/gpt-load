@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
+	"encoding/json"
 	internalconfig "github.com/router-for-me/CLIProxyAPI/v8/internal/config"
 	internalexecutor "github.com/router-for-me/CLIProxyAPI/v8/internal/runtime/executor"
 	geminiresponses "github.com/router-for-me/CLIProxyAPI/v8/internal/translator/gemini/openai/responses"
@@ -268,13 +268,30 @@ func (transport geminiCLICodeAssistRoundTripper) RoundTrip(request *http.Request
 			return nil, err
 		}
 	}
-	wrapped, err := wrapGeminiCLIRequest(action, model, transport.projectID, body)
+	codeAssist := transport.projectID != ""
+	upstreamAction := action
+	if codeAssist && action == "generateContent" {
+		upstreamAction = "streamGenerateContent"
+	}
+	var wrapped []byte
+	if codeAssist || action == "countTokens" {
+		wrapped, err = wrapGeminiCLIRequest(action, model, transport.projectID, body)
+	} else {
+		wrapped, err = sanitizeGeminiCLIContents(body)
+	}
 	clear(body)
 	if err != nil {
 		return nil, err
 	}
-	target := transport.executionBase + "/" + geminiCLIAPIVersion + ":" + action
-	if action == "streamGenerateContent" {
+	target := transport.executionBase + "/" + geminiCLIAPIVersion + ":" + upstreamAction
+	if action == "countTokens" || !codeAssist {
+		root := transport.executionBase
+		if root == geminiCLIExecutionBase {
+			root = "https://generativelanguage.googleapis.com"
+		}
+		target = root + "/v1beta/models/" + model + ":" + upstreamAction
+	}
+	if upstreamAction == "streamGenerateContent" {
 		target += "?alt=sse"
 	}
 	outbound, err := http.NewRequestWithContext(request.Context(), http.MethodPost, target, bytes.NewReader(wrapped))
@@ -285,10 +302,23 @@ func (transport geminiCLICodeAssistRoundTripper) RoundTrip(request *http.Request
 	outbound.Header.Set("Authorization", "Bearer "+transport.accessToken)
 	outbound.Header.Set("User-Agent", geminiCLIUserAgent(model))
 	response, err := transport.base.RoundTrip(outbound)
+	if action == "countTokens" && (err != nil || response.StatusCode < 200 || response.StatusCode >= 300) {
+		if request.Context().Err() != nil {
+			return nil, request.Context().Err()
+		}
+		if response != nil && response.Body != nil {
+			_ = response.Body.Close()
+		}
+		raw, _ := json.Marshal(map[string]int{"totalTokens": estimateGeminiCLITokens(wrapped)})
+		return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": []string{"application/json"}, "X-GPT-Load-Token-Count": []string{"estimated"}}, Body: io.NopCloser(bytes.NewReader(raw)), ContentLength: int64(len(raw)), Request: outbound}, nil
+	}
 	if err != nil {
 		return nil, err
 	}
 	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices || response.Body == nil {
+		return response, nil
+	}
+	if !codeAssist {
 		return response, nil
 	}
 	switch action {
@@ -297,18 +327,17 @@ func (transport geminiCLICodeAssistRoundTripper) RoundTrip(request *http.Request
 		response.ContentLength = -1
 		response.Header.Del("Content-Length")
 	case "generateContent":
-		data, readErr := io.ReadAll(response.Body)
+		data, readErr := collectGeminiCLIResponse(response.Body)
 		_ = response.Body.Close()
 		if readErr != nil {
 			return nil, readErr
 		}
-		if inner := gjson.GetBytes(data, "response"); inner.IsObject() {
-			data = []byte(inner.Raw)
-		}
 		response.Body = io.NopCloser(bytes.NewReader(data))
 		response.ContentLength = int64(len(data))
+		response.Header.Set("Content-Type", "application/json")
 		response.Header.Del("Content-Length")
 	}
+
 	return response, nil
 }
 
@@ -338,24 +367,20 @@ func wrapGeminiCLIRequest(action, model, projectID string, body []byte) ([]byte,
 		return nil, errors.New("Gemini CLI request payload is invalid")
 	}
 	if action == "countTokens" {
-		contents := gjson.GetBytes(body, "contents")
-		raw := "[]"
-		if contents.IsArray() {
-			raw = contents.Raw
-		}
-		out, err := sjson.SetBytes([]byte(`{}`), "request.model", "models/"+model)
-		if err != nil {
-			return nil, err
-		}
-		return sjson.SetRawBytes(out, "request.contents", []byte(raw))
+		return append([]byte(nil), body...), nil
 	}
-	inner, err := sjson.DeleteBytes(body, "model")
+
+	sanitized, err := sanitizeGeminiCLIContents(body)
+	if err != nil {
+		return nil, err
+	}
+	inner, err := sjson.DeleteBytes(sanitized, "model")
 	if err != nil {
 		return nil, err
 	}
 	out := []byte(`{}`)
 	for _, field := range []struct{ path, value string }{
-		{"model", model}, {"project", projectID}, {"user_prompt_id", uuid.NewString()},
+		{"model", model}, {"project", projectID},
 	} {
 		if out, err = sjson.SetBytes(out, field.path, field.value); err != nil {
 			return nil, err
@@ -440,11 +465,15 @@ func normalizeGeminiCLIExecutionError(err error) error {
 	if retryAfter <= 0 {
 		retryAfter = geminiCLIRetryDelay(raw)
 	}
+	insufficientScope := strings.Contains(strings.ToLower(string(raw)), "insufficient authentication scopes") || strings.Contains(strings.ToLower(string(raw)), "access_token_scope_insufficient")
 	typeValue, codeValue := antigravityExecutionErrorFields(raw)
+	if insufficientScope {
+		codeValue = "ACCESS_TOKEN_SCOPE_INSUFFICIENT"
+	}
 	return &GeminiCLIExecutionError{
 		status: status, typeValue: typeValue, codeValue: codeValue, retryAfter: retryAfter,
 		requestScoped: status >= http.StatusBadRequest && status < http.StatusInternalServerError &&
-			status != http.StatusUnauthorized && status != http.StatusForbidden && status != http.StatusTooManyRequests,
+			status != http.StatusUnauthorized && (status != http.StatusForbidden || insufficientScope) && status != http.StatusTooManyRequests,
 		summary: geminiCLIExecutionSummary(status, typeValue),
 	}
 }

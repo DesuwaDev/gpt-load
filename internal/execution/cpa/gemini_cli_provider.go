@@ -302,6 +302,10 @@ func (*geminiCLIProviderBridge) ClassifyError(
 		evidence.Hint = execution.FailureHintRequestRejected
 	case status == http.StatusTooManyRequests:
 		evidence.Hint = execution.FailureHintRateLimited
+		evidence.ReplaySafety = execution.ReplaySafetyRejectedBeforeProcessing
+	case status == http.StatusForbidden:
+		evidence.ReplaySafety = execution.ReplaySafetyRejectedBeforeProcessing
+		evidence.ScopeHint = execution.ErrorScopeCredential
 	case status >= http.StatusInternalServerError:
 		evidence.Hint = execution.FailureHintHostError
 	}

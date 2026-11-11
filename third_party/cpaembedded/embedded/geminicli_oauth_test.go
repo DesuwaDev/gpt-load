@@ -26,7 +26,7 @@ func TestGeminiCLIAuthorizationDiscoversExistingProject(t *testing.T) {
 					if err := r.ParseForm(); err != nil {
 						t.Error(err)
 					}
-					if r.Form.Get("code") != "fresh-code" || r.Form.Get("redirect_uri") != GeminiCLIRedirectURI {
+					if r.Form.Get("code") != "fresh-code" || r.Form.Get("redirect_uri") != GeminiCLIRedirectURI || r.Form.Get("code_verifier") != "fixture-verifier" {
 						t.Errorf("token exchange fields were lost")
 					}
 					_, _ = w.Write([]byte(`{"access_token":"fixture-access","refresh_token":"fixture-refresh","expires_in":3600}`))
@@ -53,7 +53,7 @@ func TestGeminiCLIAuthorizationDiscoversExistingProject(t *testing.T) {
 				}
 			}))
 			defer server.Close()
-			credential, err := CompleteGeminiCLIBrowserAuthorization(t.Context(), BrowserAuthorizationCompletion{ExpectedState: "fixture-state", ReturnedState: "fixture-state", Code: "fresh-code"}, GeminiCLIOptions{TokenURL: server.URL + "/token", UserInfoURL: server.URL + "/userinfo", LoadCodeAssistURL: server.URL + "/load", OnboardUserURL: server.URL + "/onboard", ResourceManagerURL: server.URL + "/projects", HTTPClient: server.Client()})
+			credential, err := CompleteGeminiCLIBrowserAuthorization(t.Context(), BrowserAuthorizationCompletion{ExpectedState: "fixture-state", ReturnedState: "fixture-state", Code: "fresh-code", CodeVerifier: "fixture-verifier"}, GeminiCLIOptions{TokenURL: server.URL + "/token", UserInfoURL: server.URL + "/userinfo", LoadCodeAssistURL: server.URL + "/load", OnboardUserURL: server.URL + "/onboard", ResourceManagerURL: server.URL + "/projects", HTTPClient: server.Client()})
 			if test.projectRequired {
 				if !errors.Is(err, ErrGeminiCLIProjectRequired) {
 					t.Fatalf("expected project-required error, got %v", err)
