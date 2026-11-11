@@ -8,6 +8,7 @@ import (
 	"gpt-load/internal/subscription/providers/claude"
 	"gpt-load/internal/subscription/providers/codex"
 	"gpt-load/internal/subscription/providers/devin"
+	"gpt-load/internal/subscription/providers/geminicli"
 	"gpt-load/internal/subscription/providers/grok"
 	"gpt-load/internal/subscription/providers/muse"
 	subscriptionruntime "gpt-load/internal/subscription/runtime"
@@ -18,6 +19,7 @@ func Implementations() []subscriptionruntime.Implementations {
 		codex.Implementations(),
 		claude.Implementations(),
 		antigravity.Implementations(),
+		geminicli.Implementations(),
 		grok.Implementations(),
 		muse.Implementations(),
 		devin.Implementations(),

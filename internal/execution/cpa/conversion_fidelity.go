@@ -47,7 +47,7 @@ func prepareConvertedFidelity(spec execution.AttemptSpec, providerKind channel.P
 	}
 	lossy := false
 	switch providerKind {
-	case channel.ProviderClaude, channel.ProviderAntigravity:
+	case channel.ProviderClaude, channel.ProviderAntigravity, channel.ProviderGeminiCLI:
 		lossy = true
 	}
 	if !lossy {
@@ -67,7 +67,7 @@ func prepareConvertedToolConstraints(
 		return spec, nil
 	}
 	switch providerKind {
-	case channel.ProviderClaude, channel.ProviderAntigravity, channel.ProviderCodex, channel.ProviderGrok, channel.ProviderMuse, channel.ProviderDevin:
+	case channel.ProviderClaude, channel.ProviderAntigravity, channel.ProviderGeminiCLI, channel.ProviderCodex, channel.ProviderGrok, channel.ProviderMuse, channel.ProviderDevin:
 	default:
 		return spec, nil
 	}
@@ -325,15 +325,20 @@ func subscriptionResponsesToolHistorySupported(body []byte, providerKind channel
 	for _, item := range input.Array() {
 		kind := item.Get("type").String()
 		switch kind {
+		case "compaction":
+			if providerKind == channel.ProviderGeminiCLI {
+				continue
+			}
+			return false
 		case "", "message", "reasoning", "function_call", "function_call_output", "refusal":
 			continue
 		case "custom_tool_call", "custom_tool_call_output":
-			if providerKind == channel.ProviderClaude || providerKind == channel.ProviderAntigravity {
+			if providerKind == channel.ProviderClaude || providerKind == channel.ProviderAntigravity || providerKind == channel.ProviderGeminiCLI {
 				continue
 			}
 			return false
 		case "web_search_call":
-			if providerKind == channel.ProviderClaude {
+			if providerKind == channel.ProviderClaude || providerKind == channel.ProviderGeminiCLI {
 				continue
 			}
 			return false

@@ -16,7 +16,7 @@ func TestRuntimeCompilesAllSubscriptionProviderCapabilities(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, want := runtime.ChannelIDs(), []channel.ID{channel.Antigravity, channel.Claude, channel.Codex, channel.Devin, channel.Grok, channel.Muse}; !reflect.DeepEqual(got, want) {
+	if got, want := runtime.ChannelIDs(), []channel.ID{channel.Antigravity, channel.Claude, channel.Codex, channel.Devin, channel.GeminiCLI, channel.Grok, channel.Muse}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("ChannelIDs() = %v, want %v", got, want)
 	}
 	tests := []struct {
@@ -29,6 +29,7 @@ func TestRuntimeCompilesAllSubscriptionProviderCapabilities(t *testing.T) {
 		{channel.Codex, string(modules.CodexSubscriptionDriver), string(modules.CodexModelDiscovery), string(modules.CodexQuotaObservation), string(modules.CodexResetCreditAction)},
 		{channel.Claude, string(modules.ClaudeSubscriptionDriver), string(modules.ClaudeModelDiscovery), string(modules.ClaudeQuotaObservation), string(modules.ClaudeResetCreditAction)},
 		{channel.Antigravity, string(modules.AntigravitySubscriptionDriver), string(modules.AntigravityModelDiscovery), string(modules.AntigravityQuotaObservation), ""},
+		{channel.GeminiCLI, string(modules.GeminiCLISubscriptionDriver), string(modules.GeminiCLIModelDiscovery), string(modules.GeminiCLIQuotaObservation), ""},
 		{channel.Grok, string(modules.GrokSubscriptionDriver), string(modules.GrokModelDiscovery), string(modules.GrokQuotaObservation), ""},
 		{channel.Devin, string(modules.DevinSubscriptionDriver), string(modules.DevinModelDiscovery), string(modules.DevinQuotaObservation), ""},
 		{channel.Muse, string(modules.MuseSubscriptionDriver), string(modules.MuseModelDiscovery), "", ""},

@@ -23,6 +23,7 @@ import (
 	"gpt-load/internal/execution"
 	"gpt-load/internal/execution/responsealias"
 	"gpt-load/internal/execution/responsemodel"
+	"gpt-load/internal/platform/encryption"
 	platformredact "gpt-load/internal/platform/redact"
 	"gpt-load/internal/protocol"
 	"gpt-load/internal/reasoning"
@@ -87,11 +88,19 @@ func NewAdapter(credentials *subscription.CredentialManager, channels *channel.R
 			newCodexProviderBridge(),
 			newClaudeProviderBridge(),
 			newAntigravityProviderBridge(),
+			newGeminiCLIProviderBridge(),
 			newGrokProviderBridge(),
 			newMuseProviderBridge(),
 			newDevinProviderBridge(),
 		),
 	}
+}
+
+// NewAdapterWithEncryption enables restart-safe Gemini CLI compaction envelopes.
+func NewAdapterWithEncryption(credentials *subscription.CredentialManager, channels *channel.Registry, cipher encryption.Service) *Adapter {
+	adapter := NewAdapter(credentials, channels)
+	adapter.providers[channel.ProviderGeminiCLI].(*geminiCLIProviderBridge).compactionCipher = cipher
+	return adapter
 }
 
 // ValidateRouteCapability delegates the implementation bound to ProviderKind.
@@ -625,6 +634,12 @@ func bridgeRequest(
 	payload := append([]byte(nil), spec.Body...)
 	headers := spec.Header.Clone()
 	requestPath := ""
+	if spec.Operation == execution.OperationResponsesCompact {
+		if spec.Method != http.MethodPost || spec.Path != "/v1/responses/compact" || stream {
+			return providerRequest{}, fmt.Errorf("compact requires a non-streaming POST")
+		}
+		requestPath = spec.Path
+	}
 	if spec.Operation == execution.OperationWebSearch {
 		if spec.Method != http.MethodPost || spec.Path != "/v1/alpha/search" || stream {
 			return providerRequest{}, fmt.Errorf("unsupported Codex search request")
@@ -684,8 +699,9 @@ func formatFor(clientProtocol protocol.Protocol) string {
 }
 
 func canonicalCPAImagesRequestPath(spec execution.AttemptSpec) (string, error) {
-	convertedGeneration := spec.RouteMode == execution.RouteConverted && spec.Operation == execution.OperationImagesGenerate
-	if spec.ClientProtocol != protocol.OpenAIImages || (spec.RouteMode != execution.RouteNative && !convertedGeneration) ||
+	convertedImages := spec.RouteMode == execution.RouteConverted &&
+		(spec.Operation == execution.OperationImagesGenerate || spec.Operation == execution.OperationImagesEdit)
+	if spec.ClientProtocol != protocol.OpenAIImages || (spec.RouteMode != execution.RouteNative && !convertedImages) ||
 		spec.Method != http.MethodPost {
 		return "", fmt.Errorf("unsupported Images route tuple")
 	}

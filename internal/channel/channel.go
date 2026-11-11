@@ -27,6 +27,7 @@ const (
 	Codex            = spec.Codex
 	Claude           = spec.Claude
 	Antigravity      = spec.Antigravity
+	GeminiCLI        = spec.GeminiCLI
 	Grok             = spec.Grok
 	Muse             = spec.Muse
 	Devin            = spec.Devin
@@ -236,6 +237,7 @@ const (
 	ProviderCodex                = spec.ProviderCodex
 	ProviderClaude               = spec.ProviderClaude
 	ProviderAntigravity          = spec.ProviderAntigravity
+	ProviderGeminiCLI            = spec.ProviderGeminiCLI
 	ProviderGrok                 = spec.ProviderGrok
 	ProviderMuse                 = spec.ProviderMuse
 	ProviderDevin                = spec.ProviderDevin

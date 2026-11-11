@@ -557,7 +557,6 @@ func isResponsesLifecycle(operation execution.Operation) bool {
 		execution.OperationResponsesDelete,
 		execution.OperationResponsesCancel,
 		execution.OperationResponsesInputItems,
-		execution.OperationResponsesCompact,
 		execution.OperationResponsesPassthrough:
 		return true
 	default:

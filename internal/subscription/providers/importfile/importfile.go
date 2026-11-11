@@ -461,6 +461,8 @@ func (m *mapper) validateClient(source map[string]any, channelID channel.ID) {
 		expected = "9d1c250a-e61b-44d9-88ed-5944d1962f5e"
 	case channel.Antigravity:
 		expected = "1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com"
+	case channel.GeminiCLI:
+		expected = "681255809395-oo8ft2oprdrnp9e3aqf6av3hmdib135j.apps.googleusercontent.com"
 	case channel.Grok:
 		expected = "b1a00492-073a-47ea-816f-4c329264a828"
 	case channel.Muse:
@@ -502,6 +504,8 @@ func cpaChannel(provider string) channel.ID {
 		return channel.Claude
 	case "antigravity":
 		return channel.Antigravity
+	case "gemini", "gemini-cli", "gemini_cli":
+		return channel.GeminiCLI
 	case "grok", "xai":
 		return channel.Grok
 	case "devin":

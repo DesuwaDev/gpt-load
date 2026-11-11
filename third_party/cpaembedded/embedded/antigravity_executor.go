@@ -452,35 +452,7 @@ func (executor *antigravityHTTPExecutor) executionContext(
 		proxyURL:   strings.TrimSpace(proxyURL),
 	}
 	transport, err := antigravityExecutionTransports.Get(key, func() (*http.Transport, error) {
-		transport, _, proxyErr := proxyutil.BuildHTTPTransport(proxyURL)
-		if proxyErr != nil {
-			return nil, proxyErr
-		}
-		if transport == nil {
-			base, ok := http.DefaultTransport.(*http.Transport)
-			if !ok || base == nil {
-				base = &http.Transport{}
-			}
-			transport = base.Clone()
-		}
-		transport.ForceAttemptHTTP2 = false
-		transport.TLSNextProto = map[string]func(string, *tls.Conn) http.RoundTripper{}
-		if transport.TLSClientConfig == nil {
-			transport.TLSClientConfig = &tls.Config{}
-		} else {
-			transport.TLSClientConfig = transport.TLSClientConfig.Clone()
-		}
-		transport.TLSClientConfig.NextProtos = []string{"http/1.1"}
-		if transport.MaxIdleConnsPerHost >= 0 && transport.MaxIdleConnsPerHost < 100 {
-			transport.MaxIdleConnsPerHost = 100
-		}
-		if transport.MaxIdleConns > 0 && transport.MaxIdleConns < transport.MaxIdleConnsPerHost {
-			transport.MaxIdleConns = transport.MaxIdleConnsPerHost
-		}
-		if transport.IdleConnTimeout > 0 && transport.IdleConnTimeout < 10*time.Minute {
-			transport.IdleConnTimeout = 10 * time.Minute
-		}
-		return transport, nil
+		return newHTTP1ExecutionTransport(proxyURL)
 	})
 	if err != nil {
 		return nil, fmt.Errorf("prepare Antigravity execution transport: %w", err)
@@ -488,6 +460,39 @@ func (executor *antigravityHTTPExecutor) executionContext(
 	return context.WithValue(ctx, "cliproxy.roundtripper", noRedirectRoundTripper{
 		base: transport, observation: observation,
 	}), nil
+}
+
+// newHTTP1ExecutionTransport 构造只走 HTTP/1.1 的长连接传输，与 Node 系官方客户端的连接形态一致。
+func newHTTP1ExecutionTransport(proxyURL string) (*http.Transport, error) {
+	transport, _, proxyErr := proxyutil.BuildHTTPTransport(proxyURL)
+	if proxyErr != nil {
+		return nil, proxyErr
+	}
+	if transport == nil {
+		base, ok := http.DefaultTransport.(*http.Transport)
+		if !ok || base == nil {
+			base = &http.Transport{}
+		}
+		transport = base.Clone()
+	}
+	transport.ForceAttemptHTTP2 = false
+	transport.TLSNextProto = map[string]func(string, *tls.Conn) http.RoundTripper{}
+	if transport.TLSClientConfig == nil {
+		transport.TLSClientConfig = &tls.Config{}
+	} else {
+		transport.TLSClientConfig = transport.TLSClientConfig.Clone()
+	}
+	transport.TLSClientConfig.NextProtos = []string{"http/1.1"}
+	if transport.MaxIdleConnsPerHost >= 0 && transport.MaxIdleConnsPerHost < 100 {
+		transport.MaxIdleConnsPerHost = 100
+	}
+	if transport.MaxIdleConns > 0 && transport.MaxIdleConns < transport.MaxIdleConnsPerHost {
+		transport.MaxIdleConns = transport.MaxIdleConnsPerHost
+	}
+	if transport.IdleConnTimeout > 0 && transport.IdleConnTimeout < 10*time.Minute {
+		transport.IdleConnTimeout = 10 * time.Minute
+	}
+	return transport, nil
 }
 
 func normalizeAntigravityExecutionError(err error) error {

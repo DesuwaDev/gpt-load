@@ -19,6 +19,7 @@ func TestRegistryHasStableBuiltInOrderAndSearch(t *testing.T) {
 		Codex,
 		Claude,
 		Antigravity,
+		GeminiCLI,
 		Grok,
 		Muse,
 		Devin,
@@ -58,11 +59,11 @@ func TestRegistryHasStableBuiltInOrderAndSearch(t *testing.T) {
 	if got := descriptorIDs(registry.List()); !reflect.DeepEqual(got, wantIDs) {
 		t.Fatalf("List() IDs = %v, want %v", got, wantIDs)
 	}
-	if got := descriptorIDs(registry.Search("GeMiNi")); !reflect.DeepEqual(got, []ID{Gemini}) {
+	if got := descriptorIDs(registry.Search("GeMiNi")); !reflect.DeepEqual(got, []ID{GeminiCLI, Gemini}) {
 		t.Fatalf("Search(gemini) IDs = %v", got)
 	}
-	if got := descriptorIDs(registry.Search("subscription")); !reflect.DeepEqual(got, []ID{Codex, Claude, Antigravity, Grok, Muse, Devin}) {
-		t.Fatalf("Search(subscription) IDs = %v, want [codex claude antigravity grok muse devin]", got)
+	if got := descriptorIDs(registry.Search("subscription")); !reflect.DeepEqual(got, []ID{Codex, Claude, Antigravity, GeminiCLI, Grok, Muse, Devin}) {
+		t.Fatalf("Search(subscription) IDs = %v, want [codex claude antigravity gemini_cli grok muse devin]", got)
 	}
 	if got := descriptorIDs(registry.Search("compatible")); !reflect.DeepEqual(got, []ID{OpenAICompatible}) {
 		t.Fatalf("Search(compatible) IDs = %v", got)
@@ -98,7 +99,7 @@ func TestRegistryHasStableBuiltInOrderAndSearch(t *testing.T) {
 	first := registry.List()
 	first[0].ClientProtocols[0] = protocol.Protocol("mutated")
 	first[0].ParamFields = append(first[0].ParamFields, FieldDescriptor{Key: "mutated"})
-	vertexIndex := 11
+	vertexIndex := 12
 	if first[vertexIndex].ID != GoogleVertex || first[vertexIndex].ParamFields[0].DefaultValue == nil {
 		t.Fatalf("unexpected Vertex descriptor = %#v", first[vertexIndex])
 	}
@@ -848,6 +849,7 @@ func TestEveryResponsesCreateChannelDeclaresStoreHandling(t *testing.T) {
 		Codex:            ResponsesStoreHandlingStateless,
 		Claude:           ResponsesStoreHandlingStateless,
 		Antigravity:      ResponsesStoreHandlingStateless,
+		GeminiCLI:        ResponsesStoreHandlingStateless,
 		Grok:             ResponsesStoreHandlingStateless,
 		Muse:             ResponsesStoreHandlingStateless,
 		Devin:            ResponsesStoreHandlingStateless,

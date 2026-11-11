@@ -17,6 +17,7 @@ const (
 	Codex            ID = "codex"
 	Claude           ID = "claude"
 	Antigravity      ID = "antigravity"
+	GeminiCLI        ID = "gemini_cli"
 	Grok             ID = "grok"
 	Muse             ID = "muse"
 	Devin            ID = "devin"
@@ -62,6 +63,7 @@ const (
 	ProviderCodex                ProviderKind = "codex"
 	ProviderClaude               ProviderKind = "claude"
 	ProviderAntigravity          ProviderKind = "antigravity"
+	ProviderGeminiCLI            ProviderKind = "gemini_cli"
 	ProviderGrok                 ProviderKind = "grok"
 	ProviderMuse                 ProviderKind = "muse"
 	ProviderDevin                ProviderKind = "devin"
@@ -140,6 +142,7 @@ func (kind ProviderKind) Valid() bool {
 		ProviderCodex,
 		ProviderClaude,
 		ProviderAntigravity,
+		ProviderGeminiCLI,
 		ProviderGrok,
 		ProviderMuse,
 		ProviderDevin,
