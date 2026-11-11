@@ -9,13 +9,11 @@ import (
 	"math"
 	"net/http"
 	"net/url"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/router-for-me/CLIProxyAPI/v8/internal/misc"
-	"github.com/router-for-me/CLIProxyAPI/v8/internal/registry"
 )
 
 var (
@@ -310,46 +308,6 @@ func ObserveGeminiCLIAccount(
 		return GeminiCLIAccountObservation{}, loadErr
 	}
 	return result, nil
-}
-
-// DiscoverGeminiCLIModels 以账号额度桶里出现的模型为准；接口未列出任何模型时回退到
-// CPA 的 Gemini 静态目录（去掉 Code Assist 不提供的图像、嵌入与别名模型）。
-func DiscoverGeminiCLIModels(
-	ctx context.Context,
-	credential GeminiCLICredential,
-	options GeminiCLIOptions,
-) ([]string, error) {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	if err := validateGeminiCLICredential(credential); err != nil {
-		return nil, err
-	}
-	buckets, err := retrieveGeminiCLIQuota(ctx, credential, options)
-	if err != nil {
-		return nil, err
-	}
-	models := make([]string, 0, len(buckets))
-	for _, bucket := range buckets {
-		models = append(models, bucket.ModelID)
-	}
-	models = normalizeModelIDs(models)
-	if len(models) == 0 {
-		for _, model := range registry.GetStaticModelDefinitionsByChannel("gemini") {
-			if model == nil {
-				continue
-			}
-			id := strings.TrimSpace(model.ID)
-			if !strings.HasPrefix(id, "gemini-") || strings.Contains(id, "image") ||
-				strings.Contains(id, "embedding") || strings.HasSuffix(id, "-latest") {
-				continue
-			}
-			models = append(models, id)
-		}
-		models = normalizeModelIDs(models)
-	}
-	sort.Strings(models)
-	return models, nil
 }
 
 func IsDefinitiveGeminiCLIRefreshRejection(code string) bool {

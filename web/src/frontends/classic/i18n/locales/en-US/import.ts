@@ -328,6 +328,7 @@ export default {
       sources: {
         catalog: 'Catalog',
         live: 'Live discovery',
+        builtin: 'Built-in models',
       },
       pricing: {
         pending: 'Pending',

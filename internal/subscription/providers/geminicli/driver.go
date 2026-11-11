@@ -108,7 +108,7 @@ func (*driver) ImportCredential(ctx context.Context, raw []byte) (subscriptionru
 	return runtimeCredential(value)
 }
 
-// DiscoverModels 以账号额度接口列出的模型为准。
+// DiscoverModels 返回 Code Assist 的内置可选目录，不依赖额度接口。
 func (*driver) DiscoverModels(ctx context.Context, credential subscriptionruntime.Credential, target subscriptionruntime.Target) ([]string, error) {
 	value, err := ParseCredentialJSON(credential.Canonical())
 	if err != nil {

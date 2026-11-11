@@ -135,7 +135,7 @@ export default {
         configured: 'Configured',
         discovered: 'Price found\nMatched provider: {source}',
       },
-      sources: { catalog: 'Catalog', live: 'Live discovery' },
+      sources: { catalog: 'Catalog', live: 'Live discovery', builtin: 'Built-in models' },
       drawer: {
         title: 'Get upstream models',
         description: 'Only checked models are appended; the current configuration is preserved.',
@@ -158,7 +158,7 @@ export default {
         action: 'Sync',
         title: 'Sync models',
         description:
-          'The list combines live discovery and the pricing catalog. Sync uses only live discovery, so catalog-only models may appear in the removal list.',
+          'Sync uses upstream discovery or the built-in channel list. Built-in models do not confirm account access. Pricing-catalog-only models may appear in the removal list.',
         close: 'Close model sync',
         modeLabel: 'Sync mode',
         mode: {

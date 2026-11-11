@@ -466,3 +466,14 @@ func TestSavedGroupDiscoveryUsesPersistedProviderAndSharedPricingStatus(t *testi
 		t.Fatalf("saved group candidates = %#v, want %#v", got.Models, want)
 	}
 }
+
+func TestGeminiCLISelectionCatalogIsNotMarkedLive(t *testing.T) {
+	fixture := newServiceFixture(t)
+	result, err := fixture.service.mergeDiscoveredModels(t.Context(), []string{"gemini-3.1-flash-image"}, discoveryTarget{channelID: channel.GeminiCLI})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Models) != 1 || !reflect.DeepEqual(result.Models[0].Sources, []string{"builtin"}) {
+		t.Fatalf("built-in selection catalog = %+v", result.Models)
+	}
+}

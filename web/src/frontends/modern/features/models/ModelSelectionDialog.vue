@@ -41,7 +41,7 @@ const view = useURLState(
   ['picker_q', 'picker_source', 'picker_price', 'picker_scope', 'picker_page', 'picker_size'],
   (query) => ({
     q: typeof query.picker_q === 'string' ? query.picker_q : '',
-    source: ['live', 'catalog'].includes(String(query.picker_source))
+    source: ['live', 'catalog', 'builtin'].includes(String(query.picker_source))
       ? String(query.picker_source)
       : 'all',
     price: ['configured', 'pending'].includes(String(query.picker_price))
@@ -109,7 +109,7 @@ const filtering = ref(false)
 const feedback = useLoadingFeedback(filtering)
 const current = computed(() => new Set(props.currentIds.map((id) => id.trim())))
 const sources = computed(() =>
-  ['all', 'live', 'catalog'].map((value) => ({
+  ['all', 'live', 'catalog', 'builtin'].map((value) => ({
     value,
     label: t(`modelSelection.sourceOptions.${value}`),
   })),

@@ -11,7 +11,8 @@ export const zhCN = {
   batchResult: '成功 {success} 个，失败 {failed} 个',
   retryFailed: '重试失败项',
   syncModels: '同步模型',
-  syncDescription: '仅与上游实际返回的模型比较，保留已有模型别名。确认后保存变更。',
+  syncDescription:
+    '与上游发现或渠道内置列表比较，保留已有别名。内置列表不代表账号权限。确认后保存变更。',
   confirmSync: '确认同步',
   syncMode: '同步方式',
   syncModes: { full: '完整同步', add: '仅新增', cleanup: '仅清理' },
@@ -44,7 +45,7 @@ export const enUS: typeof zhCN = {
   retryFailed: 'Retry failed items',
   syncModels: 'Sync models',
   syncDescription:
-    'Compare only models returned by the upstream. Existing aliases are retained. Confirm to save changes.',
+    'Compare upstream discovery or the built-in channel list and retain existing aliases. Built-in models do not confirm account access. Confirm to save changes.',
   confirmSync: 'Confirm sync',
   syncMode: 'Sync mode',
   syncModes: { full: 'Full sync', add: 'Add only', cleanup: 'Remove only' },
@@ -77,7 +78,7 @@ export const jaJP: typeof zhCN = {
   retryFailed: '失敗分を再試行',
   syncModels: 'モデルを同期',
   syncDescription:
-    '上流が返したモデルのみを比較し、既存の別名を保持します。確認後に変更を保存します。',
+    '上流の検出結果またはチャネルの組み込み一覧と比較し、既存の別名を保持します。組み込み一覧は利用権限を保証しません。確認後に保存します。',
   confirmSync: '同期を確定',
   syncMode: '同期方法',
   syncModes: { full: '完全同期', add: '追加のみ', cleanup: '削除のみ' },

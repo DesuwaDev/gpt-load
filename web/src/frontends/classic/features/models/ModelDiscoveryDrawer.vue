@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { CircleDollarSign, Radar, RefreshCw } from '@lucide/vue'
+import { BookOpen, CircleDollarSign, Radar, RefreshCw } from '@lucide/vue'
 import { computed, ref, toRef, watch } from 'vue'
 
 import { useStableLoading } from '@/app/loading-state'
@@ -233,6 +233,18 @@ function confirm(): void {
               </OverflowTooltip>
             </span>
             <span class="model-discovery-drawer__evidence">
+              <AppTooltip
+                v-if="candidate.sources.includes('builtin')"
+                :content="labels.sources.builtin"
+              >
+                <span
+                  class="model-discovery-drawer__status-icon"
+                  role="img"
+                  :aria-label="labels.sources.builtin"
+                >
+                  <BookOpen :size="17" stroke-width="1.9" aria-hidden="true" />
+                </span>
+              </AppTooltip>
               <AppTooltip v-if="candidate.sources.includes('live')" :content="labels.sources.live">
                 <span
                   class="model-discovery-drawer__status-icon model-discovery-drawer__status-icon--live"

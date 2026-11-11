@@ -40,7 +40,9 @@ const modes = computed(() =>
   })),
 )
 const live = computed(() =>
-  (candidates.value ?? []).filter((model) => model.sources.includes('live')),
+  (candidates.value ?? []).filter(
+    (model) => model.sources.includes('live') || model.sources.includes('builtin'),
+  ),
 )
 const additions = computed(() =>
   mode.value === 'cleanup'

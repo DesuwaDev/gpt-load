@@ -327,6 +327,7 @@ export default {
       sources: {
         catalog: 'カタログ',
         live: '上流から取得',
+        builtin: '組み込みモデル',
       },
       pricing: {
         pending: '未設定',

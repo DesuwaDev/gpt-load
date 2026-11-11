@@ -134,7 +134,7 @@ export default {
         configured: '已配置',
         discovered: '发现价格\n匹配渠道：{source}',
       },
-      sources: { catalog: '渠道目录', live: '上游发现' },
+      sources: { catalog: '渠道目录', live: '上游发现', builtin: '内置模型' },
       drawer: {
         title: '获取上游模型列表',
         description: '只追加勾选的模型，不覆盖当前配置。',
@@ -157,7 +157,7 @@ export default {
         action: '同步',
         title: '同步模型',
         description:
-          '模型列表包含上游发现和价格目录；同步只以上游发现结果为准。仅存在于价格目录的模型不会被识别为上游模型，可能出现在移除清单。',
+          '同步以上游发现或渠道内置列表为准。内置列表不代表账号权限；仅存在于价格目录的模型可能出现在移除清单。',
         close: '关闭模型同步',
         modeLabel: '同步方式',
         mode: {

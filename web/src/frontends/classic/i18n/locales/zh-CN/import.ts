@@ -300,6 +300,7 @@ export default {
       sources: {
         catalog: '渠道目录',
         live: '上游发现',
+        builtin: '内置模型',
       },
       pricing: {
         pending: '待配置',

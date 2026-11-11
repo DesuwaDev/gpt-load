@@ -357,6 +357,10 @@ func (s *Service) mergeDiscoveredModels(
 
 	result := make([]ModelCandidate, 0, len(live)+len(providerModels))
 	seen := make(map[string]int, len(live)+len(providerModels))
+	discoverySource := "live"
+	if target.channelID == channel.GeminiCLI {
+		discoverySource = "builtin"
+	}
 	for _, id := range live {
 		if target.channelID == channel.Codex && id == channel.CodexLiveModelID {
 			continue
@@ -365,7 +369,7 @@ func (s *Service) mergeDiscoveredModels(
 		identity := pricing.Identity{ChannelID: string(target.channelID), ModelID: id}
 		pricingStatus, pricingSource := resolveCandidatePricing(rows[identity], catalogSnapshot, identity)
 		candidate := ModelCandidate{
-			ID: id, Name: id, Sources: []string{"live"},
+			ID: id, Name: id, Sources: []string{discoverySource},
 			PricingStatus: pricingStatus, PricingSource: pricingSource,
 		}
 		if catalogMatch {
