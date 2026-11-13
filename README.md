@@ -158,6 +158,8 @@ When working over SSH or from a remote browser, the browser's `localhost` may no
 
 ### Built-in channels
 
+Audio Speech supports OpenAI, OpenRouter, and Mistral, preserving each channel's native request and response format without conversion. OpenAI returns raw audio; only ordinary audio responses are supported, not SSE speech events or speech credential probes. Protocol-restricted AccessKeys must allow `audio-speech`; allowing only `openai-completions` does not grant speech access.
+
 - **Official and cloud** — OpenAI, Anthropic, Gemini, xAI, Azure OpenAI, AWS Bedrock, Google Vertex AI
 - **Model services** — DeepSeek, Moonshot AI, SiliconFlow, Zhipu AI, Alibaba, Volcengine, OpenRouter, Cline, Groq, Cerebras, Mistral, Nebius, Parasail, Wafer, Hugging Face (Chat), Cohere (text reranking), OpenCode Go, OpenCode Zen
 - **Subscription** — Codex, Claude, Antigravity, Grok
@@ -241,6 +243,7 @@ At startup, the application reads `.env` in the current directory; existing proc
 | `HTTP_PROXY` | Empty | Environment proxy for HTTP upstream requests. |
 | `HTTPS_PROXY` | Empty | Environment proxy for HTTPS upstream requests. |
 | `NO_PROXY` | Empty | Comma-separated hosts, domains, or IPs that bypass the environment proxy. |
+| `UPSTREAM_USER_AGENT_FALLBACK` | Empty, uses `GPT-Load/<version>` | Fallback User-Agent for ordinary-channel API requests, credential probes, model discovery, and Responses WebSocket handshakes. Used only when the final UA is missing, empty, or whitespace-only after header rules; nonempty rule/client values take precedence. Example: `Go-http-client/1.1` (fixed, not protocol-dependent). Subscription adapter identities are unchanged. Restart after changes. |
 | `LOG_LEVEL` | `info` | Supports `panic`, `fatal`, `error`, `warn`, `warning`, `info`, `debug`, and `trace`; invalid values warn and fall back to `info`. |
 | `LOG_FORMAT` | `text` | Supports `text` and `json`; any other value fails startup. |
 | `MODELS_DEV_AUTO_SYNC_ENABLED` | Unset, initial default `true` | When unset, uses the persisted management UI setting; when set, forces Models.dev auto-sync on or off and makes the same UI option read-only. |

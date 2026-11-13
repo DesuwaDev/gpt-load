@@ -72,7 +72,7 @@ type streamSDKResult struct {
 
 // Execute executes one non-streaming attempt.
 func (r *Runtime) Execute(parent context.Context, spec execution.AttemptSpec) (result execution.AttemptResult) {
-	spec = withUserAgent(spec)
+	spec = withUserAgent(spec, r.userAgentFallback)
 	defer func() {
 		normalizeImagesAttemptResult(spec, &result)
 		normalizeEmbeddingsAttemptResult(spec, &result)
@@ -201,7 +201,7 @@ func (r *Runtime) ExecuteStream(
 	spec execution.AttemptSpec,
 	sink execution.StreamSink,
 ) (result execution.StreamResult) {
-	spec = withUserAgent(spec)
+	spec = withUserAgent(spec, r.userAgentFallback)
 	defer func() {
 		normalizeImagesStreamResult(spec, &result)
 	}()
@@ -513,7 +513,8 @@ func (r *Runtime) prepare(spec execution.AttemptSpec, stream bool) (preparedAtte
 		}
 	}
 	convertedImages := mode == channel.RouteConverted && spec.ClientProtocol == protocol.OpenAIImages && providerKind == channel.ProviderGemini
-	convertedEmbeddings := mode == channel.RouteConverted && spec.ClientProtocol == protocol.OpenAIEmbeddings && providerKind == channel.ProviderGemini
+	convertedEmbeddings := mode == channel.RouteConverted && spec.ClientProtocol == protocol.OpenAIEmbeddings &&
+		(providerKind == channel.ProviderGemini || providerKind == channel.ProviderGoogleVertex)
 	nativeGeminiFamily := spec.ClientProtocol == protocol.Gemini || spec.ClientProtocol == protocol.GeminiEmbeddings
 	if convertedImages || convertedEmbeddings || mode == channel.RouteNative && nativeGeminiFamily &&
 		(providerKind == channel.ProviderGemini || providerKind == channel.ProviderGoogleVertex ||
@@ -569,7 +570,16 @@ func (r *Runtime) prepare(spec execution.AttemptSpec, stream bool) (preparedAtte
 				directKey: directKey, secrets: secrets,
 			}, nil
 		}
-		if spec.ClientProtocol == protocol.GeminiEmbeddings && providerKind == channel.ProviderGemini {
+		if spec.ClientProtocol == protocol.GeminiEmbeddings &&
+			(providerKind == channel.ProviderGemini || providerKind == channel.ProviderGoogleVertex) {
+			path := "/models/" + url.PathEscape(spec.UpstreamModel) + ":embedContent"
+			if providerKind == channel.ProviderGoogleVertex {
+				path, err = vertexNativeGeminiPath(spec.UpstreamModel, "embedContent")
+				if err != nil {
+					failure := notSentUnaryFailure(execution.ErrorKindInvalidRequest, "invalid Vertex Embeddings probe target")
+					return preparedAttempt{}, &failure
+				}
+			}
 			return preparedAttempt{
 				provider:         provider,
 				mode:             mode,
@@ -578,7 +588,7 @@ func (r *Runtime) prepare(spec execution.AttemptSpec, stream bool) (preparedAtte
 					Provider:    provider,
 					Model:       spec.UpstreamModel,
 					Method:      http.MethodPost,
-					Path:        "/models/" + url.PathEscape(spec.UpstreamModel) + ":embedContent",
+					Path:        path,
 					Body:        []byte(geminiEmbeddingsProbeBody),
 					SafeHeaders: map[string]string{"Content-Type": "application/json"},
 				},
@@ -738,6 +748,9 @@ func (r *Runtime) prepare(spec execution.AttemptSpec, stream bool) (preparedAtte
 				return preparedAttempt{}, &failure
 			}
 			passthroughPath = "/models/" + url.PathEscape(spec.UpstreamModel) + ":batchEmbedContents"
+			if providerKind == channel.ProviderGoogleVertex {
+				passthroughPath, err = vertexNativeGeminiPath(spec.UpstreamModel, "batchEmbedContents")
+			}
 			embeddingConversion = &conversion
 		} else {
 			passthroughPath, err = nativePassthroughPath(spec, providerKind)
@@ -745,6 +758,13 @@ func (r *Runtime) prepare(spec execution.AttemptSpec, stream bool) (preparedAtte
 		if err != nil {
 			failure := notSentUnaryFailure(execution.ErrorKindInvalidRequest, "invalid native request path")
 			return preparedAttempt{}, &failure
+		}
+		if providerKind == channel.ProviderGoogleVertex && (convertedEmbeddings || spec.ClientProtocol == protocol.GeminiEmbeddings) {
+			body, err = vertexEmbeddingsBody(body, strings.HasSuffix(passthroughPath, ":batchEmbedContents"))
+			if err != nil {
+				failure := notSentUnaryFailure(execution.ErrorKindInvalidRequest, "invalid Vertex Embeddings request body")
+				return preparedAttempt{}, &failure
+			}
 		}
 		passthroughHeaders := safePassthroughHeaders(sanitizedHeaders)
 		passthroughUpstreamURL := ""
@@ -1021,7 +1041,7 @@ func providerKindNativeForClient(providerKind channel.ProviderKind, clientProtoc
 	case channel.ProviderGemini:
 		return clientProtocol == protocol.Gemini || clientProtocol == protocol.GeminiEmbeddings
 	case channel.ProviderGoogleVertex:
-		return clientProtocol == protocol.Gemini
+		return clientProtocol == protocol.Gemini || clientProtocol == protocol.GeminiEmbeddings
 	case channel.ProviderOpenRouter:
 		return clientProtocol == protocol.OpenAICompletions || clientProtocol == protocol.OpenAIResponses ||
 			clientProtocol == protocol.OpenAIEmbeddings || clientProtocol == protocol.Decisions
@@ -1257,8 +1277,14 @@ func nativePassthroughPath(spec execution.AttemptSpec, providerKind channel.Prov
 }
 
 func vertexNativeGeminiPath(model, action string) (string, error) {
-	model, ok := channel.NormalizeVertexGeminiModel(model)
-	if !ok || (action != "generateContent" && action != "streamGenerateContent") {
+	var ok bool
+	switch action {
+	case "generateContent", "streamGenerateContent":
+		model, ok = channel.NormalizeVertexGeminiModel(model)
+	case "embedContent", "batchEmbedContents":
+		model, ok = channel.NormalizeVertexEmbeddingsModel(model)
+	}
+	if !ok {
 		return "", fmt.Errorf("invalid Vertex Gemini target")
 	}
 	if allDigitsASCII(model) {

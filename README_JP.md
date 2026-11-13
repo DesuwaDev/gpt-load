@@ -158,6 +158,8 @@ SSH やリモートブラウザ経由で操作する場合、ブラウザの `lo
 
 ### 組み込みチャネル
 
+Audio Speech は OpenAI、OpenRouter、Mistral に対応し、各チャネルのネイティブなリクエスト・レスポンスを形式変換せずに転送します。OpenAI は生の音声データを返します。通常の音声レスポンスのみ対応し、SSE 音声イベントや音声による認証情報テストには対応しません。プロトコル制限付きアクセスキーでは `audio-speech` を許可してください。`openai-completions` の許可だけでは音声にはアクセスできません。
+
 - **公式・クラウド**：OpenAI、Anthropic、Gemini、xAI、Azure OpenAI、AWS Bedrock、Google Vertex AI
 - **モデルサービス**：DeepSeek、Moonshot AI、SiliconFlow、Zhipu AI、Alibaba、Volcengine、OpenRouter、Cline、Groq、Cerebras、Mistral、Nebius、Parasail、Wafer、Hugging Face（チャット）、Cohere（テキストリランキング）、OpenCode Go、OpenCode Zen
 - **サブスクリプション**：Codex、Claude、Antigravity、Grok
@@ -241,6 +243,7 @@ Windows の一般ユーザーは代わりに `gpt-load-windows-setup.exe` を利
 | `HTTP_PROXY` | 空 | HTTP アップストリームリクエストの環境プロキシ。 |
 | `HTTPS_PROXY` | 空 | HTTPS アップストリームリクエストの環境プロキシ。 |
 | `NO_PROXY` | 空 | 環境プロキシをバイパスするホスト、ドメイン、IP のカンマ区切りリスト。 |
+| `UPSTREAM_USER_AGENT_FALLBACK` | 空、`GPT-Load/<version>` を使用 | 通常チャネルの API リクエスト、認証情報テスト、モデル検出、Responses WebSocket ハンドシェイク用のフォールバック User-Agent。ヘッダールール適用後の UA が未指定・空・空白のみの場合に使用し、ルールやクライアントの空でない UA は維持します。例：`Go-http-client/1.1`（HTTP プロトコルに依存しない固定値）。サブスクリプションアダプターの識別情報は変更しません。変更後は再起動が必要です。 |
 | `LOG_LEVEL` | `info` | `panic`、`fatal`、`error`、`warn`、`warning`、`info`、`debug`、`trace` に対応します。無効な値は警告を出して `info` に戻ります。 |
 | `LOG_FORMAT` | `text` | `text` と `json` に対応します。それ以外の値では起動に失敗します。 |
 | `MODELS_DEV_AUTO_SYNC_ENABLED` | 未設定、初期既定値 `true` | 未設定時は管理画面に保存された設定を使用します。設定時は Models.dev の自動同期を強制的に有効または無効にし、管理画面の同名オプションを読み取り専用にします。 |
