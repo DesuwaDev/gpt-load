@@ -307,7 +307,7 @@ func (r *Runtime) executeConvertedResponses(
 		var response *schemas.BifrostResponsesResponse
 		var bifrostError *schemas.BifrostError
 		if r.usesCompatibleChat(spec) {
-			response, bifrostError = r.compatibleResponsesRequest(bifrostContext, prepared.responsesRequest)
+			response, bifrostError = r.compatibleResponsesRequest(bifrostContext, prepared.responsesRequest, spec.ChannelID)
 		} else {
 			response, bifrostError = r.core.ResponsesRequest(bifrostContext, prepared.responsesRequest)
 		}
@@ -632,7 +632,7 @@ func (r *Runtime) executeConvertedResponsesStream(
 		var stream chan *schemas.BifrostStreamChunk
 		var bifrostError *schemas.BifrostError
 		if r.usesCompatibleChat(spec) {
-			stream, bifrostError = r.compatibleResponsesStream(bifrostContext, prepared.responsesRequest)
+			stream, bifrostError = r.compatibleResponsesStream(bifrostContext, prepared.responsesRequest, spec.ChannelID)
 		} else {
 			stream, bifrostError = r.core.ResponsesStreamRequest(bifrostContext, prepared.responsesRequest)
 		}

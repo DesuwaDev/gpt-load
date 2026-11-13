@@ -656,6 +656,10 @@ func bridgeRequest(
 		payload = append([]byte(nil), rebuilt.Body...)
 		headers = rebuilt.Header.Clone()
 	}
+	payload, err := sanitizeSwitchedHistory(spec, payload)
+	if err != nil {
+		return providerRequest{}, err
+	}
 	return providerRequest{
 		AttemptID: spec.AttemptID, Model: spec.UpstreamModel, Payload: payload,
 		Format: formatFor(spec.ClientProtocol), RequestPath: requestPath, Headers: headers,
@@ -666,6 +670,24 @@ func bridgeRequest(
 		ProxyURL:             proxySettings.URL,
 		ProxyFromEnvironment: proxySettings.FromEnvironment,
 	}, nil
+}
+
+// sanitizeSwitchedHistory removes history the subscription upstream rejects
+// after a mid-conversation model switch: OpenAI caps call IDs that the Gemini
+// conversion lengthened with thought signatures, and Claude refuses unsigned
+// thinking blocks.
+func sanitizeSwitchedHistory(spec execution.AttemptSpec, payload []byte) ([]byte, error) {
+	switch {
+	case spec.ChannelID == string(channel.Codex) && (spec.ClientProtocol == protocol.OpenAIResponses ||
+		spec.ClientProtocol == protocol.OpenAICompletions || spec.ClientProtocol == protocol.Anthropic):
+		sanitized, _, err := dialect.StripEmbeddedThoughtSignatures(payload)
+		return sanitized, err
+	case spec.ChannelID == string(channel.Claude) && spec.ClientProtocol == protocol.Anthropic:
+		sanitized, _, err := dialect.SanitizeClaudeThinkingHistory(payload)
+		return sanitized, err
+	default:
+		return payload, nil
+	}
 }
 
 func formatFor(clientProtocol protocol.Protocol) string {

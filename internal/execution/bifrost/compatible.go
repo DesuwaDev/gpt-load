@@ -14,11 +14,12 @@ func (r *Runtime) usesCompatibleChat(spec execution.AttemptSpec) bool {
 		(spec.Operation == execution.OperationChatCompletion || spec.Operation == execution.OperationResponsesCreate)
 }
 
-func (r *Runtime) compatibleResponsesRequest(ctx *schemas.BifrostContext, request *schemas.BifrostResponsesRequest) (*schemas.BifrostResponsesResponse, *schemas.BifrostError) {
+func (r *Runtime) compatibleResponsesRequest(ctx *schemas.BifrostContext, request *schemas.BifrostResponsesRequest, channelID string) (*schemas.BifrostResponsesResponse, *schemas.BifrostError) {
 	chat, aliases, err := prepareCompatibleChatRequest(ctx, request)
 	if err != nil {
 		return nil, err
 	}
+	sanitizeCompatibleChatForChannel(ctx, chat, channelID)
 	response, err := r.core.ChatCompletionRequest(ctx, chat)
 	if err != nil || response == nil {
 		return nil, err

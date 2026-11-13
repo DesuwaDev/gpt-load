@@ -77,7 +77,55 @@ func firstErrorMessage(payload map[string]any) string {
 			}
 		}
 	}
+	if message := validationErrorMessage(payload["detail"]); message != "" {
+		return message
+	}
+	// Mistral wraps validation errors as {"message":{"detail":[...]}}.
+	if nested, ok := payload["message"].(map[string]any); ok {
+		return validationErrorMessage(nested["detail"])
+	}
 	return ""
+}
+
+// validationErrorMessage summarizes a FastAPI/Pydantic validation error list
+// as "location: message" entries. The rejected input is never included, since
+// it echoes request content.
+func validationErrorMessage(value any) string {
+	items, ok := value.([]any)
+	if !ok {
+		return ""
+	}
+	const maxEntries = 5
+	entries := make([]string, 0, min(len(items), maxEntries))
+	for _, raw := range items {
+		item, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		message, _ := item["msg"].(string)
+		if message = strings.TrimSpace(message); message == "" {
+			continue
+		}
+		location := make([]string, 0, 8)
+		if path, ok := item["loc"].([]any); ok {
+			for _, segment := range path {
+				switch typed := segment.(type) {
+				case string:
+					location = append(location, typed)
+				case json.Number:
+					location = append(location, typed.String())
+				}
+			}
+		}
+		if len(location) > 0 {
+			message = strings.Join(location, ".") + ": " + message
+		}
+		entries = append(entries, message)
+		if len(entries) == maxEntries {
+			break
+		}
+	}
+	return strings.Join(entries, "; ")
 }
 
 func safeErrorMessageText(value string) string {

@@ -194,3 +194,15 @@ func TestRedactorBytesDoesNotAliasInput(t *testing.T) {
 		t.Fatalf("Bytes() mutated input: %q", input)
 	}
 }
+
+func TestExtractErrorMessageSummarizesValidationErrors(t *testing.T) {
+	for body, want := range map[string]string{
+		`{"detail":[{"type":"extra_forbidden","loc":["body","messages",1,"assistant","reasoning_content"],"msg":"Extra inputs are not permitted","input":"secret reasoning"}]}`:                                                                                                                "body.messages.1.assistant.reasoning_content: Extra inputs are not permitted",
+		`{"object":"error","message":{"detail":[{"type":"extra_forbidden","loc":["body","user"],"msg":"Extra inputs are not permitted","input":"u1"},{"type":"extra_forbidden","loc":["body","store"],"msg":"Extra inputs are not permitted","input":false}]},"type":"invalid_request_error"}`: "body.user: Extra inputs are not permitted; body.store: Extra inputs are not permitted",
+		`{"detail":"plain message"}`: "plain message",
+	} {
+		if got := ExtractErrorMessage([]byte(body)); got != want {
+			t.Errorf("ExtractErrorMessage(%s) = %q, want %q", body, got, want)
+		}
+	}
+}

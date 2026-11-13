@@ -13,11 +13,12 @@ import (
 
 // #665：从完整 Chat chunk 转换，保留原 Responses 执行器的生命周期和客户端编码。
 // SDK 修复后应连同专用入口删除；终态/用量/晚到错误的回归继续保留。
-func (r *Runtime) compatibleResponsesStream(ctx *schemas.BifrostContext, request *schemas.BifrostResponsesRequest) (chan *schemas.BifrostStreamChunk, *schemas.BifrostError) {
+func (r *Runtime) compatibleResponsesStream(ctx *schemas.BifrostContext, request *schemas.BifrostResponsesRequest, channelID string) (chan *schemas.BifrostStreamChunk, *schemas.BifrostError) {
 	chat, aliases, err := prepareCompatibleChatRequest(ctx, request)
 	if err != nil {
 		return nil, err
 	}
+	sanitizeCompatibleChatForChannel(ctx, chat, channelID)
 	// Chat SDK 会合成零用量尾块；原始事件用于区分“未返回用量”和“明确返回零”。
 	ctx.SetValue(schemas.BifrostContextKeyAllowPerRequestRawOverride, true)
 	ctx.SetValue(schemas.BifrostContextKeySendBackRawResponse, true)
